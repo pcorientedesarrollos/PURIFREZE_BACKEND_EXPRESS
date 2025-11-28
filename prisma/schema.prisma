@@ -1,0 +1,352 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Producto {
+  ProductoID     Int      @id @default(autoincrement())
+  TipoProductoID Int?
+  Nombre         String?  @db.VarChar(100)
+  Precio         Float?   @db.Float
+  Descripcion    String?  @db.VarChar(255)
+  IsActive       Boolean?
+}
+
+model TipoProducto {
+  TipoProductoID Int      @id @default(autoincrement())
+  Descripcion    String?  @db.VarChar(255)
+  IsActive       Boolean?
+}
+
+model catalogo_bancos {
+  BancoID       Int      @id @default(autoincrement())
+  NombreBanco   String?  @db.VarChar(255)
+  Observaciones String?  @db.VarChar(255)
+  IsActive      Boolean?
+}
+
+model catalogo_clasificacion_refacciones {
+  ClasificacionRefaccionID Int                   @id @default(autoincrement())
+  NombreClasificacion      String?               @db.VarChar(255)
+  Observaciones            String?               @db.VarChar(255)
+  IsActive                 Int?                  @db.TinyInt
+  refacciones              catalogo_refacciones[] @relation("ClasificacionRefacciones")
+}
+
+model catalogo_clientes {
+  ClienteID      Int      @id @default(autoincrement())
+  NombreComercio String?  @db.VarChar(255)
+  Observaciones  String?  @db.VarChar(255)
+  IsActive       Boolean?
+}
+
+model catalogo_cuentasBancarias {
+  CuentaBancariaID  Int      @id @default(autoincrement())
+  BancoID           Int?
+  CuentaBancaria    String?  @db.VarChar(255)
+  NombrePropietario String?  @db.VarChar(255)
+  Saldo             Float?   @db.Float
+  IsActive          Boolean?
+}
+
+model catalogo_metodos_pago {
+  MetodosDePagoID Int    @id @default(autoincrement())
+  Descripcion     String @db.VarChar(255)
+  EsBancario      Int?   @db.TinyInt
+  IsActive        Int?   @db.TinyInt
+}
+
+model catalogo_proveedores {
+  ProveedorID        Int                  @id @default(autoincrement())
+  NombreProveedor    String?              @db.VarChar(255)
+  Direccion          String?              @db.VarChar(255)
+  Telefono           String?              @db.VarChar(255)
+  Contacto           String?              @db.VarChar(255)
+  Pais               String?              @db.VarChar(255)
+  Correo             String?              @db.VarChar(255)
+  Observaciones      String?              @db.VarChar(255)
+  IsActive           Boolean?
+  compras_encabezado compras_encabezado[] @relation("ProveedorCompras")
+}
+
+model catalogo_puestosTrabajo {
+  PuestoTrabajoID Int      @id @default(autoincrement())
+  PuestoTrabajo   String?  @db.VarChar(255)
+  Observaciones   String?  @db.VarChar(255)
+  IsActive        Boolean?
+}
+
+model catalogo_refacciones {
+  RefaccionID                      Int                                 @id @default(autoincrement())
+  ClasificacionID                  Int?
+  UnidadID                         Int?
+  NombrePieza                      String?                             @db.VarChar(255)
+  NombreCorto                      String?                             @db.VarChar(255)
+  Modelo                           String?                             @db.VarChar(255)
+  Codigo                           String?                             @db.VarChar(255)
+  Observaciones                    String?                             @db.VarChar(255)
+  IsActive                         Boolean?
+  CostoPromedio                    Float?                              @db.Float
+  PrecioVenta                      Float?                              @db.Float
+  PorcentajeUtilidad               Int?
+  catalogo_unidades                catalogo_unidades?                  @relation("UnidadRefacciones", fields: [UnidadID], references: [UnidadID])
+  catalogo_clasificacion_refacciones catalogo_clasificacion_refacciones? @relation("ClasificacionRefacciones", fields: [ClasificacionID], references: [ClasificacionRefaccionID])
+}
+
+model catalogo_unidades {
+  UnidadID       Int                    @id @default(autoincrement())
+  DesUnidad      String?                @db.VarChar(255)
+  EsFraccionable Int?                   @db.TinyInt
+  DecUnidad      String?                @db.VarChar(255)
+  Observaciones  String?                @db.VarChar(255)
+  IsActive       Boolean?
+  refacciones    catalogo_refacciones[] @relation("UnidadRefacciones")
+}
+
+model clientes_correos {
+  CorreoID      Int                          @id @default(autoincrement())
+  ClienteID     Int?
+  EmpleadoID    Int?
+  Correo        String?                      @db.VarChar(255)
+  TipoCorreo    clientes_correos_TipoCorreo? @default(trabajo)
+  Observaciones String?                      @db.VarChar(255)
+  IsActive      Boolean?
+}
+
+model clientes_datosFiscales {
+  DatosFiscalesID Int      @id @default(autoincrement())
+  RazonSocial     String?  @db.VarChar(255)
+  RFC             String?  @db.VarChar(255)
+  Regimen         String?  @db.VarChar(255)
+  DireccionFiscal String?  @db.VarChar(255)
+  Observaciones   String?  @db.VarChar(255)
+  CodigoPostal    String?  @db.VarChar(255)
+  IsActive        Boolean?
+  ClienteID       Int?
+}
+
+model clientes_direcciones {
+  DireccionID   Int      @id @default(autoincrement())
+  ClienteID     Int?
+  Direccion     String?  @db.VarChar(255)
+  Ubicacion     String?  @db.VarChar(255)
+  Observaciones String?  @db.VarChar(255)
+  IsActive      Boolean?
+}
+
+model clientes_empleados {
+  EmpleadoID      Int      @id @default(autoincrement())
+  ClienteID       Int?
+  PuestoTrabajoID Int?
+  NombreEmpleado  String?  @db.VarChar(255)
+  Observaciones   String?  @db.VarChar(255)
+  IsActive        Boolean?
+}
+
+model clientes_telefonos {
+  TelefonoID Int                      @id @default(autoincrement())
+  EmpleadoID Int?
+  Telefono   String?                  @db.VarChar(255)
+  Tipo       clientes_telefonos_Tipo? @default(Trabajo)
+  IsActive   Boolean?
+}
+
+model compras_detalle {
+  CompraDetalleID     Int                 @id @default(autoincrement())
+  CompraEncabezadoID  Int?
+  RefaccionID         Int?
+  Cantidad            Int?
+  PrecioUnitario      Float?              @db.Float
+  DescuentoPorcentaje Int?
+  DescuentoEfectivo   Float?              @db.Float
+  GastosOperativos    Float?              @db.Float
+  GastosImportacion   Float?              @db.Float
+  SubTotal            Float?              @db.Float
+  Total               Float?              @db.Float
+  IsActive            Boolean?
+  compras_encabezado  compras_encabezado? @relation("CompraDetalles", fields: [CompraEncabezadoID], references: [CompraEncabezadoID])
+}
+
+model compras_encabezado {
+  CompraEncabezadoID        Int                         @id @default(autoincrement())
+  ProveedorID               Int?
+  FechaCompra               DateTime?                   @db.Date
+  TotalBruto                Float?                      @db.Float
+  TotalDescuentosPorcentaje Float?                      @db.Float
+  TotalDescuentoEfectivo    Float?                      @db.Float
+  TotalGastosOperativos     Float?                      @db.Float
+  TotalGastosImportacion    Float?                      @db.Float
+  TotalIVA                  Float?                      @db.Float
+  TotalNeto                 Float?                      @db.Float
+  FechaAlta                 String?                     @db.VarChar(255)
+  IsActive                  Boolean?
+  Estatus                   compras_encabezado_Estatus?
+  UsuarioID                 Int?
+  compras_detalle           compras_detalle[]           @relation("CompraDetalles")
+  catalogo_proveedores      catalogo_proveedores?       @relation("ProveedorCompras", fields: [ProveedorID], references: [ProveedorID])
+}
+
+model compras_recepciones_detalle {
+  ComprasRecepcionesDetalleID    Int                           @id @default(autoincrement())
+  ComprasRecepcionesEncabezadoID Int?
+  RefaccionID                    Int?
+  CantidadEstablecida            Float?                        @db.Float
+  IsActive                       Int?                          @db.TinyInt
+  compras_recepciones_encabezado compras_recepciones_encabezado? @relation("RecepcionDetalles", fields: [ComprasRecepcionesEncabezadoID], references: [ComprasRecepcionesEncabezadoID])
+}
+
+model compras_recepciones_encabezado {
+  ComprasRecepcionesEncabezadoID Int                           @id @default(autoincrement())
+  CompraEncabezadoID             Int?
+  FechaRecepcion                 DateTime?                     @db.Date
+  Observaciones                  String?                       @db.VarChar(255)
+  MontoRecepcion                 Float?                        @db.Float
+  UsuarioID                      Int?
+  IsActive                       Int?                          @db.TinyInt
+  compras_recepciones_detalle    compras_recepciones_detalle[] @relation("RecepcionDetalles")
+}
+
+model historial_movimientos_bancarios {
+  MovimientosBancariosID Int       @id @default(autoincrement())
+  CuentaBancariaID       Int?
+  CuentaContableID       String?   @db.VarChar(20)
+  DescripcionMovimiento  String?   @db.VarChar(255)
+  FechaMovimiento        DateTime? @db.Date
+  EoI                    Boolean?
+  MontoMovimiento        Float?    @db.Float
+  PagosID                Int?
+  CobrosID               Int?
+}
+
+model inventario {
+  InventarioID          Int       @id @default(autoincrement())
+  RefaccionID           Int?
+  UbicacionID           Int?
+  StockActual           Int?
+  FechaUltimoMovimiento DateTime? @db.Date
+  IsActive              Int?      @db.TinyInt
+}
+
+model kardex_inventario {
+  KardexInventarioID      Int                               @id @default(autoincrement())
+  RefaccionID             Int?
+  FechaMovimiento         DateTime?                         @db.Date
+  TipoMovimiento          kardex_inventario_TipoMovimiento?
+  Cantidad                Float?                            @db.Float
+  CostoPromedioMovimiento Float?                            @db.Float
+  UsuarioID               Int?
+  Observaciones           String?                           @db.VarChar(255)
+}
+
+model modulos {
+  ModuloID     Int          @id @default(autoincrement())
+  NombreModulo String       @db.VarChar(255)
+  Submodulos   submodulos[]
+}
+
+model pagos {
+  PagosID          Int                   @id @default(autoincrement())
+  ReferenciaTipo   pagos_ReferenciaTipo?
+  ReferenciaID     Int?
+  MetodoPagoID     Int?
+  CuentaBancariaID Int?
+  Monto            Float?                @db.Float
+  FechaPago        DateTime?             @db.Date
+  Observaciones    String?               @db.VarChar(255)
+  UsuarioID        Int?
+  IsActive         Int?                  @db.TinyInt
+}
+
+model permisos {
+  PermisoID   Int        @id @default(autoincrement())
+  UsuarioID   Int
+  SubmoduloID Int
+  IsActive    Boolean
+  Usuario     usuarios   @relation(fields: [UsuarioID], references: [UsuarioID])
+  Submodulo   submodulos @relation(fields: [SubmoduloID], references: [SubmoduloID])
+}
+
+model sesiones {
+  RefreshTokenID Int      @default(autoincrement())
+  RefreshToken   String?  @db.VarChar(255)
+  UsuarioID      Int?
+  IsActive       Boolean?
+  SessionID      String   @db.VarChar(37)
+  IpAdress       String?  @db.VarChar(255)
+  IsActiveAdmin  Boolean?
+  FechaAlta      String?  @db.VarChar(255)
+
+  @@id([RefreshTokenID, SessionID])
+}
+
+model submodulos {
+  SubmoduloID     Int        @id @default(autoincrement())
+  NombreSubmodulo String     @db.VarChar(255)
+  ModuloID        Int
+  Ruta            String     @db.VarChar(255)
+  Modulo          modulos    @relation(fields: [ModuloID], references: [ModuloID])
+  Permisos        permisos[]
+}
+
+model ubicaciones_inventario {
+  UbicacionID   Int                          @id @default(autoincrement())
+  Tipo          ubicaciones_inventario_Tipo?
+  Observaciones String?                      @db.VarChar(255)
+  Fecha         DateTime?                    @db.Date
+}
+
+model usuarios {
+  UsuarioID      Int        @id @default(autoincrement())
+  Usuario        String?    @db.VarChar(255)
+  Password       String?    @db.VarChar(255)
+  NombreCompleto String?    @db.VarChar(255)
+  IsActive       Boolean
+  IsAdmin        Boolean
+  Permisos       permisos[]
+}
+
+enum pagos_ReferenciaTipo {
+  Compras
+  Servicios
+  Ventas
+  Insumos
+  Logistica
+}
+
+enum ubicaciones_inventario_Tipo {
+  Tecnico
+  Bodega
+  Equipo
+}
+
+enum clientes_telefonos_Tipo {
+  Trabajo
+  Personal
+  Otros
+  Ejemplo
+}
+
+enum kardex_inventario_TipoMovimiento {
+  Entrada_Compra
+  Traspaso_Tecnico
+  Traspaso_Bodega_Tecnico
+  Traspaso_Bodega_Equipo
+  Traspaso_Tecnico_Equipo
+  Traspaso_Equipo
+  EMPTY_ENUM_VALUE @map("")
+}
+
+enum clientes_correos_TipoCorreo {
+  trabajo
+  personal
+  otros
+}
+
+enum compras_encabezado_Estatus {
+  Pendiente
+  Finalizado
+}
