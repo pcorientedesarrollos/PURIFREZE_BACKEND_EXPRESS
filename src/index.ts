@@ -29,6 +29,7 @@ import { cuentasBancariasRoutes } from './modules/cuentas-bancarias';
 import { comprasRoutes } from './modules/compras';
 import { comprasRecepcionesRoutes } from './modules/compras-recepciones';
 import { permisosRoutes } from './modules/permisos';
+import { inventarioRoutes } from './modules/inventario';
 
 const app = express();
 
@@ -69,6 +70,7 @@ app.use('/cuentas-bancarias', cuentasBancariasRoutes);
 app.use('/compras', comprasRoutes);
 app.use('/compras-recepciones', comprasRecepcionesRoutes);
 app.use('/permisos', permisosRoutes);
+app.use('/inventario', inventarioRoutes);
 
 // Error handler (debe ir al final)
 app.use(errorHandler);
