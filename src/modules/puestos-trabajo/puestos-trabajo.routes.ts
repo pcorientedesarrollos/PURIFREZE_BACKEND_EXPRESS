@@ -88,6 +88,9 @@ router.get('/:PuestoTrabajoID', validateParams(puestoTrabajoIdParamSchema), (req
  */
 router.put('/:PuestoTrabajoID', validateParams(puestoTrabajoIdParamSchema), validateBody(updatePuestoTrabajoSchema), (req, res) => puestosTrabajoController.update(req, res));
 
+// Alias PATCH para compatibilidad con frontend
+router.patch('/:PuestoTrabajoID', validateParams(puestoTrabajoIdParamSchema), validateBody(updatePuestoTrabajoSchema), (req, res) => puestosTrabajoController.update(req, res));
+
 /** @swagger
  * /puestos-trabajo/baja/{PuestoTrabajoID}:
  *   patch:
