@@ -24,7 +24,8 @@ class ComprasRecepcionesService {
     const fechaHoy = new Date(fechaHoyStr);
     const usuarioIDNum = UsuarioID || 0;
 
-    const result = await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(
+      async (tx) => {
       // 1. Verificar que la compra exista y no esté finalizada
       const compra = await tx.compras_encabezado.findUnique({
         where: { CompraEncabezadoID },
@@ -192,7 +193,12 @@ class ComprasRecepcionesService {
         recepcion: recepcionGuardada,
         compraFinalizada: recepcionCompleta && nuevoTotalPagado >= totalNeto,
       };
-    });
+    },
+      {
+        maxWait: 10000, // Máximo 10 segundos esperando para iniciar la transacción
+        timeout: 30000, // Máximo 30 segundos para completar la transacción
+      },
+    );
 
     return { message: 'Recepción de compra registrada correctamente', data: result };
   }
@@ -260,15 +266,35 @@ class ComprasRecepcionesService {
 
   /**
    * Obtiene recepciones con pagos por ID de compra
+   * Incluye información completa de refacciones para facilitar nuevas recepciones
    */
   async findByCompraWithPagos(compraEncabezadoID: number) {
-    const recepciones = await prisma.compras_recepciones_encabezado.findMany({
+    // 1. Obtener la compra con sus detalles
+    const compra = await prisma.compras_encabezado.findUnique({
       where: { CompraEncabezadoID: compraEncabezadoID },
-      include: { compras_recepciones_detalle: true },
+      include: {
+        compras_detalle: {
+          where: { IsActive: true },
+        },
+      },
+    });
+
+    if (!compra) {
+      throw new HttpError('Compra no encontrada', 404);
+    }
+
+    // 2. Obtener recepciones con sus detalles
+    const recepciones = await prisma.compras_recepciones_encabezado.findMany({
+      where: { CompraEncabezadoID: compraEncabezadoID, IsActive: 1 },
+      include: {
+        compras_recepciones_detalle: {
+          where: { IsActive: 1 },
+        },
+      },
       orderBy: { ComprasRecepcionesEncabezadoID: 'desc' },
     });
 
-    // Obtener pagos de la compra
+    // 3. Obtener pagos de la compra
     const pagos = await prisma.pagos.findMany({
       where: {
         ReferenciaTipo: 'Compras',
@@ -278,20 +304,101 @@ class ComprasRecepcionesService {
       orderBy: { PagosID: 'desc' },
     });
 
-    // Obtener totales
+    // 4. Obtener IDs de refacciones de la compra
+    const refaccionIDs = compra.compras_detalle
+      .map(d => d.RefaccionID)
+      .filter((id): id is number => id !== null);
+
+    // 5. Obtener información de las refacciones
+    const refacciones = await prisma.catalogo_refacciones.findMany({
+      where: { RefaccionID: { in: refaccionIDs } },
+    });
+    const refaccionesMap = new Map(refacciones.map(r => [r.RefaccionID, r]));
+
+    // 6. Calcular cantidades recibidas por refacción
+    const cantidadesRecibidas = new Map<number, number>();
+    for (const recepcion of recepciones) {
+      for (const detalle of recepcion.compras_recepciones_detalle) {
+        if (detalle.RefaccionID) {
+          const actual = cantidadesRecibidas.get(detalle.RefaccionID) || 0;
+          cantidadesRecibidas.set(detalle.RefaccionID, actual + (detalle.CantidadEstablecida || 0));
+        }
+      }
+    }
+
+    // 7. Construir detalle de refacciones con info completa
+    const refaccionesDetalle = compra.compras_detalle.map(detalle => {
+      const refaccion = detalle.RefaccionID ? refaccionesMap.get(detalle.RefaccionID) : null;
+      const cantidadRecibida = detalle.RefaccionID ? (cantidadesRecibidas.get(detalle.RefaccionID) || 0) : 0;
+      const cantidadComprada = detalle.Cantidad || 0;
+      const cantidadPendiente = cantidadComprada - cantidadRecibida;
+      const precioUnitario = detalle.PrecioUnitario || 0;
+
+      return {
+        CompraDetalleID: detalle.CompraDetalleID,
+        RefaccionID: detalle.RefaccionID,
+        NombreRefaccion: refaccion?.NombrePieza || 'Refacción no encontrada',
+        Descripcion: refaccion?.Observaciones || '',
+        CantidadComprada: cantidadComprada,
+        CantidadRecibida: cantidadRecibida,
+        CantidadPendiente: cantidadPendiente,
+        PrecioUnitario: precioUnitario,
+        SubtotalComprado: cantidadComprada * precioUnitario,
+        SubtotalRecibido: cantidadRecibida * precioUnitario,
+        SubtotalPendiente: cantidadPendiente * precioUnitario,
+        Completado: cantidadPendiente <= 0,
+      };
+    });
+
+    // 8. Calcular totales
     const totalPagado = pagos.reduce((sum, p) => sum + (p.Monto || 0), 0);
     const totalRecibido = recepciones.reduce((sum, r) => sum + (r.MontoRecepcion || 0), 0);
+    const totalCompra = compra.TotalNeto || 0;
+    const montoPendientePago = totalCompra - totalPagado;
+
+    // 9. Calcular totales de refacciones
+    const totalRefaccionesCompradas = refaccionesDetalle.reduce((sum, r) => sum + r.CantidadComprada, 0);
+    const totalRefaccionesRecibidas = refaccionesDetalle.reduce((sum, r) => sum + r.CantidadRecibida, 0);
+    const totalRefaccionesPendientes = refaccionesDetalle.reduce((sum, r) => sum + r.CantidadPendiente, 0);
 
     return {
       message: 'Recepciones con pagos de la compra obtenidas',
       data: {
-        recepciones,
-        pagos,
+        compra: {
+          CompraEncabezadoID: compra.CompraEncabezadoID,
+          ProveedorID: compra.ProveedorID,
+          FechaCompra: compra.FechaCompra ? moment(compra.FechaCompra).format('YYYY-MM-DD') : null,
+          Estatus: compra.Estatus,
+          Subtotal: compra.Subtotal,
+          IVA: compra.IVA,
+          TotalNeto: compra.TotalNeto,
+          Observaciones: compra.Observaciones,
+        },
+        refacciones: refaccionesDetalle,
+        recepciones: recepciones.map(r => ({
+          ...r,
+          FechaRecepcion: r.FechaRecepcion ? moment(r.FechaRecepcion).format('YYYY-MM-DD') : null,
+        })),
+        pagos: pagos.map(p => ({
+          ...p,
+          FechaPago: p.FechaPago ? moment(p.FechaPago).format('YYYY-MM-DD') : null,
+        })),
         resumen: {
           totalRecepciones: recepciones.length,
           totalPagos: pagos.length,
+          // Montos
+          montoTotalCompra: totalCompra,
           montoTotalRecibido: totalRecibido,
           montoTotalPagado: totalPagado,
+          montoPendientePago: montoPendientePago,
+          // Refacciones
+          totalRefaccionesCompradas,
+          totalRefaccionesRecibidas,
+          totalRefaccionesPendientes,
+          // Estado
+          compraFinalizada: compra.Estatus === 'Finalizado',
+          recepcionCompleta: totalRefaccionesPendientes <= 0,
+          pagoCompleto: montoPendientePago <= 0,
         },
       },
     };

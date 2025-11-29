@@ -210,26 +210,26 @@ export async function obtenerTotalPagadoCompra(
 
 /**
  * Obtiene las cantidades recibidas por refacción de una compra
+ * Optimizado: usa include para evitar N+1 queries
  */
 export async function obtenerCantidadesRecibidasCompra(
   tx: Prisma.TransactionClient,
   compraEncabezadoID: number,
 ): Promise<Map<number, number>> {
+  // Una sola query con include para obtener recepciones y detalles
   const recepciones = await tx.compras_recepciones_encabezado.findMany({
     where: { CompraEncabezadoID: compraEncabezadoID, IsActive: 1 },
+    include: {
+      compras_recepciones_detalle: {
+        where: { IsActive: 1 },
+      },
+    },
   });
 
   const cantidadesRecibidas = new Map<number, number>();
 
   for (const recepcion of recepciones) {
-    const detalles = await tx.compras_recepciones_detalle.findMany({
-      where: {
-        ComprasRecepcionesEncabezadoID: recepcion.ComprasRecepcionesEncabezadoID,
-        IsActive: 1
-      },
-    });
-
-    for (const detalle of detalles) {
+    for (const detalle of recepcion.compras_recepciones_detalle) {
       if (detalle.RefaccionID) {
         const cantidadActual = cantidadesRecibidas.get(detalle.RefaccionID) || 0;
         cantidadesRecibidas.set(detalle.RefaccionID, cantidadActual + (detalle.CantidadEstablecida || 0));
