@@ -48,6 +48,17 @@ router.post('/', validateBody(createClienteCorreoSchema), (req, res) => clientes
 router.get('/', (req, res) => clientesCorreosController.findAll(req, res));
 
 /** @swagger
+ * /clientes-correos/enum/tipos:
+ *   get:
+ *     summary: Obtener tipos de correo disponibles
+ *     tags: [Clientes - Correos]
+ *     responses:
+ *       200:
+ *         description: Lista de tipos de correo
+ */
+router.get('/enum/tipos', (req, res) => clientesCorreosController.getTiposCorreo(req, res));
+
+/** @swagger
  * /clientes-correos/{CorreoID}:
  *   get:
  *     summary: Obtener correo por ID

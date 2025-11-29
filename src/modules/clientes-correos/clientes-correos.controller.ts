@@ -13,6 +13,11 @@ class ClientesCorreosController {
     return success(res, result.message, result.data);
   }
 
+  getTiposCorreo(_req: Request, res: Response) {
+    const result = clientesCorreosService.getTiposCorreo();
+    return success(res, result.message, result.data);
+  }
+
   async findOne(req: Request, res: Response) {
     const { CorreoID } = req.params as unknown as { CorreoID: number };
     const result = await clientesCorreosService.findOne(CorreoID);

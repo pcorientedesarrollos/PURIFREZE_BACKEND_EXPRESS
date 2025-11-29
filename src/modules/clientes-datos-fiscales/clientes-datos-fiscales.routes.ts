@@ -86,6 +86,23 @@ router.get('/:DatosFiscalesID', validateParams(datosFiscalesIdParamSchema), (req
 router.get('/cliente/:ClienteID', validateParams(clienteIdParamSchema), (req, res) => clientesDatosFiscalesController.findByClienteID(req, res));
 
 /** @swagger
+ * /clientes-datos-fiscales/por-cliente/{ClienteID}:
+ *   get:
+ *     summary: Obtener datos fiscales por ClienteID (alias)
+ *     tags: [Clientes - Datos Fiscales]
+ *     parameters:
+ *       - in: path
+ *         name: ClienteID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Datos fiscales del cliente
+ */
+router.get('/por-cliente/:ClienteID', validateParams(clienteIdParamSchema), (req, res) => clientesDatosFiscalesController.findByClienteID(req, res));
+
+/** @swagger
  * /clientes-datos-fiscales/{DatosFiscalesID}:
  *   put:
  *     summary: Actualizar datos fiscales

@@ -19,9 +19,23 @@ class ClientesEmpleadosController {
     return success(res, result.message, result.data);
   }
 
+  // Alias con EmpleadosID (plural) para compatibilidad con frontend
+  async findOneByEmpleadosID(req: Request, res: Response) {
+    const { EmpleadosID } = req.params as unknown as { EmpleadosID: number };
+    const result = await clientesEmpleadosService.findOne(EmpleadosID);
+    return success(res, result.message, result.data);
+  }
+
   async update(req: Request, res: Response) {
     const { EmpleadoID } = req.params as unknown as { EmpleadoID: number };
     const result = await clientesEmpleadosService.update(EmpleadoID, req.body);
+    return success(res, result.message, result.data);
+  }
+
+  // Alias con EmpleadosID (plural) para compatibilidad con frontend
+  async updateByEmpleadosID(req: Request, res: Response) {
+    const { EmpleadosID } = req.params as unknown as { EmpleadosID: number };
+    const result = await clientesEmpleadosService.update(EmpleadosID, req.body);
     return success(res, result.message, result.data);
   }
 
@@ -31,9 +45,23 @@ class ClientesEmpleadosController {
     return success(res, result.message, result.data);
   }
 
+  // Alias con EmpleadosID (plural) para compatibilidad con frontend
+  async bajaByEmpleadosID(req: Request, res: Response) {
+    const { EmpleadosID } = req.params as unknown as { EmpleadosID: number };
+    const result = await clientesEmpleadosService.baja(EmpleadosID);
+    return success(res, result.message, result.data);
+  }
+
   async activar(req: Request, res: Response) {
     const { EmpleadoID } = req.params as unknown as { EmpleadoID: number };
     const result = await clientesEmpleadosService.activar(EmpleadoID);
+    return success(res, result.message, result.data);
+  }
+
+  // Alias con EmpleadosID (plural) para compatibilidad con frontend
+  async activarByEmpleadosID(req: Request, res: Response) {
+    const { EmpleadosID } = req.params as unknown as { EmpleadosID: number };
+    const result = await clientesEmpleadosService.activar(EmpleadosID);
     return success(res, result.message, result.data);
   }
 }

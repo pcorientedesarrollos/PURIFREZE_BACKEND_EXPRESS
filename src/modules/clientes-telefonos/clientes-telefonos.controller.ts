@@ -19,6 +19,12 @@ class ClientesTelefonosController {
     return success(res, result.message, result.data);
   }
 
+  async findByEmpleadoID(req: Request, res: Response) {
+    const { EmpleadoID } = req.params as unknown as { EmpleadoID: number };
+    const result = await clientesTelefonosService.findByEmpleadoID(EmpleadoID);
+    return success(res, result.message, result.data);
+  }
+
   async update(req: Request, res: Response) {
     const { TelefonoID } = req.params as unknown as { TelefonoID: number };
     const result = await clientesTelefonosService.update(TelefonoID, req.body);

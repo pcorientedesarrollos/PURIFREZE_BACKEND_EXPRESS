@@ -17,5 +17,9 @@ export const telefonoIdParamSchema = z.object({
   TelefonoID: z.string().regex(/^\d+$/, 'ID debe ser un número válido').transform(Number),
 });
 
+export const empleadoIdParamSchema = z.object({
+  EmpleadoID: z.string().regex(/^\d+$/, 'ID debe ser un número válido').transform(Number),
+});
+
 export type CreateClienteTelefonoDto = z.infer<typeof createClienteTelefonoSchema>;
 export type UpdateClienteTelefonoDto = z.infer<typeof updateClienteTelefonoSchema>;

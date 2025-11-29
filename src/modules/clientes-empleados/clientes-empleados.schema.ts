@@ -17,5 +17,10 @@ export const empleadoIdParamSchema = z.object({
   EmpleadoID: z.string().regex(/^\d+$/, 'ID debe ser un número válido').transform(Number),
 });
 
+// Schema alternativo para compatibilidad con frontend (usa EmpleadosID en plural)
+export const empleadosIdParamSchema = z.object({
+  EmpleadosID: z.string().regex(/^\d+$/, 'ID debe ser un número válido').transform(Number),
+});
+
 export type CreateClienteEmpleadoDto = z.infer<typeof createClienteEmpleadoSchema>;
 export type UpdateClienteEmpleadoDto = z.infer<typeof updateClienteEmpleadoSchema>;

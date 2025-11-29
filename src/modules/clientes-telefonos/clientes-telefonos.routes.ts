@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { clientesTelefonosController } from './clientes-telefonos.controller';
 import { validateBody, validateParams } from '../../middlewares/validateRequest';
-import { createClienteTelefonoSchema, updateClienteTelefonoSchema, telefonoIdParamSchema } from './clientes-telefonos.schema';
+import { createClienteTelefonoSchema, updateClienteTelefonoSchema, telefonoIdParamSchema, empleadoIdParamSchema } from './clientes-telefonos.schema';
 
 const router = Router();
 
@@ -41,6 +41,23 @@ router.post('/', validateBody(createClienteTelefonoSchema), (req, res) => client
  *         description: Lista de teléfonos
  */
 router.get('/', (req, res) => clientesTelefonosController.findAll(req, res));
+
+/** @swagger
+ * /clientes-telefonos/empleado/{EmpleadoID}:
+ *   get:
+ *     summary: Obtener teléfonos por EmpleadoID
+ *     tags: [Clientes - Teléfonos]
+ *     parameters:
+ *       - in: path
+ *         name: EmpleadoID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Lista de teléfonos del empleado
+ */
+router.get('/empleado/:EmpleadoID', validateParams(empleadoIdParamSchema), (req, res) => clientesTelefonosController.findByEmpleadoID(req, res));
 
 /** @swagger
  * /clientes-telefonos/{TelefonoID}:

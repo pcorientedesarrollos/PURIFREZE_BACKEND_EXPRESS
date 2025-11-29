@@ -46,6 +46,15 @@ class ClientesTelefonosService {
     return { message: 'Teléfono obtenido', data: telefono };
   }
 
+  async findByEmpleadoID(EmpleadoID: number) {
+    const telefonos = await prisma.clientes_telefonos.findMany({
+      where: { EmpleadoID },
+      orderBy: { TelefonoID: 'desc' },
+    });
+
+    return { message: 'Teléfonos del empleado obtenidos', data: telefonos };
+  }
+
   async update(TelefonoID: number, data: UpdateClienteTelefonoDto) {
     const { Telefono } = data;
 

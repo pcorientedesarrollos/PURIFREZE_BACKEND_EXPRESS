@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { clientesEmpleadosController } from './clientes-empleados.controller';
 import { validateBody, validateParams } from '../../middlewares/validateRequest';
-import { createClienteEmpleadoSchema, updateClienteEmpleadoSchema, empleadoIdParamSchema } from './clientes-empleados.schema';
+import { createClienteEmpleadoSchema, updateClienteEmpleadoSchema, empleadoIdParamSchema, empleadosIdParamSchema } from './clientes-empleados.schema';
 
 const router = Router();
 
@@ -124,5 +124,91 @@ router.patch('/baja/:EmpleadoID', validateParams(empleadoIdParamSchema), (req, r
  *         description: Activado
  */
 router.patch('/activar/:EmpleadoID', validateParams(empleadoIdParamSchema), (req, res) => clientesEmpleadosController.activar(req, res));
+
+// =============================================
+// RUTAS ALIAS CON EmpleadosID (para compatibilidad con frontend)
+// =============================================
+
+/** @swagger
+ * /clientes-empleados/by-empleados/{EmpleadosID}:
+ *   get:
+ *     summary: Obtener empleado por ID (alias con EmpleadosID)
+ *     tags: [Clientes - Empleados]
+ *     parameters:
+ *       - in: path
+ *         name: EmpleadosID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Encontrado
+ *       404:
+ *         description: No encontrado
+ */
+router.get('/by-empleados/:EmpleadosID', validateParams(empleadosIdParamSchema), (req, res) => clientesEmpleadosController.findOneByEmpleadosID(req, res));
+
+/** @swagger
+ * /clientes-empleados/by-empleados/{EmpleadosID}:
+ *   put:
+ *     summary: Actualizar empleado (alias con EmpleadosID)
+ *     tags: [Clientes - Empleados]
+ *     parameters:
+ *       - in: path
+ *         name: EmpleadosID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               PuestoTrabajoID:
+ *                 type: integer
+ *               NombreEmpleado:
+ *                 type: string
+ *               Observaciones:
+ *                 type: string
+ *     responses:
+ *       200:
+ *         description: Actualizado
+ */
+router.put('/by-empleados/:EmpleadosID', validateParams(empleadosIdParamSchema), validateBody(updateClienteEmpleadoSchema), (req, res) => clientesEmpleadosController.updateByEmpleadosID(req, res));
+
+/** @swagger
+ * /clientes-empleados/baja-empleados/{EmpleadosID}:
+ *   patch:
+ *     summary: Dar de baja empleado (alias con EmpleadosID)
+ *     tags: [Clientes - Empleados]
+ *     parameters:
+ *       - in: path
+ *         name: EmpleadosID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Dado de baja
+ */
+router.patch('/baja-empleados/:EmpleadosID', validateParams(empleadosIdParamSchema), (req, res) => clientesEmpleadosController.bajaByEmpleadosID(req, res));
+
+/** @swagger
+ * /clientes-empleados/activar-empleados/{EmpleadosID}:
+ *   patch:
+ *     summary: Activar empleado (alias con EmpleadosID)
+ *     tags: [Clientes - Empleados]
+ *     parameters:
+ *       - in: path
+ *         name: EmpleadosID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Activado
+ */
+router.patch('/activar-empleados/:EmpleadosID', validateParams(empleadosIdParamSchema), (req, res) => clientesEmpleadosController.activarByEmpleadosID(req, res));
 
 export default router;

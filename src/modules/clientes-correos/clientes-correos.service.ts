@@ -38,6 +38,11 @@ class ClientesCorreosService {
     return { message: 'Correos obtenidos', data: allCorreos };
   }
 
+  getTiposCorreo() {
+    const tipos = ['trabajo', 'personal', 'otros'];
+    return { message: 'Tipos de correo obtenidos', data: tipos };
+  }
+
   async findOne(CorreoID: number) {
     const correo = await prisma.clientes_correos.findUnique({
       where: { CorreoID },

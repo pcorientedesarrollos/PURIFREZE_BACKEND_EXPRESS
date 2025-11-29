@@ -60,6 +60,7 @@ app.use('/usuarios', usuariosRoutes);
 app.use('/proveedores', proveedoresRoutes);
 app.use('/clientes', clientesRoutes);
 app.use('/clientes-direcciones', clientesDireccionesRoutes);
+app.use('/direcciones', clientesDireccionesRoutes);
 app.use('/clientes-telefonos', clientesTelefonosRoutes);
 app.use('/clientes-correos', clientesCorreosRoutes);
 app.use('/clientes-empleados', clientesEmpleadosRoutes);
