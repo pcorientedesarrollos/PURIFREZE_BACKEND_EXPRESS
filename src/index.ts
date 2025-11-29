@@ -51,6 +51,7 @@ app.use('/bancos', bancosRoutes);
 app.use('/unidades', unidadesRoutes);
 app.use('/catalogo-unidades', unidadesRoutes);
 app.use('/metodos-pago', metodosPagoRoutes);
+app.use('/catalogo-metodos-pago', metodosPagoRoutes);
 app.use('/puestos-trabajo', puestosTrabajoRoutes);
 app.use('/clasificacion-refacciones', clasificacionRefaccionesRoutes);
 app.use('/catalogo-clasificacion-refacciones', clasificacionRefaccionesRoutes);

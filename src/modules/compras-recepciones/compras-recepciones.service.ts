@@ -20,7 +20,8 @@ class ComprasRecepcionesService {
 
   async create(createDto: CreateRecepcionDto) {
     const { CompraEncabezadoID, Detalles, MontoRecepcion, MetodoPagoID, CuentaBancariaID, UsuarioID } = createDto;
-    const fechaHoy = createDto.FechaRecepcion || moment().format('YYYY-MM-DD');
+    const fechaHoyStr = createDto.FechaRecepcion || moment().format('YYYY-MM-DD');
+    const fechaHoy = new Date(fechaHoyStr);
     const usuarioIDNum = UsuarioID || 0;
 
     const result = await prisma.$transaction(async (tx) => {
@@ -126,7 +127,7 @@ class ComprasRecepcionesService {
           tx,
           detalleRecepcion.RefaccionID,
           detalleRecepcion.CantidadEstablecida,
-          fechaHoy,
+          fechaHoyStr,
         );
 
         // Crear registro en Kardex
@@ -138,7 +139,7 @@ class ComprasRecepcionesService {
           usuarioIDNum,
           'Entrada_Compra',
           `Entrada por recepción de compra #${CompraEncabezadoID}`,
-          fechaHoy,
+          fechaHoyStr,
         );
 
         // Actualizar costo promedio
@@ -159,7 +160,7 @@ class ComprasRecepcionesService {
         monto: MontoRecepcion,
         UsuarioID: UsuarioID || 0,
         observaciones: `Pago parcial de compra #${CompraEncabezadoID} - Recepción #${recepcionGuardada.ComprasRecepcionesEncabezadoID}`,
-        fechaPago: fechaHoy,
+        fechaPago: fechaHoyStr,
       });
 
       // 10. Verificar si la compra se completó

@@ -98,7 +98,13 @@ class ComprasService {
       orderBy: { CompraEncabezadoID: 'desc' },
     });
 
-    return { message: 'Compras obtenidas', data: compras };
+    // Formatear FechaCompra a solo fecha (YYYY-MM-DD)
+    const comprasFormateadas = compras.map((compra) => ({
+      ...compra,
+      FechaCompra: compra.FechaCompra ? moment(compra.FechaCompra).format('YYYY-MM-DD') : null,
+    }));
+
+    return { message: 'Compras obtenidas', data: comprasFormateadas };
   }
 
   /**
@@ -114,7 +120,13 @@ class ComprasService {
       throw new HttpError('Compra no encontrada', 404);
     }
 
-    return { message: 'Compra obtenida', data: compra };
+    // Formatear FechaCompra a solo fecha (YYYY-MM-DD)
+    const compraFormateada = {
+      ...compra,
+      FechaCompra: compra.FechaCompra ? moment(compra.FechaCompra).format('YYYY-MM-DD') : null,
+    };
+
+    return { message: 'Compra obtenida', data: compraFormateada };
   }
 
   /**

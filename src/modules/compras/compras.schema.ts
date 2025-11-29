@@ -17,7 +17,7 @@ export const createCompraDetalleSchema = z.object({
 export const createCompraSchema = z.object({
   ProveedorID: z.number({ required_error: 'ProveedorID es requerido' }),
   CuentaBancariaID: z.number({ required_error: 'CuentaBancariaID es requerido' }),
-  FechaCompra: z.string({ required_error: 'FechaCompra es requerida' }),
+  FechaCompra: z.string({ required_error: 'FechaCompra es requerida' }).transform((val) => new Date(val)),
   TotalBruto: z.number({ required_error: 'TotalBruto es requerido' }),
   TotalDescuentosPorcentaje: z.number({ required_error: 'TotalDescuentosPorcentaje es requerido' }),
   TotalDescuentoEfectivo: z.number({ required_error: 'TotalDescuentoEfectivo es requerido' }),
@@ -49,7 +49,7 @@ export const updateCompraDetalleSchema = z.object({
 export const updateCompraSchema = z.object({
   ProveedorID: z.number().optional(),
   CuentaBancariaID: z.number().optional(),
-  FechaCompra: z.string().optional(),
+  FechaCompra: z.string().optional().transform((val) => val ? new Date(val) : undefined),
   TotalBruto: z.number().optional(),
   TotalDescuentosPorcentaje: z.number().optional(),
   TotalDescuentoEfectivo: z.number().optional(),
