@@ -30,9 +30,13 @@ class RefaccionesService {
       throw new HttpError('La unidad no existe', 300);
     }
 
+    // Mapear ClasificacionRefaccionID a ClasificacionID (nombre en Prisma)
+    const { ClasificacionRefaccionID: ClasificacionID, ...restData } = data;
+
     const refaccion = await prisma.catalogo_refacciones.create({
       data: {
-        ...data,
+        ...restData,
+        ClasificacionID,
         IsActive: true,
       },
     });
@@ -114,9 +118,16 @@ class RefaccionesService {
       }
     }
 
+    // Mapear ClasificacionRefaccionID a ClasificacionID (nombre en Prisma)
+    const { ClasificacionRefaccionID: _, ...restData } = data;
+    const updateData: any = { ...restData };
+    if (ClasificacionRefaccionID !== undefined) {
+      updateData.ClasificacionID = ClasificacionRefaccionID;
+    }
+
     const refaccionUpdate = await prisma.catalogo_refacciones.update({
       where: { RefaccionID },
-      data,
+      data: updateData,
     });
 
     return { message: 'Refacción Actualizada', data: refaccionUpdate };
