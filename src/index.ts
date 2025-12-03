@@ -30,6 +30,11 @@ import { comprasRoutes } from './modules/compras';
 import { comprasRecepcionesRoutes } from './modules/compras-recepciones';
 import { permisosRoutes } from './modules/permisos';
 import { inventarioRoutes } from './modules/inventario';
+import { tecnicosRoutes } from './modules/tecnicos';
+import { inventarioTecnicoRoutes } from './modules/inventario-tecnico';
+import { traspasosRoutes } from './modules/traspasos';
+import { refaccionesDanadasRoutes } from './modules/refacciones-danadas';
+import { ajustesInventarioRoutes } from './modules/ajustes-inventario';
 
 const app = express();
 
@@ -73,6 +78,11 @@ app.use('/compras', comprasRoutes);
 app.use('/compras-recepciones', comprasRecepcionesRoutes);
 app.use('/permisos', permisosRoutes);
 app.use('/inventario', inventarioRoutes);
+app.use('/tecnicos', tecnicosRoutes);
+app.use('/inventario-tecnico', inventarioTecnicoRoutes);
+app.use('/traspasos', traspasosRoutes);
+app.use('/refacciones-danadas', refaccionesDanadasRoutes);
+app.use('/ajustes-inventario', ajustesInventarioRoutes);
 
 // Error handler (debe ir al final)
 app.use(errorHandler);

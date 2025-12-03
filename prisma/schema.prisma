@@ -81,20 +81,24 @@ model catalogo_puestosTrabajo {
 }
 
 model catalogo_refacciones {
-  RefaccionID                      Int                                 @id @default(autoincrement())
-  ClasificacionID                  Int?
-  UnidadID                         Int?
-  NombrePieza                      String?                             @db.VarChar(255)
-  NombreCorto                      String?                             @db.VarChar(255)
-  Modelo                           String?                             @db.VarChar(255)
-  Codigo                           String?                             @db.VarChar(255)
-  Observaciones                    String?                             @db.VarChar(255)
-  IsActive                         Boolean?
-  CostoPromedio                    Float?                              @db.Float
-  PrecioVenta                      Float?                              @db.Float
-  PorcentajeUtilidad               Int?
-  catalogo_unidades                catalogo_unidades?                  @relation("UnidadRefacciones", fields: [UnidadID], references: [UnidadID])
-  catalogo_clasificacion_refacciones catalogo_clasificacion_refacciones? @relation("ClasificacionRefacciones", fields: [ClasificacionID], references: [ClasificacionRefaccionID])
+  RefaccionID                        Int                                   @id @default(autoincrement())
+  ClasificacionID                    Int?
+  UnidadID                           Int?
+  NombrePieza                        String?                               @db.VarChar(255)
+  NombreCorto                        String?                               @db.VarChar(255)
+  Modelo                             String?                               @db.VarChar(255)
+  Codigo                             String?                               @db.VarChar(255)
+  Observaciones                      String?                               @db.VarChar(255)
+  IsActive                           Boolean?
+  CostoPromedio                      Float?                                @db.Float
+  PrecioVenta                        Float?                                @db.Float
+  PorcentajeUtilidad                 Int?
+  catalogo_unidades                  catalogo_unidades?                    @relation("UnidadRefacciones", fields: [UnidadID], references: [UnidadID])
+  catalogo_clasificacion_refacciones catalogo_clasificacion_refacciones?   @relation("ClasificacionRefacciones", fields: [ClasificacionID], references: [ClasificacionRefaccionID])
+  inventario_tecnico                 inventario_tecnico[]
+  traspasos_detalle                  traspasos_detalle[]
+  refacciones_danadas                refacciones_danadas[]
+  ajustes_inventario                 ajustes_inventario[]
 }
 
 model catalogo_unidades {
@@ -300,13 +304,110 @@ model ubicaciones_inventario {
 }
 
 model usuarios {
-  UsuarioID      Int        @id @default(autoincrement())
-  Usuario        String?    @db.VarChar(255)
-  Password       String?    @db.VarChar(255)
-  NombreCompleto String?    @db.VarChar(255)
-  IsActive       Boolean
-  IsAdmin        Boolean
-  Permisos       permisos[]
+  UsuarioID         Int                 @id @default(autoincrement())
+  Usuario           String?             @db.VarChar(255)
+  Password          String?             @db.VarChar(255)
+  NombreCompleto    String?             @db.VarChar(255)
+  IsActive          Boolean
+  IsAdmin           Boolean
+  Permisos          permisos[]
+  catalogo_tecnicos catalogo_tecnicos?
+}
+
+model catalogo_tecnicos {
+  TecnicoID          Int                  @id @default(autoincrement())
+  UsuarioID          Int                  @unique
+  Codigo             String?              @db.VarChar(20)
+  Telefono           String?              @db.VarChar(20)
+  Observaciones      String?              @db.VarChar(255)
+  IsActive           Boolean?
+  FechaAlta          DateTime?            @db.Date
+
+  usuario            usuarios             @relation(fields: [UsuarioID], references: [UsuarioID])
+  inventario_tecnico inventario_tecnico[]
+}
+
+model inventario_tecnico {
+  InventarioTecnicoID Int       @id @default(autoincrement())
+  TecnicoID           Int
+  RefaccionID         Int
+  StockNuevo          Int       @default(0)
+  StockUsado          Int       @default(0)
+  FechaUltimoMov      DateTime? @db.Date
+  IsActive            Int?      @db.TinyInt @default(1)
+
+  tecnico             catalogo_tecnicos    @relation(fields: [TecnicoID], references: [TecnicoID])
+  refaccion           catalogo_refacciones @relation(fields: [RefaccionID], references: [RefaccionID])
+
+  @@unique([TecnicoID, RefaccionID])
+}
+
+model traspasos_encabezado {
+  TraspasoEncabezadoID Int                  @id @default(autoincrement())
+  TipoTraspaso         TipoTraspaso
+  OrigenTipo           OrigenDestinoTipo
+  OrigenID             Int?
+  DestinoTipo          OrigenDestinoTipo
+  DestinoID            Int?
+  UsuarioSolicitaID    Int
+  UsuarioAutorizaID    Int?
+  FechaSolicitud       DateTime             @db.Date
+  FechaAutorizacion    DateTime?            @db.Date
+  Estatus              EstatusSolicitud     @default(Pendiente)
+  Observaciones        String?              @db.VarChar(255)
+  IsActive             Int?                 @db.TinyInt @default(1)
+
+  traspasos_detalle    traspasos_detalle[]
+}
+
+model traspasos_detalle {
+  TraspasoDetalleID    Int                   @id @default(autoincrement())
+  TraspasoEncabezadoID Int
+  RefaccionID          Int
+  CantidadNuevo        Int                   @default(0)
+  CantidadUsado        Int                   @default(0)
+  IsActive             Int?                  @db.TinyInt @default(1)
+
+  encabezado           traspasos_encabezado  @relation(fields: [TraspasoEncabezadoID], references: [TraspasoEncabezadoID])
+  refaccion            catalogo_refacciones  @relation(fields: [RefaccionID], references: [RefaccionID])
+}
+
+model refacciones_danadas {
+  RefaccionDanadaID  Int           @id @default(autoincrement())
+  RefaccionID        Int
+  TecnicoID          Int?
+  ProveedorID        Int?
+  CompraEncabezadoID Int?
+  Cantidad           Int
+  MotivoDano         MotivoDano
+  Observaciones      String?       @db.VarChar(255)
+  FechaRegistro      DateTime      @db.Date
+  UsuarioID          Int
+  IsActive           Int?          @db.TinyInt @default(1)
+
+  refaccion          catalogo_refacciones  @relation(fields: [RefaccionID], references: [RefaccionID])
+}
+
+model ajustes_inventario {
+  AjusteID           Int            @id @default(autoincrement())
+  TecnicoID          Int
+  RefaccionID        Int
+  StockSistemaNuevo  Int
+  StockSistemaUsado  Int
+  StockRealNuevo     Int
+  StockRealUsado     Int
+  DiferenciaNuevo    Int
+  DiferenciaUsado    Int
+  MotivoAjuste       MotivoAjuste
+  Observaciones      String?        @db.VarChar(255)
+  UsuarioSolicitaID  Int
+  UsuarioAutorizaID  Int?
+  FechaSolicitud     DateTime       @db.Date
+  FechaAutorizacion  DateTime?      @db.Date
+  Estatus            EstatusAjuste  @default(Pendiente)
+  IsActive           Int?           @db.TinyInt @default(1)
+
+  refaccion          catalogo_refacciones @relation(fields: [RefaccionID], references: [RefaccionID])
 }
 
 enum pagos_ReferenciaTipo {
@@ -349,4 +450,44 @@ enum clientes_correos_TipoCorreo {
 enum compras_encabezado_Estatus {
   Pendiente
   Finalizado
+}
+
+enum TipoTraspaso {
+  Bodega_Tecnico
+  Tecnico_Bodega
+  Tecnico_Tecnico
+}
+
+enum OrigenDestinoTipo {
+  Bodega
+  Tecnico
+}
+
+enum EstatusSolicitud {
+  Pendiente
+  Autorizado
+  Rechazado
+}
+
+enum MotivoDano {
+  Defecto_Fabrica
+  Mal_Uso
+  Desgaste_Normal
+  Accidente
+  Otro
+}
+
+enum MotivoAjuste {
+  Perdida
+  Error_Captura
+  Robo
+  Deterioro
+  Sobrante
+  Otro
+}
+
+enum EstatusAjuste {
+  Pendiente
+  Autorizado
+  Rechazado
 }
