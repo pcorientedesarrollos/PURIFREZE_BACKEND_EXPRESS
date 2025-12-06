@@ -100,6 +100,7 @@ model catalogo_refacciones {
   refacciones_danadas                refacciones_danadas[]
   ajustes_inventario                 ajustes_inventario[]
   plantillas_equipo_detalle          plantillas_equipo_detalle[]
+  equipos_detalle                    equipos_detalle[]
 }
 
 model catalogo_unidades {
@@ -379,6 +380,7 @@ model refacciones_danadas {
   TecnicoID          Int?
   ProveedorID        Int?
   CompraEncabezadoID Int?
+  EquipoID           Int?
   Cantidad           Int
   MotivoDano         MotivoDano
   Observaciones      String?       @db.VarChar(255)
@@ -387,6 +389,7 @@ model refacciones_danadas {
   IsActive           Int?          @db.TinyInt @default(1)
 
   refaccion          catalogo_refacciones  @relation(fields: [RefaccionID], references: [RefaccionID])
+  equipo             equipos?              @relation(fields: [EquipoID], references: [EquipoID])
 }
 
 model ajustes_inventario {
@@ -506,6 +509,7 @@ model plantillas_equipo {
   FechaModificacion  DateTime? @db.Date
 
   detalles           plantillas_equipo_detalle[]
+  equipos            equipos[]
 
   @@unique([Codigo])
 }
@@ -521,4 +525,41 @@ model plantillas_equipo_detalle {
   refaccion          catalogo_refacciones @relation(fields: [RefaccionID], references: [RefaccionID])
 
   @@unique([PlantillaEquipoID, RefaccionID])
+}
+
+model equipos {
+  EquipoID           Int       @id @default(autoincrement())
+  PlantillaEquipoID  Int
+  NumeroSerie        String    @unique @db.VarChar(50)
+  EsExterno          Int       @default(0) @db.TinyInt
+  Estatus            EstatusEquipo @default(Armado)
+  Observaciones      String?   @db.VarChar(500)
+  FechaCreacion      DateTime  @default(now()) @db.Date
+  FechaInstalacion   DateTime? @db.Date
+  FechaDesmontaje    DateTime? @db.Date
+  UsuarioCreadorID   Int?
+  IsActive           Int?      @db.TinyInt @default(1)
+
+  plantilla          plantillas_equipo   @relation(fields: [PlantillaEquipoID], references: [PlantillaEquipoID])
+  detalles           equipos_detalle[]
+  refacciones_danadas refacciones_danadas[]
+}
+
+model equipos_detalle {
+  EquipoDetalleID    Int       @id @default(autoincrement())
+  EquipoID           Int
+  RefaccionID        Int
+  Cantidad           Int       @default(1)
+  IsActive           Int?      @db.TinyInt @default(1)
+
+  equipo             equipos   @relation(fields: [EquipoID], references: [EquipoID])
+  refaccion          catalogo_refacciones @relation(fields: [RefaccionID], references: [RefaccionID])
+
+  @@unique([EquipoID, RefaccionID])
+}
+
+enum EstatusEquipo {
+  Armado
+  Instalado
+  Desmontado
 }
