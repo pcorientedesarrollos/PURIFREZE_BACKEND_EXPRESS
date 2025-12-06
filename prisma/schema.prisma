@@ -99,6 +99,7 @@ model catalogo_refacciones {
   traspasos_detalle                  traspasos_detalle[]
   refacciones_danadas                refacciones_danadas[]
   ajustes_inventario                 ajustes_inventario[]
+  plantillas_equipo_detalle          plantillas_equipo_detalle[]
 }
 
 model catalogo_unidades {
@@ -490,4 +491,33 @@ enum EstatusAjuste {
   Pendiente
   Autorizado
   Rechazado
+}
+
+model plantillas_equipo {
+  PlantillaEquipoID  Int       @id @default(autoincrement())
+  Codigo             String?   @db.VarChar(50)
+  NombreEquipo       String    @db.VarChar(255)
+  Observaciones      String?   @db.VarChar(500)
+  PorcentajeVenta    Float     @default(35.00) @db.Float
+  PorcentajeRenta    Float     @default(15.00) @db.Float
+  IsActive           Int?      @db.TinyInt @default(1)
+  FechaCreacion      DateTime  @default(now()) @db.Date
+  FechaModificacion  DateTime? @db.Date
+
+  detalles           plantillas_equipo_detalle[]
+
+  @@unique([Codigo])
+}
+
+model plantillas_equipo_detalle {
+  PlantillaDetalleID Int                  @id @default(autoincrement())
+  PlantillaEquipoID  Int
+  RefaccionID        Int
+  Cantidad           Int                  @default(1)
+  IsActive           Int?                 @db.TinyInt @default(1)
+
+  plantilla          plantillas_equipo    @relation(fields: [PlantillaEquipoID], references: [PlantillaEquipoID])
+  refaccion          catalogo_refacciones @relation(fields: [RefaccionID], references: [RefaccionID])
+
+  @@unique([PlantillaEquipoID, RefaccionID])
 }

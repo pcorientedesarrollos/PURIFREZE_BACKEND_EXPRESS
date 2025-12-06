@@ -35,6 +35,7 @@ import { inventarioTecnicoRoutes } from './modules/inventario-tecnico';
 import { traspasosRoutes } from './modules/traspasos';
 import { refaccionesDanadasRoutes } from './modules/refacciones-danadas';
 import { ajustesInventarioRoutes } from './modules/ajustes-inventario';
+import { plantillasEquipoRoutes } from './modules/plantillas-equipo';
 
 const app = express();
 
@@ -83,6 +84,7 @@ app.use('/inventario-tecnico', inventarioTecnicoRoutes);
 app.use('/traspasos', traspasosRoutes);
 app.use('/refacciones-danadas', refaccionesDanadasRoutes);
 app.use('/ajustes-inventario', ajustesInventarioRoutes);
+app.use('/plantillas-equipo', plantillasEquipoRoutes);
 
 // Error handler (debe ir al final)
 app.use(errorHandler);
