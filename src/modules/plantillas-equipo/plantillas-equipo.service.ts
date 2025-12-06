@@ -30,6 +30,7 @@ class PlantillasEquipoService {
           Codigo: dto.Codigo || null,
           NombreEquipo: dto.NombreEquipo,
           Observaciones: dto.Observaciones || null,
+          EsExterno: dto.EsExterno ? 1 : 0,
           PorcentajeVenta: dto.PorcentajeVenta,
           PorcentajeRenta: dto.PorcentajeRenta,
           IsActive: 1,
@@ -60,7 +61,7 @@ class PlantillasEquipoService {
   /**
    * Obtiene todas las plantillas con resumen
    */
-  async findAll(search?: string) {
+  async findAll(search?: string, tipo?: 'todos' | 'interno' | 'externo') {
     const where: Prisma.plantillas_equipoWhereInput = {
       IsActive: 1,
     };
@@ -70,6 +71,13 @@ class PlantillasEquipoService {
         { NombreEquipo: { contains: search } },
         { Codigo: { contains: search } },
       ];
+    }
+
+    // Filtrar por tipo de plantilla
+    if (tipo === 'interno') {
+      where.EsExterno = 0;
+    } else if (tipo === 'externo') {
+      where.EsExterno = 1;
     }
 
     const plantillas = await prisma.plantillas_equipo.findMany({
@@ -100,6 +108,7 @@ class PlantillasEquipoService {
         Codigo: plantilla.Codigo,
         NombreEquipo: plantilla.NombreEquipo,
         Observaciones: plantilla.Observaciones,
+        EsExterno: plantilla.EsExterno === 1,
         PorcentajeVenta: plantilla.PorcentajeVenta,
         PorcentajeRenta: plantilla.PorcentajeRenta,
         TotalRefacciones: plantilla.detalles.length,
@@ -152,6 +161,7 @@ class PlantillasEquipoService {
       Codigo: plantilla.Codigo,
       NombreEquipo: plantilla.NombreEquipo,
       Observaciones: plantilla.Observaciones,
+      EsExterno: plantilla.EsExterno === 1,
       PorcentajeVenta: plantilla.PorcentajeVenta,
       PorcentajeRenta: plantilla.PorcentajeRenta,
       IsActive: plantilla.IsActive,
@@ -214,6 +224,7 @@ class PlantillasEquipoService {
           Codigo: dto.Codigo !== undefined ? dto.Codigo : plantillaExistente.Codigo,
           NombreEquipo: dto.NombreEquipo || plantillaExistente.NombreEquipo,
           Observaciones: dto.Observaciones !== undefined ? dto.Observaciones : plantillaExistente.Observaciones,
+          EsExterno: dto.EsExterno !== undefined ? (dto.EsExterno ? 1 : 0) : plantillaExistente.EsExterno,
           PorcentajeVenta: dto.PorcentajeVenta ?? plantillaExistente.PorcentajeVenta,
           PorcentajeRenta: dto.PorcentajeRenta ?? plantillaExistente.PorcentajeRenta,
           FechaModificacion: new Date(),
@@ -298,6 +309,7 @@ class PlantillasEquipoService {
           Codigo: null, // El código debe ser único, así que no se copia
           NombreEquipo: `${plantillaOriginal.NombreEquipo} (Copia)`,
           Observaciones: plantillaOriginal.Observaciones,
+          EsExterno: plantillaOriginal.EsExterno,
           PorcentajeVenta: plantillaOriginal.PorcentajeVenta,
           PorcentajeRenta: plantillaOriginal.PorcentajeRenta,
           IsActive: 1,

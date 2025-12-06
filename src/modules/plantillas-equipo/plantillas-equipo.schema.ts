@@ -11,6 +11,7 @@ export const createPlantillaEquipoSchema = z.object({
   Codigo: z.string().max(50, 'Código máximo 50 caracteres').optional(),
   NombreEquipo: z.string({ required_error: 'NombreEquipo es requerido' }).max(255, 'NombreEquipo máximo 255 caracteres'),
   Observaciones: z.string().max(500, 'Observaciones máximo 500 caracteres').optional(),
+  EsExterno: z.boolean().default(false),
   PorcentajeVenta: z.number().min(0, 'PorcentajeVenta debe ser mayor o igual a 0').default(35),
   PorcentajeRenta: z.number().min(0, 'PorcentajeRenta debe ser mayor o igual a 0').default(15),
   Detalles: z.array(createPlantillaDetalleSchema).min(1, 'Debe incluir al menos una refacción'),
@@ -28,6 +29,7 @@ export const updatePlantillaEquipoSchema = z.object({
   Codigo: z.string().max(50, 'Código máximo 50 caracteres').optional().nullable(),
   NombreEquipo: z.string().max(255, 'NombreEquipo máximo 255 caracteres').optional(),
   Observaciones: z.string().max(500, 'Observaciones máximo 500 caracteres').optional().nullable(),
+  EsExterno: z.boolean().optional(),
   PorcentajeVenta: z.number().min(0, 'PorcentajeVenta debe ser mayor o igual a 0').optional(),
   PorcentajeRenta: z.number().min(0, 'PorcentajeRenta debe ser mayor o igual a 0').optional(),
   Detalles: z.array(updatePlantillaDetalleSchema).optional(),
@@ -42,6 +44,7 @@ export const plantillaEquipoIdParamSchema = z.object({
 // Schema para búsqueda
 export const searchPlantillaQuerySchema = z.object({
   q: z.string().optional(),
+  tipo: z.enum(['todos', 'interno', 'externo']).optional(),
 });
 
 // Types

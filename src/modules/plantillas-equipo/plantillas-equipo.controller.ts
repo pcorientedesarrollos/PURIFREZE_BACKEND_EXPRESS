@@ -9,8 +9,8 @@ class PlantillasEquipoController {
   }
 
   async findAll(req: Request, res: Response) {
-    const { q } = req.query as { q?: string };
-    const result = await plantillasEquipoService.findAll(q);
+    const { q, tipo } = req.query as { q?: string; tipo?: 'todos' | 'interno' | 'externo' };
+    const result = await plantillasEquipoService.findAll(q, tipo);
     return success(res, result.message, result.data);
   }
 

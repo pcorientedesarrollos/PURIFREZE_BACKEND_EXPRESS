@@ -498,6 +498,7 @@ model plantillas_equipo {
   Codigo             String?   @db.VarChar(50)
   NombreEquipo       String    @db.VarChar(255)
   Observaciones      String?   @db.VarChar(500)
+  EsExterno          Int       @default(0) @db.TinyInt
   PorcentajeVenta    Float     @default(35.00) @db.Float
   PorcentajeRenta    Float     @default(15.00) @db.Float
   IsActive           Int?      @db.TinyInt @default(1)

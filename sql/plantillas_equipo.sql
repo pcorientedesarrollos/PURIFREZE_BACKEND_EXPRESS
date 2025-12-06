@@ -10,6 +10,7 @@ CREATE TABLE IF NOT EXISTS `plantillas_equipo` (
   `Codigo` VARCHAR(50) NULL,
   `NombreEquipo` VARCHAR(255) NOT NULL,
   `Observaciones` VARCHAR(500) NULL,
+  `EsExterno` TINYINT NOT NULL DEFAULT 0 COMMENT '0 = Interno (armado en planta), 1 = Externo (equipo de otra empresa)',
   `PorcentajeVenta` FLOAT NOT NULL DEFAULT 35.00,
   `PorcentajeRenta` FLOAT NOT NULL DEFAULT 15.00,
   `IsActive` TINYINT NULL DEFAULT 1,
@@ -45,3 +46,13 @@ CREATE TABLE IF NOT EXISTS `plantillas_equipo_detalle` (
 -- ============================================
 -- FIN DE MIGRACIÓN
 -- ============================================
+
+-- ============================================
+-- MIGRACIÓN ADICIONAL (si la tabla ya existe)
+-- Ejecutar solo si la tabla plantillas_equipo ya fue creada
+-- ============================================
+
+-- ALTER TABLE `plantillas_equipo`
+-- ADD COLUMN `EsExterno` TINYINT NOT NULL DEFAULT 0
+-- COMMENT '0 = Interno (armado en planta), 1 = Externo (equipo de otra empresa)'
+-- AFTER `Observaciones`;
