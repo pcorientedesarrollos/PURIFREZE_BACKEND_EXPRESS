@@ -39,6 +39,7 @@ import { ajustesInventarioRoutes } from './modules/ajustes-inventario';
 import { plantillasEquipoRoutes } from './modules/plantillas-equipo';
 import { equiposRoutes } from './modules/equipos';
 import { presupuestosRoutes } from './modules/presupuestos';
+import { contratosRoutes } from './modules/contratos';
 
 const app = express();
 
@@ -92,6 +93,7 @@ app.use('/ajustes-inventario', ajustesInventarioRoutes);
 app.use('/plantillas-equipo', plantillasEquipoRoutes);
 app.use('/equipos', equiposRoutes);
 app.use('/presupuestos', presupuestosRoutes);
+app.use('/contratos', contratosRoutes);
 
 // Error handler (debe ir al final)
 app.use(errorHandler);

@@ -1,0 +1,170 @@
+import { Request, Response } from 'express';
+import { contratosService } from './contratos.service';
+import { success } from '../../utils/response';
+import { ContratosQueryDto, ServiciosQueryDto } from './contratos.schema';
+
+class ContratosController {
+  // =============================================
+  // CONTRATOS
+  // =============================================
+
+  async create(req: Request, res: Response) {
+    const result = await contratosService.create(req.body);
+    return success(res, result.message, result.data, 201);
+  }
+
+  async findAll(req: Request, res: Response) {
+    const query = req.query as unknown as ContratosQueryDto;
+    const result = await contratosService.findAll(query);
+    return success(res, result.message, result.data);
+  }
+
+  async findOne(req: Request, res: Response) {
+    const { ContratoID } = req.params as unknown as { ContratoID: number };
+    const result = await contratosService.findOne(ContratoID);
+    return success(res, result.message, result.data);
+  }
+
+  async findByCliente(req: Request, res: Response) {
+    const { ClienteID } = req.params as unknown as { ClienteID: number };
+    const result = await contratosService.findByCliente(ClienteID);
+    return success(res, result.message, result.data);
+  }
+
+  async update(req: Request, res: Response) {
+    const { ContratoID } = req.params as unknown as { ContratoID: number };
+    const { UsuarioID, ...data } = req.body;
+    const result = await contratosService.update(ContratoID, data, UsuarioID);
+    return success(res, result.message, result.data);
+  }
+
+  async activar(req: Request, res: Response) {
+    const { ContratoID } = req.params as unknown as { ContratoID: number };
+    const { UsuarioID } = req.body;
+    const result = await contratosService.activar(ContratoID, UsuarioID);
+    return success(res, result.message, result.data);
+  }
+
+  async cancelar(req: Request, res: Response) {
+    const { ContratoID } = req.params as unknown as { ContratoID: number };
+    const result = await contratosService.cancelar(ContratoID, req.body);
+    return success(res, result.message, result.data);
+  }
+
+  async renovar(req: Request, res: Response) {
+    const { ContratoID } = req.params as unknown as { ContratoID: number };
+    const result = await contratosService.renovar(ContratoID, req.body);
+    return success(res, result.message, result.data, 201);
+  }
+
+  async actualizarMonto(req: Request, res: Response) {
+    const { ContratoID } = req.params as unknown as { ContratoID: number };
+    const result = await contratosService.actualizarMonto(ContratoID, req.body);
+    return success(res, result.message, result.data);
+  }
+
+  async baja(req: Request, res: Response) {
+    const { ContratoID } = req.params as unknown as { ContratoID: number };
+    const result = await contratosService.baja(ContratoID);
+    return success(res, result.message, result.data);
+  }
+
+  async activarRegistro(req: Request, res: Response) {
+    const { ContratoID } = req.params as unknown as { ContratoID: number };
+    const result = await contratosService.activarRegistro(ContratoID);
+    return success(res, result.message, result.data);
+  }
+
+  // =============================================
+  // EQUIPOS DEL CONTRATO
+  // =============================================
+
+  async addEquipo(req: Request, res: Response) {
+    const { ContratoID } = req.params as unknown as { ContratoID: number };
+    const { UsuarioID, ...data } = req.body;
+    const result = await contratosService.addEquipo(ContratoID, data, UsuarioID);
+    return success(res, result.message, result.data);
+  }
+
+  async instalarEquipo(req: Request, res: Response) {
+    const { ContratoEquipoID } = req.params as unknown as { ContratoEquipoID: number };
+    const { UsuarioID } = req.body;
+    const result = await contratosService.instalarEquipo(ContratoEquipoID, UsuarioID);
+    return success(res, result.message, result.data);
+  }
+
+  async retirarEquipo(req: Request, res: Response) {
+    const { ContratoEquipoID } = req.params as unknown as { ContratoEquipoID: number };
+    const { UsuarioID } = req.body;
+    const result = await contratosService.retirarEquipo(ContratoEquipoID, UsuarioID);
+    return success(res, result.message, result.data);
+  }
+
+  async updateEquipo(req: Request, res: Response) {
+    const { ContratoEquipoID } = req.params as unknown as { ContratoEquipoID: number };
+    const { UsuarioID, ...data } = req.body;
+    const result = await contratosService.updateEquipo(ContratoEquipoID, data, UsuarioID);
+    return success(res, result.message, result.data);
+  }
+
+  async asignarEquipo(req: Request, res: Response) {
+    const { ContratoEquipoID } = req.params as unknown as { ContratoEquipoID: number };
+    const { UsuarioID, ...data } = req.body;
+    const result = await contratosService.asignarEquipo(ContratoEquipoID, data, UsuarioID);
+    return success(res, result.message, result.data);
+  }
+
+  async getEquiposDisponibles(req: Request, res: Response) {
+    const { ContratoEquipoID } = req.params as unknown as { ContratoEquipoID: number };
+    const result = await contratosService.getEquiposDisponibles(ContratoEquipoID);
+    return success(res, result.message, result.data);
+  }
+
+  async getItemsPendientes(req: Request, res: Response) {
+    const { ContratoID } = req.params as unknown as { ContratoID: number };
+    const result = await contratosService.getItemsPendientes(ContratoID);
+    return success(res, result.message, result.data);
+  }
+
+  // =============================================
+  // SERVICIOS
+  // =============================================
+
+  async createServicio(req: Request, res: Response) {
+    const { ContratoEquipoID } = req.params as unknown as { ContratoEquipoID: number };
+    const result = await contratosService.createServicio(ContratoEquipoID, req.body);
+    return success(res, result.message, result.data, 201);
+  }
+
+  async getServiciosByContrato(req: Request, res: Response) {
+    const { ContratoID } = req.params as unknown as { ContratoID: number };
+    const result = await contratosService.getServiciosByContrato(ContratoID);
+    return success(res, result.message, result.data);
+  }
+
+  async getServiciosProgramados(req: Request, res: Response) {
+    const query = req.query as unknown as ServiciosQueryDto;
+    const result = await contratosService.getServiciosProgramados(query);
+    return success(res, result.message, result.data);
+  }
+
+  async updateServicio(req: Request, res: Response) {
+    const { ServicioID } = req.params as unknown as { ServicioID: number };
+    const result = await contratosService.updateServicio(ServicioID, req.body);
+    return success(res, result.message, result.data);
+  }
+
+  async completarServicio(req: Request, res: Response) {
+    const { ServicioID } = req.params as unknown as { ServicioID: number };
+    const result = await contratosService.completarServicio(ServicioID, req.body);
+    return success(res, result.message, result.data);
+  }
+
+  async cancelarServicio(req: Request, res: Response) {
+    const { ServicioID } = req.params as unknown as { ServicioID: number };
+    const result = await contratosService.cancelarServicio(ServicioID);
+    return success(res, result.message, result.data);
+  }
+}
+
+export const contratosController = new ContratosController();

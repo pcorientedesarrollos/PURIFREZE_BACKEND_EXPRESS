@@ -44,6 +44,8 @@ model catalogo_clientes {
   IsActive       Boolean?
   sucursales     clientes_sucursales[]
   presupuestos   presupuestos_encabezado[]
+  equipos        equipos[]
+  contratos      contratos[]
 }
 
 model clientes_sucursales {
@@ -59,6 +61,8 @@ model clientes_sucursales {
 
   cliente         catalogo_clientes          @relation(fields: [ClienteID], references: [ClienteID])
   presupuestos    presupuestos_encabezado[]
+  equipos         equipos[]
+  contratos       contratos[]
 }
 
 model catalogo_cuentasBancarias {
@@ -119,6 +123,7 @@ model catalogo_refacciones {
   plantillas_equipo_detalle          plantillas_equipo_detalle[]
   equipos_detalle                    equipos_detalle[]
   presupuestos_detalle               presupuestos_detalle[]
+  contratos_equipos                  contratos_equipos[]
 }
 
 model catalogo_unidades {
@@ -345,6 +350,7 @@ model catalogo_tecnicos {
 
   usuario            usuarios             @relation(fields: [UsuarioID], references: [UsuarioID])
   inventario_tecnico inventario_tecnico[]
+  servicios          contratos_servicios[]
 }
 
 model inventario_tecnico {
@@ -529,6 +535,7 @@ model plantillas_equipo {
   detalles              plantillas_equipo_detalle[]
   equipos               equipos[]
   presupuestos_detalle  presupuestos_detalle[]
+  contratos_equipos     contratos_equipos[]
 
   @@unique([Codigo])
 }
@@ -559,9 +566,18 @@ model equipos {
   UsuarioCreadorID   Int?
   IsActive           Int?      @db.TinyInt @default(1)
 
+  // Ubicación actual del equipo (se actualiza al instalar/retirar de contrato)
+  ClienteID          Int?
+  SucursalID         Int?
+  ContratoID         Int?
+
   plantilla          plantillas_equipo   @relation(fields: [PlantillaEquipoID], references: [PlantillaEquipoID])
   detalles           equipos_detalle[]
   refacciones_danadas refacciones_danadas[]
+  cliente            catalogo_clientes?  @relation(fields: [ClienteID], references: [ClienteID])
+  sucursal           clientes_sucursales? @relation(fields: [SucursalID], references: [SucursalID])
+  contrato_actual    contratos?          @relation("EquipoContratoActual", fields: [ContratoID], references: [ContratoID])
+  contratos_equipos  contratos_equipos[]
 }
 
 model equipos_detalle {
@@ -609,6 +625,7 @@ model presupuestos_encabezado {
   cliente               catalogo_clientes        @relation(fields: [ClienteID], references: [ClienteID])
   sucursal              clientes_sucursales?     @relation(fields: [SucursalID], references: [SucursalID])
   detalles              presupuestos_detalle[]
+  contratos             contratos[]
 }
 
 model presupuestos_detalle {
@@ -654,4 +671,159 @@ enum ModalidadPresupuesto {
   VENTA
   RENTA
   MANTENIMIENTO
+}
+
+// =============================================
+// CONTRATOS
+// =============================================
+
+model contratos {
+  ContratoID              Int                    @id @default(autoincrement())
+  NumeroContrato          String                 @unique @db.VarChar(20)
+  PresupuestoID           Int
+  ClienteID               Int
+  SucursalID              Int?
+  FechaInicio             DateTime               @db.Date
+  FechaFin                DateTime               @db.Date
+  Estatus                 EstatusContrato        @default(EN_REVISION)
+  CondicionesPago         CondicionesPago        @default(MENSUAL)
+  DiaPago                 Int                    @default(1)
+  MontoTotal              Float                  @default(0) @db.Float
+  FrecuenciaMantenimiento Int?                   // Meses entre mantenimientos
+  PenalizacionCancelacion Float?                 @db.Float // Porcentaje de penalización
+  MotivosCancelacion      String?                @db.VarChar(500)
+  Observaciones           String?                @db.VarChar(500)
+  ContratoOrigenID        Int?                   // Para renovaciones
+  UsuarioID               Int
+  FechaCreacion           DateTime               @default(now()) @db.Date
+  IsActive                Int?                   @db.TinyInt @default(1)
+
+  presupuesto             presupuestos_encabezado @relation(fields: [PresupuestoID], references: [PresupuestoID])
+  cliente                 catalogo_clientes       @relation(fields: [ClienteID], references: [ClienteID])
+  sucursal                clientes_sucursales?    @relation(fields: [SucursalID], references: [SucursalID])
+  contrato_origen         contratos?              @relation("ContratoRenovacion", fields: [ContratoOrigenID], references: [ContratoID])
+  contratos_renovados     contratos[]             @relation("ContratoRenovacion")
+  equipos_actuales        equipos[]               @relation("EquipoContratoActual")
+  equipos                 contratos_equipos[]
+  historial               contratos_historial[]
+}
+
+model contratos_equipos {
+  ContratoEquipoID        Int                    @id @default(autoincrement())
+  ContratoID              Int
+  EquipoID                Int?                   // Nullable: null = pendiente de asignar
+  ItemPendienteID         Int?                   // Referencia al item pendiente que satisface
+  Modalidad               ModalidadContrato
+  PrecioUnitario          Float                  @default(0) @db.Float
+  PeriodoMeses            Int?                   // Meses para RENTA
+  FechaAsignacion         DateTime               @default(now()) @db.Date
+  FechaInstalacion        DateTime?              @db.Date
+  FechaRetiro             DateTime?              @db.Date
+  Estatus                 EstatusContratoEquipo  @default(PENDIENTE)
+  Observaciones           String?                @db.VarChar(500)
+  IsActive                Int?                   @db.TinyInt @default(1)
+
+  // Datos del presupuesto (para referencia cuando EquipoID es null)
+  PlantillaEquipoID       Int?
+  RefaccionID             Int?
+  TipoItem                String?                @db.VarChar(50) // EQUIPO_PURIFREEZE, EQUIPO_EXTERNO, REFACCION, SERVICIO
+  Descripcion             String?                @db.VarChar(500)
+  CantidadRequerida       Int                    @default(1)
+  CantidadAsignada        Int                    @default(0)
+
+  contrato                contratos              @relation(fields: [ContratoID], references: [ContratoID])
+  equipo                  equipos?               @relation(fields: [EquipoID], references: [EquipoID])
+  plantilla               plantillas_equipo?     @relation(fields: [PlantillaEquipoID], references: [PlantillaEquipoID])
+  refaccion               catalogo_refacciones?  @relation(fields: [RefaccionID], references: [RefaccionID])
+  servicios               contratos_servicios[]
+
+  // Nota: No usamos @@unique porque permitimos múltiples items con EquipoID=null (pendientes)
+  // La unicidad de equipo asignado se valida en el servicio
+  @@index([ContratoID])
+  @@index([EquipoID])
+}
+
+model contratos_servicios {
+  ServicioID              Int                    @id @default(autoincrement())
+  ContratoEquipoID        Int
+  TipoServicio            TipoServicioContrato
+  FechaProgramada         DateTime               @db.Date
+  FechaEjecucion          DateTime?              @db.Date
+  TecnicoID               Int?
+  Estatus                 EstatusServicio        @default(PROGRAMADO)
+  Costo                   Float                  @default(0) @db.Float
+  Observaciones           String?                @db.VarChar(500)
+  UsuarioID               Int?
+  IsActive                Int?                   @db.TinyInt @default(1)
+
+  contrato_equipo         contratos_equipos      @relation(fields: [ContratoEquipoID], references: [ContratoEquipoID])
+  tecnico                 catalogo_tecnicos?     @relation(fields: [TecnicoID], references: [TecnicoID])
+}
+
+model contratos_historial {
+  HistorialID             Int                    @id @default(autoincrement())
+  ContratoID              Int
+  TipoAccion              TipoAccionContrato
+  Descripcion             String                 @db.VarChar(500)
+  ValorAnterior           String?                @db.Text
+  ValorNuevo              String?                @db.Text
+  UsuarioID               Int
+  FechaAccion             DateTime               @default(now())
+
+  contrato                contratos              @relation(fields: [ContratoID], references: [ContratoID])
+}
+
+// Enums de Contratos
+enum EstatusContrato {
+  EN_REVISION
+  ACTIVO
+  VENCIDO
+  CANCELADO
+  RENOVADO
+}
+
+enum CondicionesPago {
+  MENSUAL
+  TRIMESTRAL
+  SEMESTRAL
+  ANUAL
+}
+
+enum ModalidadContrato {
+  VENTA
+  RENTA
+  COMODATO
+  MANTENIMIENTO
+}
+
+enum EstatusContratoEquipo {
+  PENDIENTE
+  INSTALADO
+  RETIRADO
+}
+
+enum TipoServicioContrato {
+  INSTALACION
+  MANTENIMIENTO_PREVENTIVO
+  MANTENIMIENTO_CORRECTIVO
+  REPARACION
+  DESMONTAJE
+}
+
+enum EstatusServicio {
+  PROGRAMADO
+  EN_PROCESO
+  COMPLETADO
+  CANCELADO
+}
+
+enum TipoAccionContrato {
+  CREACION
+  ACTIVACION
+  ACTUALIZACION_MONTO
+  AGREGAR_EQUIPO
+  RETIRAR_EQUIPO
+  CANCELACION
+  RENOVACION
+  MODIFICACION
 }
