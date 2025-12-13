@@ -64,6 +64,25 @@ router.get('/', (req, res) => clientesController.findAll(req, res));
 router.get('/:ClienteID', validateParams(clienteIdParamSchema), (req, res) => clientesController.findOne(req, res));
 
 /** @swagger
+ * /clientes/{ClienteID}/detalle:
+ *   get:
+ *     summary: Obtener detalle completo del cliente con todas sus relaciones
+ *     tags: [Clientes]
+ *     parameters:
+ *       - in: path
+ *         name: ClienteID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Detalle completo del cliente
+ *       404:
+ *         description: No encontrado
+ */
+router.get('/:ClienteID/detalle', validateParams(clienteIdParamSchema), (req, res) => clientesController.findDetalle(req, res));
+
+/** @swagger
  * /clientes/{ClienteID}:
  *   put:
  *     summary: Actualizar cliente

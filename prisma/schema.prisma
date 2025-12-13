@@ -38,10 +38,25 @@ model catalogo_clasificacion_refacciones {
 }
 
 model catalogo_clientes {
-  ClienteID      Int      @id @default(autoincrement())
-  NombreComercio String?  @db.VarChar(255)
-  Observaciones  String?  @db.VarChar(255)
+  ClienteID      Int                   @id @default(autoincrement())
+  NombreComercio String?               @db.VarChar(255)
+  Observaciones  String?               @db.VarChar(255)
   IsActive       Boolean?
+  sucursales     clientes_sucursales[]
+}
+
+model clientes_sucursales {
+  SucursalID      Int                   @id @default(autoincrement())
+  ClienteID       Int
+  NombreSucursal  String                @db.VarChar(255)
+  Direccion       String?               @db.VarChar(255)
+  Ubicacion       String?               @db.VarChar(255)
+  Telefono        String?               @db.VarChar(50)
+  Contacto        String?               @db.VarChar(255)
+  Observaciones   String?               @db.VarChar(255)
+  IsActive        Boolean?              @default(true)
+
+  cliente         catalogo_clientes     @relation(fields: [ClienteID], references: [ClienteID])
 }
 
 model catalogo_cuentasBancarias {

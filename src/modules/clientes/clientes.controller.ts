@@ -36,6 +36,12 @@ class ClientesController {
     const result = await clientesService.activar(ClienteID);
     return success(res, result.message, result.data);
   }
+
+  async findDetalle(req: Request, res: Response) {
+    const { ClienteID } = req.params as unknown as { ClienteID: number };
+    const result = await clientesService.findDetalle(ClienteID);
+    return success(res, result.message, result.data);
+  }
 }
 
 export const clientesController = new ClientesController();

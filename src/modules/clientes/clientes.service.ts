@@ -136,6 +136,79 @@ class ClientesService {
 
     return { message: 'Cliente activado', data: clienteUpdate };
   }
+
+  async findDetalle(ClienteID: number) {
+    const cliente = await prisma.catalogo_clientes.findUnique({
+      where: { ClienteID },
+      include: {
+        sucursales: {
+          where: { IsActive: true },
+          orderBy: { NombreSucursal: 'asc' },
+        },
+      },
+    });
+
+    if (!cliente) {
+      throw new HttpError('Cliente no encontrado', 404);
+    }
+
+    // Obtener direcciones del cliente
+    const direcciones = await prisma.clientes_direcciones.findMany({
+      where: { ClienteID, IsActive: true },
+      orderBy: { DireccionID: 'desc' },
+    });
+
+    // Obtener empleados con sus teléfonos y correos
+    const empleados = await prisma.clientes_empleados.findMany({
+      where: { ClienteID, IsActive: true },
+      orderBy: { NombreEmpleado: 'asc' },
+    });
+
+    // Obtener teléfonos y correos de cada empleado
+    const empleadosConDetalle = await Promise.all(
+      empleados.map(async (empleado) => {
+        const telefonos = await prisma.clientes_telefonos.findMany({
+          where: { EmpleadoID: empleado.EmpleadoID, IsActive: true },
+        });
+
+        const correos = await prisma.clientes_correos.findMany({
+          where: { EmpleadoID: empleado.EmpleadoID, IsActive: true },
+        });
+
+        return {
+          ...empleado,
+          telefonos,
+          correos,
+        };
+      })
+    );
+
+    // Obtener correos directos del cliente (sin EmpleadoID)
+    const correosCliente = await prisma.clientes_correos.findMany({
+      where: {
+        ClienteID,
+        EmpleadoID: null,
+        IsActive: true
+      },
+      orderBy: { CorreoID: 'desc' },
+    });
+
+    // Obtener datos fiscales
+    const datosFiscales = await prisma.clientes_datosFiscales.findFirst({
+      where: { ClienteID, IsActive: true },
+    });
+
+    return {
+      message: 'Detalle del cliente obtenido',
+      data: {
+        ...cliente,
+        direcciones,
+        empleados: empleadosConDetalle,
+        correos: correosCliente,
+        datosFiscales,
+      },
+    };
+  }
 }
 
 export const clientesService = new ClientesService();
