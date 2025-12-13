@@ -38,6 +38,7 @@ import { refaccionesDanadasRoutes } from './modules/refacciones-danadas';
 import { ajustesInventarioRoutes } from './modules/ajustes-inventario';
 import { plantillasEquipoRoutes } from './modules/plantillas-equipo';
 import { equiposRoutes } from './modules/equipos';
+import { presupuestosRoutes } from './modules/presupuestos';
 
 const app = express();
 
@@ -90,6 +91,7 @@ app.use('/refacciones-danadas', refaccionesDanadasRoutes);
 app.use('/ajustes-inventario', ajustesInventarioRoutes);
 app.use('/plantillas-equipo', plantillasEquipoRoutes);
 app.use('/equipos', equiposRoutes);
+app.use('/presupuestos', presupuestosRoutes);
 
 // Error handler (debe ir al final)
 app.use(errorHandler);

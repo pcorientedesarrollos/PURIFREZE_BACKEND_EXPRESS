@@ -38,25 +38,27 @@ model catalogo_clasificacion_refacciones {
 }
 
 model catalogo_clientes {
-  ClienteID      Int                   @id @default(autoincrement())
-  NombreComercio String?               @db.VarChar(255)
-  Observaciones  String?               @db.VarChar(255)
+  ClienteID      Int                        @id @default(autoincrement())
+  NombreComercio String?                    @db.VarChar(255)
+  Observaciones  String?                    @db.VarChar(255)
   IsActive       Boolean?
   sucursales     clientes_sucursales[]
+  presupuestos   presupuestos_encabezado[]
 }
 
 model clientes_sucursales {
-  SucursalID      Int                   @id @default(autoincrement())
+  SucursalID      Int                        @id @default(autoincrement())
   ClienteID       Int
-  NombreSucursal  String                @db.VarChar(255)
-  Direccion       String?               @db.VarChar(255)
-  Ubicacion       String?               @db.VarChar(255)
-  Telefono        String?               @db.VarChar(50)
-  Contacto        String?               @db.VarChar(255)
-  Observaciones   String?               @db.VarChar(255)
-  IsActive        Boolean?              @default(true)
+  NombreSucursal  String                     @db.VarChar(255)
+  Direccion       String?                    @db.VarChar(255)
+  Ubicacion       String?                    @db.VarChar(255)
+  Telefono        String?                    @db.VarChar(50)
+  Contacto        String?                    @db.VarChar(255)
+  Observaciones   String?                    @db.VarChar(255)
+  IsActive        Boolean?                   @default(true)
 
-  cliente         catalogo_clientes     @relation(fields: [ClienteID], references: [ClienteID])
+  cliente         catalogo_clientes          @relation(fields: [ClienteID], references: [ClienteID])
+  presupuestos    presupuestos_encabezado[]
 }
 
 model catalogo_cuentasBancarias {
@@ -116,6 +118,7 @@ model catalogo_refacciones {
   ajustes_inventario                 ajustes_inventario[]
   plantillas_equipo_detalle          plantillas_equipo_detalle[]
   equipos_detalle                    equipos_detalle[]
+  presupuestos_detalle               presupuestos_detalle[]
 }
 
 model catalogo_unidades {
@@ -523,8 +526,9 @@ model plantillas_equipo {
   FechaCreacion      DateTime  @default(now()) @db.Date
   FechaModificacion  DateTime? @db.Date
 
-  detalles           plantillas_equipo_detalle[]
-  equipos            equipos[]
+  detalles              plantillas_equipo_detalle[]
+  equipos               equipos[]
+  presupuestos_detalle  presupuestos_detalle[]
 
   @@unique([Codigo])
 }
@@ -577,4 +581,77 @@ enum EstatusEquipo {
   Armado
   Instalado
   Desmontado
+}
+
+// =============================================
+// PRESUPUESTOS
+// =============================================
+
+model presupuestos_encabezado {
+  PresupuestoID         Int                      @id @default(autoincrement())
+  ClienteID             Int
+  SucursalID            Int?
+  FechaCreacion         DateTime                 @default(now()) @db.Date
+  FechaVigencia         DateTime                 @db.Date
+  Estatus               EstatusPresupuesto       @default(Pendiente)
+  Observaciones         String?                  @db.VarChar(500)
+  UsuarioID             Int
+
+  Subtotal              Float                    @default(0) @db.Float
+  DescuentoPorcentaje   Float?                   @db.Float
+  DescuentoEfectivo     Float?                   @db.Float
+  GastosAdicionales     Float?                   @db.Float
+  IVA                   Float                    @default(0) @db.Float
+  Total                 Float                    @default(0) @db.Float
+
+  IsActive              Int?                     @db.TinyInt @default(1)
+
+  cliente               catalogo_clientes        @relation(fields: [ClienteID], references: [ClienteID])
+  sucursal              clientes_sucursales?     @relation(fields: [SucursalID], references: [SucursalID])
+  detalles              presupuestos_detalle[]
+}
+
+model presupuestos_detalle {
+  DetalleID             Int                      @id @default(autoincrement())
+  PresupuestoID         Int
+  TipoItem              TipoItemPresupuesto
+  Modalidad             ModalidadPresupuesto?
+
+  PlantillaEquipoID     Int?
+  RefaccionID           Int?
+
+  Descripcion           String?                  @db.VarChar(500)
+  Cantidad              Int                      @default(1)
+  PeriodoRenta          Int?                     // Meses de renta (solo para RENTA)
+  PrecioUnitario        Float                    @default(0) @db.Float
+  DescuentoPorcentaje   Float?                   @db.Float
+  DescuentoEfectivo     Float?                   @db.Float
+  Subtotal              Float                    @default(0) @db.Float
+
+  IsActive              Int?                     @db.TinyInt @default(1)
+
+  presupuesto           presupuestos_encabezado  @relation(fields: [PresupuestoID], references: [PresupuestoID])
+  plantilla             plantillas_equipo?       @relation(fields: [PlantillaEquipoID], references: [PlantillaEquipoID])
+  refaccion             catalogo_refacciones?    @relation(fields: [RefaccionID], references: [RefaccionID])
+}
+
+enum EstatusPresupuesto {
+  Pendiente
+  Enviado
+  Aprobado
+  Rechazado
+  Vencido
+}
+
+enum TipoItemPresupuesto {
+  EQUIPO_PURIFREEZE
+  EQUIPO_EXTERNO
+  REFACCION
+  SERVICIO
+}
+
+enum ModalidadPresupuesto {
+  VENTA
+  RENTA
+  MANTENIMIENTO
 }
