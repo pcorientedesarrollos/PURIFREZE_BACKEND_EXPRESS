@@ -39,6 +39,34 @@ class ClientesEmpleadosController {
     return success(res, result.message, result.data);
   }
 
+  // Asignar múltiples puestos (reemplaza los existentes)
+  async asignarPuestos(req: Request, res: Response) {
+    const { EmpleadoID } = req.params as unknown as { EmpleadoID: number };
+    const result = await clientesEmpleadosService.asignarPuestos(EmpleadoID, req.body);
+    return success(res, result.message, result.data);
+  }
+
+  // Agregar un puesto adicional
+  async agregarPuesto(req: Request, res: Response) {
+    const { EmpleadoID } = req.params as unknown as { EmpleadoID: number };
+    const result = await clientesEmpleadosService.agregarPuesto(EmpleadoID, req.body);
+    return success(res, result.message, result.data);
+  }
+
+  // Quitar un puesto del empleado
+  async quitarPuesto(req: Request, res: Response) {
+    const { EmpleadoID, PuestoTrabajoID } = req.params as unknown as { EmpleadoID: number; PuestoTrabajoID: number };
+    const result = await clientesEmpleadosService.quitarPuesto(EmpleadoID, PuestoTrabajoID);
+    return success(res, result.message, result.data);
+  }
+
+  // Obtener puestos de un empleado
+  async getPuestos(req: Request, res: Response) {
+    const { EmpleadoID } = req.params as unknown as { EmpleadoID: number };
+    const result = await clientesEmpleadosService.getPuestos(EmpleadoID);
+    return success(res, result.message, result.data);
+  }
+
   async baja(req: Request, res: Response) {
     const { EmpleadoID } = req.params as unknown as { EmpleadoID: number };
     const result = await clientesEmpleadosService.baja(EmpleadoID);

@@ -140,7 +140,10 @@ class ContratosService {
       });
 
       // Pre-cargar items del presupuesto como "pendientes de asignar"
-      for (const detalle of presupuesto.detalles) {
+      // Solo se copian los equipos Purifreeze (no externos, refacciones ni servicios)
+      const equiposPurifreeze = presupuesto.detalles.filter(d => d.TipoItem === 'EQUIPO_PURIFREEZE');
+
+      for (const detalle of equiposPurifreeze) {
         // Mapear modalidad del presupuesto a modalidad del contrato
         let modalidadContrato: 'VENTA' | 'RENTA' | 'COMODATO' | 'MANTENIMIENTO' = 'VENTA';
         if (detalle.Modalidad === 'RENTA') modalidadContrato = 'RENTA';
@@ -184,10 +187,13 @@ class ContratosService {
       return nuevoContrato;
     });
 
+    // Contar items copiados (solo equipos Purifreeze)
+    const itemsCopiados = presupuesto.detalles.filter(d => d.TipoItem === 'EQUIPO_PURIFREEZE').length;
+
     await this.registrarHistorial(
       contrato.ContratoID,
       'CREACION',
-      `Contrato ${numeroContrato} creado desde presupuesto #${data.PresupuestoID} con ${presupuesto.detalles.length} items pendientes de asignar`,
+      `Contrato ${numeroContrato} creado desde presupuesto #${data.PresupuestoID} con ${itemsCopiados} equipos Purifreeze pendientes de asignar`,
       data.UsuarioID
     );
 

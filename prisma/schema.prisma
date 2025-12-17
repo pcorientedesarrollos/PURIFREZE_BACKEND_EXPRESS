@@ -95,10 +95,11 @@ model catalogo_proveedores {
 }
 
 model catalogo_puestosTrabajo {
-  PuestoTrabajoID Int      @id @default(autoincrement())
-  PuestoTrabajo   String?  @db.VarChar(255)
-  Observaciones   String?  @db.VarChar(255)
-  IsActive        Boolean?
+  PuestoTrabajoID   Int                 @id @default(autoincrement())
+  PuestoTrabajo     String?             @db.VarChar(255)
+  Observaciones     String?             @db.VarChar(255)
+  IsActive          Boolean?
+  empleados_puestos empleados_puestos[]
 }
 
 model catalogo_refacciones {
@@ -168,12 +169,24 @@ model clientes_direcciones {
 }
 
 model clientes_empleados {
-  EmpleadoID      Int      @id @default(autoincrement())
-  ClienteID       Int?
-  PuestoTrabajoID Int?
-  NombreEmpleado  String?  @db.VarChar(255)
-  Observaciones   String?  @db.VarChar(255)
-  IsActive        Boolean?
+  EmpleadoID        Int                 @id @default(autoincrement())
+  ClienteID         Int?
+  NombreEmpleado    String?             @db.VarChar(255)
+  Observaciones     String?             @db.VarChar(255)
+  IsActive          Boolean?
+  empleados_puestos empleados_puestos[]
+}
+
+model empleados_puestos {
+  EmpleadoPuestoID Int                      @id @default(autoincrement())
+  EmpleadoID       Int
+  PuestoTrabajoID  Int
+  IsActive         Boolean?                 @default(true)
+
+  empleado         clientes_empleados       @relation(fields: [EmpleadoID], references: [EmpleadoID])
+  puesto           catalogo_puestosTrabajo  @relation(fields: [PuestoTrabajoID], references: [PuestoTrabajoID])
+
+  @@unique([EmpleadoID, PuestoTrabajoID])
 }
 
 model clientes_telefonos {
