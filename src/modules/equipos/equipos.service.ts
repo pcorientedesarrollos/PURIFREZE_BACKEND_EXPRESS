@@ -538,12 +538,21 @@ class EquiposService {
   }
 
   /**
-   * Desmonta un equipo (Instalado → Desmontado)
+   * Desmonta un equipo (Armado/Instalado → Desmontado)
    * Solo equipos internos (Purifreeze) pueden desmontarse
+   *
+   * Casos de uso:
+   * - Desde servicio: Equipo Instalado que se retira del cliente
+   * - Desde fábrica: Equipo Armado que se desarma para recuperar refacciones
+   *
+   * IMPORTANTE: Todas las refacciones del equipo DEBEN ser procesadas
+   * Opciones:
+   * 1. TodoAlInventario = true: Todas las refacciones regresan automáticamente al inventario
+   * 2. TodoAlInventario = false + Refacciones[]: El usuario especifica el destino de cada refacción
    */
   async desmontar(id: number, dto: DesmontarEquipoDto, usuarioId?: number) {
     const result = await prisma.$transaction(async (tx) => {
-      const equipo = await this.obtenerEquipoValidadoTx(tx, id, ['Instalado']);
+      const equipo = await this.obtenerEquipoValidadoTx(tx, id, ['Armado', 'Instalado']);
 
       // Solo equipos Purifreeze pueden desmontarse
       if (equipo.EsExterno === 1) {
@@ -554,28 +563,106 @@ class EquiposService {
         ? moment(dto.FechaDesmontaje).toDate()
         : new Date();
 
-      // Procesar refacciones si se especifican
-      if (dto.Refacciones && dto.Refacciones.length > 0) {
-        for (const ref of dto.Refacciones) {
-          // Verificar que la refacción pertenezca al equipo
-          const detalle = await tx.equipos_detalle.findFirst({
-            where: { EquipoID: id, RefaccionID: ref.RefaccionID, IsActive: 1 },
+      // Obtener todas las refacciones del equipo
+      const detallesEquipo = await tx.equipos_detalle.findMany({
+        where: { EquipoID: id, IsActive: 1 },
+        include: {
+          refaccion: { select: { NombrePieza: true } },
+        },
+      });
+
+      if (detallesEquipo.length === 0) {
+        throw new HttpError('El equipo no tiene refacciones para desmontar', 400);
+      }
+
+      const refaccionesProcesadas: { RefaccionID: number; Cantidad: number; Destino: string; NombrePieza: string | null }[] = [];
+
+      // OPCIÓN 1: Todo al inventario automáticamente
+      if (dto.TodoAlInventario === true) {
+        for (const detalle of detallesEquipo) {
+          // Incrementar inventario y registrar en kardex
+          await this.incrementarInventarioConTipo(
+            tx,
+            detalle.RefaccionID,
+            detalle.Cantidad,
+            'Traspaso_Equipo',
+            id,
+            usuarioId
+          );
+
+          refaccionesProcesadas.push({
+            RefaccionID: detalle.RefaccionID,
+            Cantidad: detalle.Cantidad,
+            Destino: 'inventario',
+            NombrePieza: detalle.refaccion.NombrePieza,
           });
 
-          if (!detalle) {
+          // Desactivar el detalle del equipo
+          await tx.equipos_detalle.update({
+            where: { EquipoDetalleID: detalle.EquipoDetalleID },
+            data: { IsActive: 0 },
+          });
+        }
+      }
+      // OPCIÓN 2: El usuario especifica el destino de cada refacción
+      else if (dto.Refacciones && dto.Refacciones.length > 0) {
+        // Validar que TODAS las refacciones del equipo estén en el array
+        const refaccionesEnEquipo = new Map(
+          detallesEquipo.map(d => [d.RefaccionID, { cantidad: d.Cantidad, nombre: d.refaccion.NombrePieza, detalleId: d.EquipoDetalleID }])
+        );
+
+        // Agrupar cantidades por RefaccionID del dto
+        const cantidadesPorRefaccion = new Map<number, number>();
+        for (const ref of dto.Refacciones) {
+          const actual = cantidadesPorRefaccion.get(ref.RefaccionID) || 0;
+          cantidadesPorRefaccion.set(ref.RefaccionID, actual + ref.Cantidad);
+        }
+
+        // Validar que cada refacción del equipo esté completamente procesada
+        for (const [refaccionId, info] of refaccionesEnEquipo) {
+          const cantidadProcesada = cantidadesPorRefaccion.get(refaccionId) || 0;
+
+          if (cantidadProcesada === 0) {
+            throw new HttpError(
+              `Falta especificar destino para la refacción "${info.nombre}" (RefaccionID: ${refaccionId}). Cantidad en equipo: ${info.cantidad}`,
+              400
+            );
+          }
+
+          if (cantidadProcesada !== info.cantidad) {
+            throw new HttpError(
+              `La cantidad procesada para "${info.nombre}" (${cantidadProcesada}) no coincide con la cantidad en el equipo (${info.cantidad})`,
+              400
+            );
+          }
+        }
+
+        // Validar que no haya refacciones en el dto que no estén en el equipo
+        for (const ref of dto.Refacciones) {
+          if (!refaccionesEnEquipo.has(ref.RefaccionID)) {
             throw new HttpError(`Refacción ${ref.RefaccionID} no encontrada en el equipo`, 404);
           }
+        }
 
-          if (ref.Cantidad > detalle.Cantidad) {
-            throw new HttpError(`Cantidad excede lo disponible para refacción ${ref.RefaccionID}`, 400);
-          }
+        // Procesar cada refacción según su destino
+        for (const ref of dto.Refacciones) {
+          const info = refaccionesEnEquipo.get(ref.RefaccionID)!;
 
           if (ref.Destino === 'inventario') {
-            await this.incrementarInventario(tx, ref.RefaccionID, ref.Cantidad, usuarioId);
+            // Incrementar inventario y registrar en kardex
+            await this.incrementarInventarioConTipo(
+              tx,
+              ref.RefaccionID,
+              ref.Cantidad,
+              'Traspaso_Equipo',
+              id,
+              usuarioId
+            );
           } else if (ref.Destino === 'danada') {
             if (!ref.MotivoDano) {
-              throw new HttpError(`MotivoDano es requerido para refacción ${ref.RefaccionID}`, 400);
+              throw new HttpError(`MotivoDano es requerido para refacción "${info.nombre}"`, 400);
             }
+            // Registrar como dañada (no incrementa inventario)
             await this.registrarRefaccionDanada(
               tx,
               ref.RefaccionID,
@@ -586,6 +673,21 @@ class EquiposService {
               usuarioId
             );
           }
+
+          refaccionesProcesadas.push({
+            RefaccionID: ref.RefaccionID,
+            Cantidad: ref.Cantidad,
+            Destino: ref.Destino,
+            NombrePieza: info.nombre,
+          });
+        }
+
+        // Desactivar todos los detalles del equipo
+        for (const detalle of detallesEquipo) {
+          await tx.equipos_detalle.update({
+            where: { EquipoDetalleID: detalle.EquipoDetalleID },
+            data: { IsActive: 0 },
+          });
         }
       }
 
@@ -599,15 +701,26 @@ class EquiposService {
         },
       });
 
+      // Construir descripción del historial
+      const refaccionesAlInventario = refaccionesProcesadas.filter(r => r.Destino === 'inventario').length;
+      const refaccionesDanadas = refaccionesProcesadas.filter(r => r.Destino === 'danada').length;
+      const descripcionHistorial = dto.TodoAlInventario
+        ? `Equipo desmontado. Todas las refacciones (${detallesEquipo.length}) regresaron al inventario`
+        : `Equipo desmontado. Refacciones: ${refaccionesAlInventario} al inventario, ${refaccionesDanadas} dañadas`;
+
       // Registrar historial
       await this.registrarHistorial(
         tx,
         id,
         'DESINSTALACION',
-        'Instalado',
+        equipo.Estatus,
         'Desmontado',
-        'Equipo desmontado (piezas individuales al inventario)',
-        { FechaDesmontaje: fechaDesmontaje, Refacciones: dto.Refacciones },
+        descripcionHistorial,
+        {
+          FechaDesmontaje: fechaDesmontaje,
+          TodoAlInventario: dto.TodoAlInventario,
+          Refacciones: refaccionesProcesadas
+        },
         usuarioId
       );
 
@@ -665,14 +778,27 @@ class EquiposService {
 
   /**
    * Da de baja un equipo (soft delete)
+   * No se permite dar de baja equipos en estado "Instalado"
+   * Para dar de baja un equipo instalado, primero debe desmontarse
    */
   async deactivate(id: number, usuarioId?: number) {
     const equipo = await prisma.equipos.findFirst({
       where: { EquipoID: id, IsActive: 1 },
+      include: {
+        plantilla: { select: { NombreEquipo: true } },
+      },
     });
 
     if (!equipo) {
       throw new HttpError('Equipo no encontrado', 404);
+    }
+
+    // No permitir dar de baja equipos instalados
+    if (equipo.Estatus === 'Instalado') {
+      throw new HttpError(
+        `No se puede dar de baja un equipo instalado. El equipo "${equipo.NumeroSerie}" (${equipo.plantilla.NombreEquipo}) debe desmontarse primero`,
+        400
+      );
     }
 
     await prisma.$transaction(async (tx) => {
@@ -687,8 +813,8 @@ class EquiposService {
         'BAJA',
         equipo.Estatus,
         equipo.Estatus,
-        'Equipo dado de baja',
-        null,
+        `Equipo dado de baja (estado: ${equipo.Estatus})`,
+        { EstatusAlDarDeBaja: equipo.Estatus },
         usuarioId
       );
     });
@@ -721,7 +847,7 @@ class EquiposService {
         equipo.Estatus,
         equipo.Estatus,
         'Equipo reactivado',
-        null,
+        undefined,
         usuarioId
       );
     });

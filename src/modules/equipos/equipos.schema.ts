@@ -48,10 +48,14 @@ export const instalarEquipoSchema = z.object({
 });
 
 // Schema para desmontar equipo (Instalado → Desmontado)
-// NOTA: Este endpoint ya no se usa directamente, el desmontaje se hace desde servicios
+// Opciones:
+// 1. TodoAlInventario = true: Todas las refacciones regresan automáticamente al inventario
+// 2. TodoAlInventario = false + Refacciones[]: El usuario especifica el destino de cada refacción
+// IMPORTANTE: Todas las refacciones del equipo DEBEN ser procesadas (no se puede perder inventario)
 export const desmontarEquipoSchema = z.object({
   FechaDesmontaje: z.string().optional(), // Si no se envía, usa fecha actual
   Observaciones: z.string().max(500, 'Observaciones máximo 500 caracteres').optional(),
+  TodoAlInventario: z.boolean().optional().default(false), // Si es true, todas las refacciones van al inventario
   Refacciones: z.array(z.object({
     RefaccionID: z.number({ required_error: 'RefaccionID es requerido' }),
     Cantidad: z.number({ required_error: 'Cantidad es requerida' }).min(1, 'Cantidad mínima es 1'),
@@ -59,7 +63,16 @@ export const desmontarEquipoSchema = z.object({
     MotivoDano: z.enum(['Defecto_Fabrica', 'Mal_Uso', 'Desgaste_Normal', 'Accidente', 'Otro']).optional(),
     ObservacionesDano: z.string().max(255, 'Observaciones máximo 255 caracteres').optional(),
   })).optional(),
-});
+}).refine(
+  (data) => {
+    // Si TodoAlInventario es true, no necesita Refacciones
+    // Si TodoAlInventario es false, debe especificar Refacciones
+    if (data.TodoAlInventario === true) return true;
+    if (data.Refacciones && data.Refacciones.length > 0) return true;
+    return false;
+  },
+  { message: 'Debe especificar TodoAlInventario=true o proporcionar el array de Refacciones con el destino de cada una' }
+);
 
 // Schema para finalizar reacondicionamiento (Reacondicionado → Armado)
 export const finalizarReacondicionamientoSchema = z.object({
