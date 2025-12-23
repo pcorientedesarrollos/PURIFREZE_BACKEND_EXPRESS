@@ -593,7 +593,13 @@ Authorization: Bearer {token}
 
 **Endpoint:** `PATCH /equipos/:EquipoID/desmontar`
 
-**Descripción:** Desmonta un equipo instalado. Solo para equipos Purifreeze. **NOTA:** El flujo principal de desmontaje es desde el módulo de servicios.
+**Descripción:** Desmonta un equipo para recuperar sus refacciones. Solo para equipos Purifreeze. **IMPORTANTE:** Todas las refacciones del equipo DEBEN ser procesadas para evitar pérdida de inventario.
+
+**Casos de uso:**
+- **Desde servicio:** Equipo **Instalado** que se retira del cliente
+- **Desde fábrica:** Equipo **Armado** que se desarma para recuperar refacciones
+
+**Estados permitidos:** `Armado`, `Instalado`
 
 **Headers:**
 ```
@@ -607,30 +613,148 @@ Authorization: Bearer {token}
 |-----------|------|-----------|-------------|
 | `EquipoID` | number | Sí | ID del equipo |
 
+#### Opciones de Desmontaje
+
+Hay **2 formas** de desmontar un equipo:
+
+##### Opción 1: Todo al Inventario (Automático)
+
+Usar cuando todas las refacciones están en buen estado y regresan completas al inventario.
+
 **Payload:**
+```json
+{
+  "TodoAlInventario": true,
+  "Observaciones": "Equipo retirado sin daños"
+}
+```
 
-| Campo | Tipo | Requerido | Validaciones | Descripción |
-|-------|------|-----------|--------------|-------------|
-| `FechaDesmontaje` | string | No | formato ISO | Fecha de desmontaje (default: fecha actual) |
-| `Observaciones` | string | No | max: 500 | Observaciones |
-| `Refacciones` | array | No | - | Array de refacciones a procesar |
+| Campo | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `TodoAlInventario` | boolean | Sí | Debe ser `true` |
+| `FechaDesmontaje` | string | No | Fecha ISO (default: hoy) |
+| `Observaciones` | string | No | max: 500 caracteres |
 
-**Estructura de Refacciones:**
+##### Opción 2: Especificar Destino de Cada Refacción (Manual)
+
+Usar cuando hay refacciones dañadas o se necesita control individual.
+
+**Payload:**
+```json
+{
+  "Observaciones": "Algunas piezas con desgaste",
+  "Refacciones": [
+    {
+      "RefaccionID": 10,
+      "Cantidad": 2,
+      "Destino": "inventario"
+    },
+    {
+      "RefaccionID": 15,
+      "Cantidad": 1,
+      "Destino": "danada",
+      "MotivoDano": "Desgaste_Normal",
+      "ObservacionesDano": "Filtro con perforaciones"
+    }
+  ]
+}
+```
+
+| Campo | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `TodoAlInventario` | boolean | No | Debe ser `false` u omitido |
+| `FechaDesmontaje` | string | No | Fecha ISO (default: hoy) |
+| `Observaciones` | string | No | max: 500 caracteres |
+| `Refacciones` | array | Sí | **TODAS** las refacciones del equipo |
+
+**Estructura de cada Refacción:**
 
 | Campo | Tipo | Requerido | Descripción |
 |-------|------|-----------|-------------|
 | `RefaccionID` | number | Sí | ID de la refacción |
-| `Cantidad` | number | Sí | Cantidad a procesar |
-| `Destino` | string | Sí | inventario o danada |
-| `MotivoDano` | string | Condicional | Requerido si destino es danada |
-| `ObservacionesDano` | string | No | Observaciones del daño |
+| `Cantidad` | number | Sí | Cantidad a procesar (debe coincidir con el equipo) |
+| `Destino` | string | Sí | `inventario` o `danada` |
+| `MotivoDano` | string | Condicional | Requerido si Destino es `danada` |
+| `ObservacionesDano` | string | No | max: 255 caracteres |
 
-**Errores Posibles:**
+**Valores para MotivoDano:**
+- `Defecto_Fabrica`
+- `Mal_Uso`
+- `Desgaste_Normal`
+- `Accidente`
+- `Otro`
+
+#### ¿Cómo obtener las refacciones del equipo?
+
+Antes de desmontar, consulta el equipo para ver sus refacciones:
+
+```
+GET /equipos/:EquipoID
+```
+
+La respuesta incluye el array `Detalles` con cada refacción:
+```json
+{
+  "data": {
+    "EquipoID": 1,
+    "Detalles": [
+      {
+        "EquipoDetalleID": 1,
+        "RefaccionID": 10,
+        "Cantidad": 2,
+        "Refaccion": {
+          "NombrePieza": "Filtro de carbón activado",
+          ...
+        }
+      },
+      {
+        "EquipoDetalleID": 2,
+        "RefaccionID": 15,
+        "Cantidad": 1,
+        "Refaccion": {
+          "NombrePieza": "Bomba de agua",
+          ...
+        }
+      }
+    ]
+  }
+}
+```
+
+#### Response Exitoso (200)
+
+```json
+{
+  "status": 200,
+  "message": "Equipo desmontado correctamente",
+  "error": false,
+  "data": {
+    "EquipoID": 1,
+    "NumeroSerie": "PUR-24-0001",
+    "Estatus": "Desmontado",
+    "FechaDesmontaje": "2024-12-23",
+    ...
+  }
+}
+```
+
+#### Errores Posibles
 
 | Código | Mensaje | Causa |
 |--------|---------|-------|
+| 400 | Debe especificar TodoAlInventario=true o proporcionar el array de Refacciones... | No se especificó ninguna opción |
 | 400 | Solo equipos Purifreeze pueden desmontarse | Equipo externo |
-| 400 | Esta operación solo está permitida para equipos en estado: Instalado | Estado no permitido |
+| 400 | Esta operación solo está permitida para equipos en estado: Armado, Instalado | Estado no permitido |
+| 400 | El equipo no tiene refacciones para desmontar | Equipo sin detalles |
+| 400 | Falta especificar destino para la refacción "X" | Falta refacción en el array |
+| 400 | La cantidad procesada para "X" (Y) no coincide con la cantidad en el equipo (Z) | Cantidades no coinciden |
+| 400 | MotivoDano es requerido para refacción "X" | Falta motivo cuando destino es `danada` |
+| 404 | Refacción X no encontrada en el equipo | RefaccionID no pertenece al equipo |
+
+#### Comportamiento en Kardex
+
+- Cada refacción que va a `inventario` genera un movimiento `Traspaso_Equipo` (entrada)
+- Las refacciones `danada` se registran en la tabla `refacciones_danadas`
 
 ---
 
@@ -697,12 +821,18 @@ Authorization: Bearer {token}
 
 **Endpoint:** `PATCH /equipos/baja/:EquipoID`
 
-**Descripción:** Realiza soft delete del equipo.
+**Descripción:** Realiza soft delete del equipo. **IMPORTANTE:** No se permite dar de baja equipos en estado **Instalado**. Primero deben desmontarse.
 
 **Headers:**
 ```
 Authorization: Bearer {token}
 ```
+
+**Parámetros de URL:**
+
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `EquipoID` | number | Sí | ID del equipo |
 
 **Response Exitoso (200):**
 ```json
@@ -713,6 +843,13 @@ Authorization: Bearer {token}
   "data": { "EquipoID": 1 }
 }
 ```
+
+**Errores Posibles:**
+
+| Código | Mensaje | Causa |
+|--------|---------|-------|
+| 400 | No se puede dar de baja un equipo instalado. El equipo "X" (Y) debe desmontarse primero | Equipo en estado Instalado |
+| 404 | Equipo no encontrado | EquipoID no existe o ya está dado de baja |
 
 ---
 
