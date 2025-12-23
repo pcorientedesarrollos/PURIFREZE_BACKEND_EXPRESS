@@ -12,6 +12,7 @@ import {
   eliminarRefaccionEquipoSchema,
   instalarEquipoSchema,
   desmontarEquipoSchema,
+  finalizarReacondicionamientoSchema,
 } from './equipos.schema';
 
 const router = Router();
@@ -96,11 +97,20 @@ router.patch(
 );
 
 // PATCH /equipos/:EquipoID/desmontar - Desmontar equipo (Instalado → Desmontado)
+// NOTA: Este endpoint se mantiene por compatibilidad, pero el flujo principal es desde servicios
 router.patch(
   '/:EquipoID/desmontar',
   validateParams(equipoIdParamSchema),
   validateBody(desmontarEquipoSchema),
   (req, res) => equiposController.desmontar(req, res)
+);
+
+// PATCH /equipos/:EquipoID/finalizar-reacondicionamiento - Finalizar reacondicionamiento (Reacondicionado → Armado)
+router.patch(
+  '/:EquipoID/finalizar-reacondicionamiento',
+  validateParams(equipoIdParamSchema),
+  validateBody(finalizarReacondicionamientoSchema),
+  (req, res) => equiposController.finalizarReacondicionamiento(req, res)
 );
 
 // ═══════════════════════════════════════════════════════════════════════════

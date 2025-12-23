@@ -7,18 +7,13 @@ import {
   addEquipoSchema,
   asignarEquipoSchema,
   updateEquipoContratoSchema,
-  createServicioSchema,
-  updateServicioSchema,
-  completarServicioSchema,
   cancelarContratoSchema,
   renovarContratoSchema,
   actualizarMontoSchema,
   contratoIdParamSchema,
   contratoEquipoIdParamSchema,
-  servicioIdParamSchema,
   clienteIdParamSchema,
   contratosQuerySchema,
-  serviciosQuerySchema,
 } from './contratos.schema';
 import { z } from 'zod';
 
@@ -38,9 +33,6 @@ router.post('/', validateBody(createContratoSchema), (req, res) => contratosCont
 
 /** Obtener todos los contratos con filtros opcionales */
 router.get('/', validateQuery(contratosQuerySchema), (req, res) => contratosController.findAll(req, res));
-
-/** Obtener servicios programados (agenda) */
-router.get('/servicios/programados', validateQuery(serviciosQuerySchema), (req, res) => contratosController.getServiciosProgramados(req, res));
 
 /** Obtener contratos por cliente */
 router.get('/cliente/:ClienteID', validateParams(clienteIdParamSchema), (req, res) => contratosController.findByCliente(req, res));
@@ -94,23 +86,6 @@ router.patch('/equipos/:ContratoEquipoID/instalar', validateParams(contratoEquip
 /** Retirar equipo del contrato */
 router.patch('/equipos/:ContratoEquipoID/retirar', validateParams(contratoEquipoIdParamSchema), validateBody(usuarioIdSchema), (req, res) => contratosController.retirarEquipo(req, res));
 
-// =============================================
-// SERVICIOS
-// =============================================
-
-/** Obtener servicios de un contrato */
-router.get('/:ContratoID/servicios', validateParams(contratoIdParamSchema), (req, res) => contratosController.getServiciosByContrato(req, res));
-
-/** Programar servicio para un equipo del contrato */
-router.post('/equipos/:ContratoEquipoID/servicios', validateParams(contratoEquipoIdParamSchema), validateBody(createServicioSchema), (req, res) => contratosController.createServicio(req, res));
-
-/** Actualizar servicio */
-router.put('/servicios/:ServicioID', validateParams(servicioIdParamSchema), validateBody(updateServicioSchema), (req, res) => contratosController.updateServicio(req, res));
-
-/** Completar servicio */
-router.patch('/servicios/:ServicioID/completar', validateParams(servicioIdParamSchema), validateBody(completarServicioSchema), (req, res) => contratosController.completarServicio(req, res));
-
-/** Cancelar servicio */
-router.patch('/servicios/:ServicioID/cancelar', validateParams(servicioIdParamSchema), (req, res) => contratosController.cancelarServicio(req, res));
+// NOTA: Los servicios ahora se manejan en el módulo /servicios
 
 export default router;

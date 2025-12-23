@@ -42,12 +42,13 @@ export const updateEquipoSchema = z.object({
 // SCHEMAS PARA CAMBIAR ESTATUS
 // ═══════════════════════════════════════════════════════════════════════════
 
-// Schema para instalar equipo (Armado → Instalado)
+// Schema para instalar equipo (Armado/Reacondicionado → Instalado)
 export const instalarEquipoSchema = z.object({
   FechaInstalacion: z.string().optional(), // Si no se envía, usa fecha actual
 });
 
 // Schema para desmontar equipo (Instalado → Desmontado)
+// NOTA: Este endpoint ya no se usa directamente, el desmontaje se hace desde servicios
 export const desmontarEquipoSchema = z.object({
   FechaDesmontaje: z.string().optional(), // Si no se envía, usa fecha actual
   Observaciones: z.string().max(500, 'Observaciones máximo 500 caracteres').optional(),
@@ -58,6 +59,11 @@ export const desmontarEquipoSchema = z.object({
     MotivoDano: z.enum(['Defecto_Fabrica', 'Mal_Uso', 'Desgaste_Normal', 'Accidente', 'Otro']).optional(),
     ObservacionesDano: z.string().max(255, 'Observaciones máximo 255 caracteres').optional(),
   })).optional(),
+});
+
+// Schema para finalizar reacondicionamiento (Reacondicionado → Armado)
+export const finalizarReacondicionamientoSchema = z.object({
+  Observaciones: z.string().max(500, 'Observaciones máximo 500 caracteres').optional(),
 });
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -79,7 +85,7 @@ export const equipoDetalleIdParamSchema = z.object({
 
 export const searchEquiposQuerySchema = z.object({
   q: z.string().optional(),
-  estatus: z.enum(['todos', 'Armado', 'Instalado', 'Desmontado']).optional(),
+  estatus: z.enum(['todos', 'Armado', 'Instalado', 'Reacondicionado', 'Desmontado']).optional(),
   tipo: z.enum(['todos', 'interno', 'externo']).optional(),
   plantillaId: z.string().regex(/^\d+$/, 'plantillaId debe ser un número válido').transform(Number).optional(),
 });
@@ -95,4 +101,5 @@ export type EliminarRefaccionEquipoDto = z.infer<typeof eliminarRefaccionEquipoS
 export type UpdateEquipoDto = z.infer<typeof updateEquipoSchema>;
 export type InstalarEquipoDto = z.infer<typeof instalarEquipoSchema>;
 export type DesmontarEquipoDto = z.infer<typeof desmontarEquipoSchema>;
+export type FinalizarReacondicionamientoDto = z.infer<typeof finalizarReacondicionamientoSchema>;
 export type SearchEquiposQuery = z.infer<typeof searchEquiposQuerySchema>;

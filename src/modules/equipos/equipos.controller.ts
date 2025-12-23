@@ -40,7 +40,8 @@ class EquiposController {
    */
   async update(req: Request, res: Response) {
     const { EquipoID } = req.params as unknown as { EquipoID: number };
-    const result = await equiposService.update(EquipoID, req.body);
+    const usuarioId = (req as any).usuario?.UsuarioID;
+    const result = await equiposService.update(EquipoID, req.body, usuarioId);
     return success(res, result.message, result.data);
   }
 
@@ -78,12 +79,13 @@ class EquiposController {
   }
 
   /**
-   * Instalar equipo (Armado → Instalado)
+   * Instalar equipo (Armado/Reacondicionado → Instalado)
    * PATCH /equipos/:EquipoID/instalar
    */
   async instalar(req: Request, res: Response) {
     const { EquipoID } = req.params as unknown as { EquipoID: number };
-    const result = await equiposService.instalar(EquipoID, req.body);
+    const usuarioId = (req as any).usuario?.UsuarioID;
+    const result = await equiposService.instalar(EquipoID, req.body, usuarioId);
     return success(res, result.message, result.data);
   }
 
@@ -99,12 +101,24 @@ class EquiposController {
   }
 
   /**
+   * Finalizar reacondicionamiento (Reacondicionado → Armado)
+   * PATCH /equipos/:EquipoID/finalizar-reacondicionamiento
+   */
+  async finalizarReacondicionamiento(req: Request, res: Response) {
+    const { EquipoID } = req.params as unknown as { EquipoID: number };
+    const usuarioId = (req as any).usuario?.UsuarioID;
+    const result = await equiposService.finalizarReacondicionamiento(EquipoID, req.body, usuarioId);
+    return success(res, result.message, result.data);
+  }
+
+  /**
    * Dar de baja equipo
    * PATCH /equipos/baja/:EquipoID
    */
   async deactivate(req: Request, res: Response) {
     const { EquipoID } = req.params as unknown as { EquipoID: number };
-    const result = await equiposService.deactivate(EquipoID);
+    const usuarioId = (req as any).usuario?.UsuarioID;
+    const result = await equiposService.deactivate(EquipoID, usuarioId);
     return success(res, result.message, result.data);
   }
 
@@ -114,7 +128,8 @@ class EquiposController {
    */
   async activate(req: Request, res: Response) {
     const { EquipoID } = req.params as unknown as { EquipoID: number };
-    const result = await equiposService.activate(EquipoID);
+    const usuarioId = (req as any).usuario?.UsuarioID;
+    const result = await equiposService.activate(EquipoID, usuarioId);
     return success(res, result.message, result.data);
   }
 

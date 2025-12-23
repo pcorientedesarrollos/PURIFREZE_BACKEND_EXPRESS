@@ -369,10 +369,9 @@ class ComprasRecepcionesService {
           ProveedorID: compra.ProveedorID,
           FechaCompra: compra.FechaCompra ? moment(compra.FechaCompra).format('YYYY-MM-DD') : null,
           Estatus: compra.Estatus,
-          Subtotal: compra.Subtotal,
-          IVA: compra.IVA,
+          TotalBruto: compra.TotalBruto,
+          TotalIVA: compra.TotalIVA,
           TotalNeto: compra.TotalNeto,
-          Observaciones: compra.Observaciones,
         },
         refacciones: refaccionesDetalle,
         recepciones: recepciones.map(r => ({

@@ -6,14 +6,10 @@ import {
   AddEquipoDto,
   AsignarEquipoDto,
   UpdateEquipoContratoDto,
-  CreateServicioDto,
-  UpdateServicioDto,
-  CompletarServicioDto,
   CancelarContratoDto,
   RenovarContratoDto,
   ActualizarMontoDto,
   ContratosQueryDto,
-  ServiciosQueryDto,
 } from './contratos.schema';
 
 class ContratosService {
@@ -278,9 +274,20 @@ class ContratosService {
             refaccion: {
               select: { RefaccionID: true, NombrePieza: true, Codigo: true },
             },
-            servicios: {
+            servicios_equipos: {
               where: { IsActive: 1 },
-              orderBy: { FechaProgramada: 'asc' },
+              select: {
+                ServicioEquipoID: true,
+                servicio: {
+                  select: {
+                    ServicioID: true,
+                    TipoServicio: true,
+                    FechaProgramada: true,
+                    HoraProgramada: true,
+                    Estatus: true,
+                  },
+                },
+              },
             },
           },
         },
@@ -421,16 +428,18 @@ class ContratosService {
           },
         });
 
-        await tx.equipos.update({
-          where: { EquipoID: ce.EquipoID },
-          data: {
-            Estatus: 'Desmontado',
-            FechaDesmontaje: new Date(),
-            ClienteID: null,
-            SucursalID: null,
-            ContratoID: null,
-          },
-        });
+        if (ce.EquipoID) {
+          await tx.equipos.update({
+            where: { EquipoID: ce.EquipoID },
+            data: {
+              Estatus: 'Desmontado',
+              FechaDesmontaje: new Date(),
+              ClienteID: null,
+              SucursalID: null,
+              ContratoID: null,
+            },
+          });
+        }
       }
 
       await tx.contratos.update({
@@ -509,10 +518,12 @@ class ContratosService {
         });
 
         // Actualizar referencia en equipo
-        await tx.equipos.update({
-          where: { EquipoID: equipo.EquipoID },
-          data: { ContratoID: nuevo.ContratoID },
-        });
+        if (equipo.EquipoID) {
+          await tx.equipos.update({
+            where: { EquipoID: equipo.EquipoID },
+            data: { ContratoID: nuevo.ContratoID },
+          });
+        }
       }
 
       // Marcar contrato anterior como renovado
@@ -719,6 +730,12 @@ class ContratosService {
       throw new HttpError('Solo se pueden instalar equipos de contratos activos', 300);
     }
 
+    if (!contratoEquipo.EquipoID || !contratoEquipo.equipo) {
+      throw new HttpError('El item no tiene un equipo físico asignado', 300);
+    }
+
+    const equipoNumeroSerie = contratoEquipo.equipo.NumeroSerie;
+
     await prisma.$transaction(async (tx) => {
       // Actualizar equipo del contrato
       await tx.contratos_equipos.update({
@@ -731,7 +748,7 @@ class ContratosService {
 
       // Actualizar equipo físico
       await tx.equipos.update({
-        where: { EquipoID: contratoEquipo.EquipoID },
+        where: { EquipoID: contratoEquipo.EquipoID! },
         data: {
           Estatus: 'Instalado',
           FechaInstalacion: new Date(),
@@ -745,7 +762,7 @@ class ContratosService {
     await this.registrarHistorial(
       contratoEquipo.ContratoID,
       'MODIFICACION',
-      `Equipo ${contratoEquipo.equipo.NumeroSerie} instalado`,
+      `Equipo ${equipoNumeroSerie} instalado`,
       UsuarioID
     );
 
@@ -766,6 +783,12 @@ class ContratosService {
       throw new HttpError('Solo se pueden retirar equipos instalados', 300);
     }
 
+    if (!contratoEquipo.EquipoID || !contratoEquipo.equipo) {
+      throw new HttpError('El item no tiene un equipo físico asignado', 300);
+    }
+
+    const equipoNumeroSerie = contratoEquipo.equipo.NumeroSerie;
+
     await prisma.$transaction(async (tx) => {
       // Actualizar equipo del contrato
       await tx.contratos_equipos.update({
@@ -778,7 +801,7 @@ class ContratosService {
 
       // Actualizar equipo físico
       await tx.equipos.update({
-        where: { EquipoID: contratoEquipo.EquipoID },
+        where: { EquipoID: contratoEquipo.EquipoID! },
         data: {
           Estatus: 'Desmontado',
           FechaDesmontaje: new Date(),
@@ -801,7 +824,7 @@ class ContratosService {
     await this.registrarHistorial(
       contratoEquipo.ContratoID,
       'RETIRAR_EQUIPO',
-      `Equipo ${contratoEquipo.equipo.NumeroSerie} retirado del contrato`,
+      `Equipo ${equipoNumeroSerie} retirado del contrato`,
       UsuarioID
     );
 
@@ -1044,212 +1067,7 @@ class ContratosService {
     return { message: 'Items pendientes obtenidos', data: items };
   }
 
-  // =============================================
-  // SERVICIOS
-  // =============================================
-
-  async createServicio(ContratoEquipoID: number, data: CreateServicioDto) {
-    const contratoEquipo = await prisma.contratos_equipos.findUnique({
-      where: { ContratoEquipoID },
-      include: { contrato: true },
-    });
-
-    if (!contratoEquipo) {
-      throw new HttpError('Equipo del contrato no encontrado', 404);
-    }
-
-    if (contratoEquipo.contrato.Estatus !== 'ACTIVO') {
-      throw new HttpError('Solo se pueden programar servicios en contratos activos', 300);
-    }
-
-    // Validar técnico si se proporciona
-    if (data.TecnicoID) {
-      const tecnico = await prisma.catalogo_tecnicos.findUnique({
-        where: { TecnicoID: data.TecnicoID },
-      });
-      if (!tecnico || !tecnico.IsActive) {
-        throw new HttpError('El técnico no existe o no está activo', 404);
-      }
-    }
-
-    const servicio = await prisma.contratos_servicios.create({
-      data: {
-        ContratoEquipoID,
-        TipoServicio: data.TipoServicio,
-        FechaProgramada: new Date(data.FechaProgramada),
-        TecnicoID: data.TecnicoID || null,
-        Costo: data.Costo,
-        Observaciones: data.Observaciones || null,
-        UsuarioID: data.UsuarioID || null,
-        IsActive: 1,
-      },
-    });
-
-    return { message: 'Servicio programado', data: servicio };
-  }
-
-  async getServiciosByContrato(ContratoID: number) {
-    const contrato = await prisma.contratos.findUnique({
-      where: { ContratoID },
-    });
-
-    if (!contrato) {
-      throw new HttpError('Contrato no encontrado', 404);
-    }
-
-    const servicios = await prisma.contratos_servicios.findMany({
-      where: {
-        contrato_equipo: { ContratoID },
-        IsActive: 1,
-      },
-      include: {
-        contrato_equipo: {
-          include: {
-            equipo: {
-              select: { EquipoID: true, NumeroSerie: true },
-            },
-          },
-        },
-        tecnico: {
-          select: {
-            TecnicoID: true,
-            Codigo: true,
-            usuario: { select: { NombreCompleto: true } },
-          },
-        },
-      },
-      orderBy: { FechaProgramada: 'asc' },
-    });
-
-    return { message: 'Servicios obtenidos', data: servicios };
-  }
-
-  async getServiciosProgramados(query?: ServiciosQueryDto) {
-    const where: any = { IsActive: 1 };
-
-    if (query?.estatus) {
-      where.Estatus = query.estatus;
-    }
-    if (query?.tecnicoId) {
-      where.TecnicoID = query.tecnicoId;
-    }
-    if (query?.fechaDesde || query?.fechaHasta) {
-      where.FechaProgramada = {};
-      if (query.fechaDesde) {
-        where.FechaProgramada.gte = new Date(query.fechaDesde);
-      }
-      if (query.fechaHasta) {
-        where.FechaProgramada.lte = new Date(query.fechaHasta);
-      }
-    }
-
-    const servicios = await prisma.contratos_servicios.findMany({
-      where,
-      include: {
-        contrato_equipo: {
-          include: {
-            contrato: {
-              select: {
-                ContratoID: true,
-                NumeroContrato: true,
-                cliente: { select: { ClienteID: true, NombreComercio: true } },
-                sucursal: { select: { SucursalID: true, NombreSucursal: true, Direccion: true } },
-              },
-            },
-            equipo: {
-              select: { EquipoID: true, NumeroSerie: true },
-            },
-          },
-        },
-        tecnico: {
-          select: {
-            TecnicoID: true,
-            Codigo: true,
-            Telefono: true,
-            usuario: { select: { NombreCompleto: true } },
-          },
-        },
-      },
-      orderBy: { FechaProgramada: 'asc' },
-    });
-
-    return { message: 'Servicios programados obtenidos', data: servicios };
-  }
-
-  async updateServicio(ServicioID: number, data: UpdateServicioDto) {
-    const servicio = await prisma.contratos_servicios.findUnique({
-      where: { ServicioID },
-    });
-
-    if (!servicio) {
-      throw new HttpError('Servicio no encontrado', 404);
-    }
-
-    if (servicio.Estatus === 'COMPLETADO' || servicio.Estatus === 'CANCELADO') {
-      throw new HttpError('No se puede modificar un servicio completado o cancelado', 300);
-    }
-
-    const updated = await prisma.contratos_servicios.update({
-      where: { ServicioID },
-      data: {
-        ...data,
-        FechaProgramada: data.FechaProgramada ? new Date(data.FechaProgramada) : undefined,
-      },
-    });
-
-    return { message: 'Servicio actualizado', data: updated };
-  }
-
-  async completarServicio(ServicioID: number, data: CompletarServicioDto) {
-    const servicio = await prisma.contratos_servicios.findUnique({
-      where: { ServicioID },
-    });
-
-    if (!servicio) {
-      throw new HttpError('Servicio no encontrado', 404);
-    }
-
-    if (servicio.Estatus === 'COMPLETADO') {
-      throw new HttpError('El servicio ya está completado', 300);
-    }
-
-    if (servicio.Estatus === 'CANCELADO') {
-      throw new HttpError('No se puede completar un servicio cancelado', 300);
-    }
-
-    const updated = await prisma.contratos_servicios.update({
-      where: { ServicioID },
-      data: {
-        Estatus: 'COMPLETADO',
-        FechaEjecucion: data.FechaEjecucion ? new Date(data.FechaEjecucion) : new Date(),
-        Observaciones: data.Observaciones !== undefined ? data.Observaciones : servicio.Observaciones,
-        Costo: data.Costo !== undefined ? data.Costo : servicio.Costo,
-      },
-    });
-
-    return { message: 'Servicio completado', data: updated };
-  }
-
-  async cancelarServicio(ServicioID: number) {
-    const servicio = await prisma.contratos_servicios.findUnique({
-      where: { ServicioID },
-    });
-
-    if (!servicio) {
-      throw new HttpError('Servicio no encontrado', 404);
-    }
-
-    if (servicio.Estatus === 'COMPLETADO') {
-      throw new HttpError('No se puede cancelar un servicio completado', 300);
-    }
-
-    const updated = await prisma.contratos_servicios.update({
-      where: { ServicioID },
-      data: { Estatus: 'CANCELADO' },
-    });
-
-    return { message: 'Servicio cancelado', data: updated };
-  }
+  // NOTA: Los servicios ahora se manejan en el módulo /servicios
 }
 
 export const contratosService = new ContratosService();

@@ -125,6 +125,9 @@ model catalogo_refacciones {
   equipos_detalle                    equipos_detalle[]
   presupuestos_detalle               presupuestos_detalle[]
   contratos_equipos                  contratos_equipos[]
+  servicios_equipos_refacciones      servicios_equipos_refacciones[] @relation("RefaccionOriginal")
+  servicios_equipos_refacciones_nueva servicios_equipos_refacciones[] @relation("RefaccionNueva")
+  servicios_insumos                  servicios_insumos[]
 }
 
 model catalogo_unidades {
@@ -363,7 +366,8 @@ model catalogo_tecnicos {
 
   usuario            usuarios             @relation(fields: [UsuarioID], references: [UsuarioID])
   inventario_tecnico inventario_tecnico[]
-  servicios          contratos_servicios[]
+  servicios          servicios[]
+  notificaciones     servicios_notificaciones[]
 }
 
 model inventario_tecnico {
@@ -479,6 +483,12 @@ enum kardex_inventario_TipoMovimiento {
   Traspaso_Bodega_Equipo
   Traspaso_Tecnico_Equipo
   Traspaso_Equipo
+  Servicio_Consumo_Tecnico
+  Servicio_Consumo_Bodega
+  Servicio_Devolucion_Bodega
+  Servicio_Danada
+  Reacondicionamiento_Entrada
+  Reacondicionamiento_Salida
   EMPTY_ENUM_VALUE @map("")
 }
 
@@ -576,6 +586,8 @@ model equipos {
   FechaCreacion      DateTime  @default(now()) @db.Date
   FechaInstalacion   DateTime? @db.Date
   FechaDesmontaje    DateTime? @db.Date
+  FechaReacondicionamiento DateTime? @db.Date
+  VecesReacondicionado Int     @default(0)
   UsuarioCreadorID   Int?
   IsActive           Int?      @db.TinyInt @default(1)
 
@@ -587,10 +599,12 @@ model equipos {
   plantilla          plantillas_equipo   @relation(fields: [PlantillaEquipoID], references: [PlantillaEquipoID])
   detalles           equipos_detalle[]
   refacciones_danadas refacciones_danadas[]
+  historial          equipos_historial[]
   cliente            catalogo_clientes?  @relation(fields: [ClienteID], references: [ClienteID])
   sucursal           clientes_sucursales? @relation(fields: [SucursalID], references: [SucursalID])
   contrato_actual    contratos?          @relation("EquipoContratoActual", fields: [ContratoID], references: [ContratoID])
   contratos_equipos  contratos_equipos[]
+  servicios_equipos  servicios_equipos[]
 }
 
 model equipos_detalle {
@@ -609,7 +623,39 @@ model equipos_detalle {
 enum EstatusEquipo {
   Armado
   Instalado
+  Reacondicionado
   Desmontado
+}
+
+model equipos_historial {
+  EquipoHistorialID   Int                @id @default(autoincrement())
+  EquipoID            Int
+  TipoAccion          TipoAccionEquipo
+  EstatusAnterior     EstatusEquipo?
+  EstatusNuevo        EstatusEquipo?
+  Descripcion         String             @db.VarChar(500)
+  DetalleJSON         String?            @db.Text
+  UsuarioID           Int?
+  FechaAccion         DateTime           @default(now())
+
+  equipo              equipos            @relation(fields: [EquipoID], references: [EquipoID])
+
+  @@index([EquipoID])
+  @@index([FechaAccion])
+}
+
+enum TipoAccionEquipo {
+  CREACION
+  INSTALACION
+  DESINSTALACION
+  INICIO_REACONDICIONAMIENTO
+  FIN_REACONDICIONAMIENTO
+  AGREGAR_REFACCION
+  MODIFICAR_REFACCION
+  ELIMINAR_REFACCION
+  MODIFICACION
+  BAJA
+  ACTIVACION
 }
 
 // =============================================
@@ -719,6 +765,8 @@ model contratos {
   equipos_actuales        equipos[]               @relation("EquipoContratoActual")
   equipos                 contratos_equipos[]
   historial               contratos_historial[]
+  servicios               servicios[]
+  notificaciones          servicios_notificaciones[] @relation("NotificacionesContrato")
 }
 
 model contratos_equipos {
@@ -748,7 +796,7 @@ model contratos_equipos {
   equipo                  equipos?               @relation(fields: [EquipoID], references: [EquipoID])
   plantilla               plantillas_equipo?     @relation(fields: [PlantillaEquipoID], references: [PlantillaEquipoID])
   refaccion               catalogo_refacciones?  @relation(fields: [RefaccionID], references: [RefaccionID])
-  servicios               contratos_servicios[]
+  servicios_equipos       servicios_equipos[]
 
   // Nota: No usamos @@unique porque permitimos múltiples items con EquipoID=null (pendientes)
   // La unicidad de equipo asignado se valida en el servicio
@@ -756,21 +804,236 @@ model contratos_equipos {
   @@index([EquipoID])
 }
 
-model contratos_servicios {
+// =============================================
+// SERVICIOS
+// =============================================
+
+model servicios {
   ServicioID              Int                    @id @default(autoincrement())
-  ContratoEquipoID        Int
-  TipoServicio            TipoServicioContrato
+  ContratoID              Int
+  TipoServicio            TipoServicio
+
+  // Programación
   FechaProgramada         DateTime               @db.Date
+  HoraProgramada          DateTime?              @db.Time(0)
   FechaEjecucion          DateTime?              @db.Date
+  HoraInicio              DateTime?              @db.Time(0)
+  HoraFin                 DateTime?              @db.Time(0)
+
+  // Asignación
   TecnicoID               Int?
-  Estatus                 EstatusServicio        @default(PROGRAMADO)
-  Costo                   Float                  @default(0) @db.Float
-  Observaciones           String?                @db.VarChar(500)
-  UsuarioID               Int?
+
+  // Estados
+  Estatus                 EstatusServicio        @default(POR_CONFIRMAR)
+
+  // Configuración de inventario
+  OrigenInventario        OrigenInventarioServicio @default(TECNICO)
+
+  // Observaciones
+  ObservacionesAntes      String?                @db.VarChar(500)
+  ObservacionesDespues    String?                @db.VarChar(500)
+  ObservacionesGenerales  String?                @db.Text
+
+  // Reagendamiento / Próximo servicio
+  ProximoServicioMeses    Int?
+  ServicioOrigenID        Int?
+  MotivoReagendamiento    String?                @db.VarChar(255)
+  MotivoCancelacion       String?                @db.VarChar(255)
+
+  // Costos
+  CostoServicio           Float                  @default(0) @db.Float
+  CostoRefacciones        Float                  @default(0) @db.Float
+  CostoTotal              Float                  @default(0) @db.Float
+
+  // Auditoría
+  UsuarioCreadorID        Int?
+  UsuarioFinalizaID       Int?
+  FechaCreacion           DateTime               @default(now())
+  FechaModificacion       DateTime?              @updatedAt
   IsActive                Int?                   @db.TinyInt @default(1)
 
-  contrato_equipo         contratos_equipos      @relation(fields: [ContratoEquipoID], references: [ContratoEquipoID])
+  // Relaciones
+  contrato                contratos              @relation(fields: [ContratoID], references: [ContratoID])
   tecnico                 catalogo_tecnicos?     @relation(fields: [TecnicoID], references: [TecnicoID])
+  servicio_origen         servicios?             @relation("ServicioReagendado", fields: [ServicioOrigenID], references: [ServicioID])
+  servicios_reagendados   servicios[]            @relation("ServicioReagendado")
+  equipos                 servicios_equipos[]
+  insumos                 servicios_insumos[]
+  historial               servicios_historial[]
+  notificaciones          servicios_notificaciones[]
+  firmas                  servicios_firmas[]
+
+  @@index([ContratoID])
+  @@index([TecnicoID])
+  @@index([FechaProgramada])
+  @@index([Estatus])
+}
+
+model servicios_equipos {
+  ServicioEquipoID        Int                    @id @default(autoincrement())
+  ServicioID              Int
+  ContratoEquipoID        Int
+  EquipoID                Int?
+
+  // Para desinstalación
+  AccionDesinstalacion    AccionDesinstalacion?
+
+  // Observaciones
+  Observaciones           String?                @db.VarChar(500)
+
+  // Auditoría
+  IsActive                Int?                   @db.TinyInt @default(1)
+
+  // Relaciones
+  servicio                servicios              @relation(fields: [ServicioID], references: [ServicioID])
+  contrato_equipo         contratos_equipos      @relation(fields: [ContratoEquipoID], references: [ContratoEquipoID])
+  equipo                  equipos?               @relation(fields: [EquipoID], references: [EquipoID])
+  refacciones             servicios_equipos_refacciones[]
+
+  @@index([ServicioID])
+  @@index([EquipoID])
+}
+
+model servicios_equipos_refacciones {
+  ServicioEquipoRefaccionID Int                  @id @default(autoincrement())
+  ServicioEquipoID        Int
+  RefaccionID             Int
+
+  // Cantidades
+  CantidadEquipo          Int                    @default(0)
+  CantidadTecnico         Int                    @default(0)
+
+  // Acciones realizadas
+  Cambio                  Int                    @default(0) @db.TinyInt
+  Limpieza                Int                    @default(0) @db.TinyInt
+  Verificacion            Int                    @default(0) @db.TinyInt
+
+  // Si hubo cambio
+  RefaccionNuevaID        Int?
+  CantidadNueva           Int                    @default(0)
+
+  // Para desinstalación
+  DestinoRefaccion        DestinoRefaccion?
+  MotivoDano              MotivoDano?
+  ObservacionesDano       String?                @db.VarChar(255)
+
+  // Observaciones
+  Observaciones           String?                @db.VarChar(255)
+
+  // Auditoría
+  IsActive                Int?                   @db.TinyInt @default(1)
+
+  // Relaciones
+  servicio_equipo         servicios_equipos      @relation(fields: [ServicioEquipoID], references: [ServicioEquipoID])
+  refaccion               catalogo_refacciones   @relation("RefaccionOriginal", fields: [RefaccionID], references: [RefaccionID])
+  refaccion_nueva         catalogo_refacciones?  @relation("RefaccionNueva", fields: [RefaccionNuevaID], references: [RefaccionID])
+
+  @@index([ServicioEquipoID])
+  @@index([RefaccionID])
+}
+
+model servicios_insumos {
+  ServicioInsumoID        Int                    @id @default(autoincrement())
+  ServicioID              Int
+  RefaccionID             Int
+
+  // Cantidad
+  Cantidad                Int                    @default(1)
+
+  // Origen
+  OrigenInventario        OrigenInventarioServicio @default(TECNICO)
+
+  // Costos
+  CostoUnitario           Float                  @default(0) @db.Float
+  Subtotal                Float                  @default(0) @db.Float
+
+  // Observaciones
+  Observaciones           String?                @db.VarChar(255)
+
+  // Auditoría
+  IsActive                Int?                   @db.TinyInt @default(1)
+
+  // Relaciones
+  servicio                servicios              @relation(fields: [ServicioID], references: [ServicioID])
+  refaccion               catalogo_refacciones   @relation(fields: [RefaccionID], references: [RefaccionID])
+
+  @@index([ServicioID])
+}
+
+model servicios_historial {
+  HistorialID             Int                    @id @default(autoincrement())
+  ServicioID              Int
+
+  TipoAccion              TipoAccionServicio
+
+  Descripcion             String                 @db.VarChar(500)
+  ValorAnterior           String?                @db.Text
+  ValorNuevo              String?                @db.Text
+
+  UsuarioID               Int
+  FechaAccion             DateTime               @default(now())
+
+  // Relaciones
+  servicio                servicios              @relation(fields: [ServicioID], references: [ServicioID])
+
+  @@index([ServicioID])
+  @@index([FechaAccion])
+}
+
+model servicios_notificaciones {
+  NotificacionID          Int                    @id @default(autoincrement())
+  ServicioID              Int?
+  ContratoID              Int?
+
+  Tipo                    TipoNotificacionServicio
+
+  Titulo                  String                 @db.VarChar(255)
+  Mensaje                 String?                @db.Text
+
+  FechaNotificacion       DateTime               @db.Date
+  FechaVisto              DateTime?
+
+  // Destino
+  UsuarioDestinoID        Int?
+  TecnicoDestinoID        Int?
+
+  // Estado
+  Estatus                 EstatusNotificacion    @default(PENDIENTE)
+
+  // Auditoría
+  IsActive                Int?                   @db.TinyInt @default(1)
+  FechaCreacion           DateTime               @default(now())
+
+  // Relaciones
+  servicio                servicios?             @relation(fields: [ServicioID], references: [ServicioID])
+  contrato                contratos?             @relation("NotificacionesContrato", fields: [ContratoID], references: [ContratoID])
+  tecnico                 catalogo_tecnicos?     @relation(fields: [TecnicoDestinoID], references: [TecnicoID])
+
+  @@index([FechaNotificacion])
+  @@index([Estatus])
+  @@index([UsuarioDestinoID])
+}
+
+model servicios_firmas {
+  FirmaID                 Int                    @id @default(autoincrement())
+  ServicioID              Int
+
+  TipoFirma               TipoFirma
+  NombreFirmante          String                 @db.VarChar(255)
+
+  FirmaData               String?                @db.MediumText
+  FirmaArchivo            String?                @db.VarChar(255)
+
+  FechaFirma              DateTime               @default(now())
+  IpAddress               String?                @db.VarChar(45)
+
+  // Auditoría
+  IsActive                Int?                   @db.TinyInt @default(1)
+
+  // Relaciones
+  servicio                servicios              @relation(fields: [ServicioID], references: [ServicioID])
+
+  @@index([ServicioID])
 }
 
 model contratos_historial {
@@ -815,19 +1078,70 @@ enum EstatusContratoEquipo {
   RETIRADO
 }
 
-enum TipoServicioContrato {
+// Enums de Servicios
+enum TipoServicio {
   INSTALACION
-  MANTENIMIENTO_PREVENTIVO
-  MANTENIMIENTO_CORRECTIVO
+  MANTENIMIENTO
   REPARACION
-  DESMONTAJE
+  DESINSTALACION
 }
 
 enum EstatusServicio {
-  PROGRAMADO
+  POR_CONFIRMAR
+  PENDIENTE
+  CONFIRMADO
   EN_PROCESO
-  COMPLETADO
+  REALIZADO
   CANCELADO
+}
+
+enum OrigenInventarioServicio {
+  TECNICO
+  BODEGA
+}
+
+enum AccionDesinstalacion {
+  PIEZAS_INDIVIDUALES
+  EQUIPO_COMPLETO
+}
+
+enum DestinoRefaccion {
+  INVENTARIO
+  DANADA
+  PERMANECE
+}
+
+enum TipoAccionServicio {
+  CREACION
+  ASIGNACION_TECNICO
+  CAMBIO_ESTATUS
+  REAGENDAMIENTO
+  CANCELACION
+  AGREGAR_EQUIPO
+  QUITAR_EQUIPO
+  AGREGAR_INSUMO
+  MODIFICACION_REFACCION
+  FINALIZACION
+  MODIFICACION
+}
+
+enum TipoNotificacionServicio {
+  RECORDATORIO_SERVICIO
+  CONFIRMACION_PENDIENTE
+  SERVICIO_PROXIMO
+  MANTENIMIENTO_PROGRAMADO
+  CONTRATO_POR_VENCER
+}
+
+enum EstatusNotificacion {
+  PENDIENTE
+  VISTA
+  DESCARTADA
+}
+
+enum TipoFirma {
+  CLIENTE
+  TECNICO
 }
 
 enum TipoAccionContrato {

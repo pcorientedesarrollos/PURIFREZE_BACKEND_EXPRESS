@@ -1,6 +1,6 @@
 import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
-import { Prisma } from '@prisma/client';
+import { Prisma, EstatusEquipo, TipoAccionEquipo } from '@prisma/client';
 import moment from 'moment';
 import {
   CreateEquiposFromPlantillaDto,
@@ -10,6 +10,7 @@ import {
   UpdateEquipoDto,
   InstalarEquipoDto,
   DesmontarEquipoDto,
+  FinalizarReacondicionamientoDto,
   SearchEquiposQuery,
 } from './equipos.schema';
 
@@ -84,6 +85,18 @@ class EquiposService {
           }
         }
 
+        // Registrar historial de creación
+        await this.registrarHistorial(
+          tx,
+          equipo.EquipoID,
+          'CREACION',
+          null,
+          'Armado',
+          `Equipo creado desde plantilla ${plantilla.NombreEquipo}`,
+          { PlantillaID: plantilla.PlantillaEquipoID, NumeroSerie: numerosSerie[i] },
+          usuarioId
+        );
+
         equiposCreados.push(equipo.EquipoID);
       }
 
@@ -116,7 +129,7 @@ class EquiposService {
     }
 
     if (query.estatus && query.estatus !== 'todos') {
-      where.Estatus = query.estatus as 'Armado' | 'Instalado' | 'Desmontado';
+      where.Estatus = query.estatus as 'Armado' | 'Instalado' | 'Reacondicionado' | 'Desmontado';
     }
 
     if (query.tipo === 'interno') {
@@ -238,13 +251,27 @@ class EquiposService {
 
   /**
    * Actualiza observaciones del equipo
+   * Permitido en estados: Armado, Reacondicionado
    */
-  async update(id: number, dto: UpdateEquipoDto) {
-    const equipo = await this.obtenerEquipoValidado(id, ['Armado']);
+  async update(id: number, dto: UpdateEquipoDto, usuarioId?: number) {
+    const equipo = await this.obtenerEquipoValidado(id, ['Armado', 'Reacondicionado']);
 
-    await prisma.equipos.update({
-      where: { EquipoID: id },
-      data: { Observaciones: dto.Observaciones },
+    await prisma.$transaction(async (tx) => {
+      await tx.equipos.update({
+        where: { EquipoID: id },
+        data: { Observaciones: dto.Observaciones },
+      });
+
+      await this.registrarHistorial(
+        tx,
+        id,
+        'MODIFICACION',
+        equipo.Estatus,
+        equipo.Estatus,
+        'Observaciones actualizadas',
+        { Observaciones: dto.Observaciones },
+        usuarioId
+      );
     });
 
     const equipoActualizado = await this.findOne(id);
@@ -253,10 +280,11 @@ class EquiposService {
 
   /**
    * Agrega una refacción al equipo
+   * Permitido en estados: Armado, Reacondicionado
    */
   async agregarRefaccion(equipoId: number, dto: AgregarRefaccionEquipoDto, usuarioId?: number) {
     const result = await prisma.$transaction(async (tx) => {
-      const equipo = await this.obtenerEquipoValidadoTx(tx, equipoId, ['Armado']);
+      const equipo = await this.obtenerEquipoValidadoTx(tx, equipoId, ['Armado', 'Reacondicionado']);
 
       // Verificar que la refacción no esté ya en el equipo
       const existente = await tx.equipos_detalle.findFirst({
@@ -276,10 +304,15 @@ class EquiposService {
         throw new HttpError('Refacción no encontrada', 404);
       }
 
+      // Determinar tipo de movimiento según estado del equipo
+      const tipoMovimiento = equipo.Estatus === 'Reacondicionado'
+        ? 'Reacondicionamiento_Entrada'
+        : 'Traspaso_Bodega_Equipo';
+
       // Validar stock si es equipo interno
       if (equipo.EsExterno === 0) {
         await this.validarStockRefaccion(tx, dto.RefaccionID, dto.Cantidad);
-        await this.descontarInventario(tx, dto.RefaccionID, dto.Cantidad, usuarioId);
+        await this.descontarInventarioConTipo(tx, dto.RefaccionID, dto.Cantidad, tipoMovimiento, equipoId, usuarioId);
       }
 
       // Verificar si existe desactivada y reactivar
@@ -303,6 +336,18 @@ class EquiposService {
         });
       }
 
+      // Registrar historial
+      await this.registrarHistorial(
+        tx,
+        equipoId,
+        'AGREGAR_REFACCION',
+        equipo.Estatus,
+        equipo.Estatus,
+        `Refacción agregada: ${refaccion.NombrePieza} (${dto.Cantidad})`,
+        { RefaccionID: dto.RefaccionID, Cantidad: dto.Cantidad },
+        usuarioId
+      );
+
       return equipoId;
     });
 
@@ -312,6 +357,7 @@ class EquiposService {
 
   /**
    * Modifica la cantidad de una refacción en el equipo
+   * Permitido en estados: Armado, Reacondicionado
    */
   async modificarCantidadRefaccion(
     equipoId: number,
@@ -320,10 +366,11 @@ class EquiposService {
     usuarioId?: number
   ) {
     const result = await prisma.$transaction(async (tx) => {
-      const equipo = await this.obtenerEquipoValidadoTx(tx, equipoId, ['Armado']);
+      const equipo = await this.obtenerEquipoValidadoTx(tx, equipoId, ['Armado', 'Reacondicionado']);
 
       const detalle = await tx.equipos_detalle.findFirst({
         where: { EquipoDetalleID: detalleId, EquipoID: equipoId, IsActive: 1 },
+        include: { refaccion: { select: { NombrePieza: true } } },
       });
 
       if (!detalle) {
@@ -331,16 +378,25 @@ class EquiposService {
       }
 
       const diferencia = dto.Cantidad - detalle.Cantidad;
+      const cantidadAnterior = detalle.Cantidad;
+
+      // Determinar tipo de movimiento según estado del equipo
+      const tipoMovimientoEntrada = equipo.Estatus === 'Reacondicionado'
+        ? 'Reacondicionamiento_Entrada'
+        : 'Traspaso_Bodega_Equipo';
+      const tipoMovimientoSalida = equipo.Estatus === 'Reacondicionado'
+        ? 'Reacondicionamiento_Salida'
+        : 'Traspaso_Equipo';
 
       // Si es equipo interno, ajustar inventario
       if (equipo.EsExterno === 0) {
         if (diferencia > 0) {
           // Necesita más piezas - validar y descontar
           await this.validarStockRefaccion(tx, detalle.RefaccionID, diferencia);
-          await this.descontarInventario(tx, detalle.RefaccionID, diferencia, usuarioId);
+          await this.descontarInventarioConTipo(tx, detalle.RefaccionID, diferencia, tipoMovimientoEntrada, equipoId, usuarioId);
         } else if (diferencia < 0) {
           // Devuelve piezas al inventario
-          await this.incrementarInventario(tx, detalle.RefaccionID, Math.abs(diferencia), usuarioId);
+          await this.incrementarInventarioConTipo(tx, detalle.RefaccionID, Math.abs(diferencia), tipoMovimientoSalida, equipoId, usuarioId);
         }
       }
 
@@ -348,6 +404,18 @@ class EquiposService {
         where: { EquipoDetalleID: detalleId },
         data: { Cantidad: dto.Cantidad },
       });
+
+      // Registrar historial
+      await this.registrarHistorial(
+        tx,
+        equipoId,
+        'MODIFICAR_REFACCION',
+        equipo.Estatus,
+        equipo.Estatus,
+        `Cantidad modificada: ${detalle.refaccion.NombrePieza} (${cantidadAnterior} → ${dto.Cantidad})`,
+        { RefaccionID: detalle.RefaccionID, CantidadAnterior: cantidadAnterior, CantidadNueva: dto.Cantidad },
+        usuarioId
+      );
 
       return equipoId;
     });
@@ -358,6 +426,7 @@ class EquiposService {
 
   /**
    * Elimina una refacción del equipo
+   * Permitido en estados: Armado, Reacondicionado
    */
   async eliminarRefaccion(
     equipoId: number,
@@ -366,10 +435,11 @@ class EquiposService {
     usuarioId?: number
   ) {
     const result = await prisma.$transaction(async (tx) => {
-      const equipo = await this.obtenerEquipoValidadoTx(tx, equipoId, ['Armado']);
+      const equipo = await this.obtenerEquipoValidadoTx(tx, equipoId, ['Armado', 'Reacondicionado']);
 
       const detalle = await tx.equipos_detalle.findFirst({
         where: { EquipoDetalleID: detalleId, EquipoID: equipoId, IsActive: 1 },
+        include: { refaccion: { select: { NombrePieza: true } } },
       });
 
       if (!detalle) {
@@ -382,10 +452,15 @@ class EquiposService {
         data: { IsActive: 0 },
       });
 
+      // Determinar tipo de movimiento según estado del equipo
+      const tipoMovimientoSalida = equipo.Estatus === 'Reacondicionado'
+        ? 'Reacondicionamiento_Salida'
+        : 'Traspaso_Equipo';
+
       // Si es equipo interno, procesar destino de refacciones
       if (equipo.EsExterno === 0) {
         if (dto.Destino === 'inventario') {
-          await this.incrementarInventario(tx, detalle.RefaccionID, detalle.Cantidad, usuarioId);
+          await this.incrementarInventarioConTipo(tx, detalle.RefaccionID, detalle.Cantidad, tipoMovimientoSalida, equipoId, usuarioId);
         } else if (dto.Destino === 'danada') {
           if (!dto.MotivoDano) {
             throw new HttpError('MotivoDano es requerido cuando el destino es dañada', 400);
@@ -402,6 +477,18 @@ class EquiposService {
         }
       }
 
+      // Registrar historial
+      await this.registrarHistorial(
+        tx,
+        equipoId,
+        'ELIMINAR_REFACCION',
+        equipo.Estatus,
+        equipo.Estatus,
+        `Refacción eliminada: ${detalle.refaccion.NombrePieza} (${detalle.Cantidad}) → ${dto.Destino}`,
+        { RefaccionID: detalle.RefaccionID, Cantidad: detalle.Cantidad, Destino: dto.Destino },
+        usuarioId
+      );
+
       return equipoId;
     });
 
@@ -414,21 +501,36 @@ class EquiposService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   /**
-   * Instala un equipo (Armado → Instalado)
+   * Instala un equipo (Armado/Reacondicionado → Instalado)
    */
-  async instalar(id: number, dto: InstalarEquipoDto) {
-    const equipo = await this.obtenerEquipoValidado(id, ['Armado']);
+  async instalar(id: number, dto: InstalarEquipoDto, usuarioId?: number) {
+    const equipo = await this.obtenerEquipoValidado(id, ['Armado', 'Reacondicionado']);
 
     const fechaInstalacion = dto.FechaInstalacion
       ? moment(dto.FechaInstalacion).toDate()
       : new Date();
 
-    await prisma.equipos.update({
-      where: { EquipoID: id },
-      data: {
-        Estatus: 'Instalado',
-        FechaInstalacion: fechaInstalacion,
-      },
+    const estatusAnterior = equipo.Estatus;
+
+    await prisma.$transaction(async (tx) => {
+      await tx.equipos.update({
+        where: { EquipoID: id },
+        data: {
+          Estatus: 'Instalado',
+          FechaInstalacion: fechaInstalacion,
+        },
+      });
+
+      await this.registrarHistorial(
+        tx,
+        id,
+        'INSTALACION',
+        estatusAnterior,
+        'Instalado',
+        `Equipo instalado (desde ${estatusAnterior})`,
+        { FechaInstalacion: fechaInstalacion },
+        usuarioId
+      );
     });
 
     const equipoActualizado = await this.findOne(id);
@@ -497,11 +599,64 @@ class EquiposService {
         },
       });
 
+      // Registrar historial
+      await this.registrarHistorial(
+        tx,
+        id,
+        'DESINSTALACION',
+        'Instalado',
+        'Desmontado',
+        'Equipo desmontado (piezas individuales al inventario)',
+        { FechaDesmontaje: fechaDesmontaje, Refacciones: dto.Refacciones },
+        usuarioId
+      );
+
       return id;
     });
 
     const equipoActualizado = await this.findOne(result);
     return { message: 'Equipo desmontado correctamente', data: equipoActualizado.data };
+  }
+
+  /**
+   * Finaliza el reacondicionamiento de un equipo (Reacondicionado → Armado)
+   * Marca el equipo como listo para un nuevo uso
+   */
+  async finalizarReacondicionamiento(id: number, dto: FinalizarReacondicionamientoDto, usuarioId?: number) {
+    const equipo = await this.obtenerEquipoValidado(id, ['Reacondicionado']);
+
+    // Solo equipos Purifreeze pueden reacondicionarse
+    if (equipo.EsExterno === 1) {
+      throw new HttpError('Solo equipos Purifreeze pueden reacondicionarse', 400);
+    }
+
+    await prisma.$transaction(async (tx) => {
+      // Actualizar estado del equipo
+      await tx.equipos.update({
+        where: { EquipoID: id },
+        data: {
+          Estatus: 'Armado',
+          FechaReacondicionamiento: new Date(),
+          VecesReacondicionado: { increment: 1 },
+          Observaciones: dto.Observaciones || equipo.Observaciones,
+        },
+      });
+
+      // Registrar historial
+      await this.registrarHistorial(
+        tx,
+        id,
+        'FIN_REACONDICIONAMIENTO',
+        'Reacondicionado',
+        'Armado',
+        `Reacondicionamiento finalizado. Veces reacondicionado: ${equipo.VecesReacondicionado + 1}`,
+        { Observaciones: dto.Observaciones, VecesReacondicionado: equipo.VecesReacondicionado + 1 },
+        usuarioId
+      );
+    });
+
+    const equipoActualizado = await this.findOne(id);
+    return { message: 'Reacondicionamiento finalizado. Equipo listo para nuevo uso.', data: equipoActualizado.data };
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -511,7 +666,7 @@ class EquiposService {
   /**
    * Da de baja un equipo (soft delete)
    */
-  async deactivate(id: number) {
+  async deactivate(id: number, usuarioId?: number) {
     const equipo = await prisma.equipos.findFirst({
       where: { EquipoID: id, IsActive: 1 },
     });
@@ -520,9 +675,22 @@ class EquiposService {
       throw new HttpError('Equipo no encontrado', 404);
     }
 
-    await prisma.equipos.update({
-      where: { EquipoID: id },
-      data: { IsActive: 0 },
+    await prisma.$transaction(async (tx) => {
+      await tx.equipos.update({
+        where: { EquipoID: id },
+        data: { IsActive: 0 },
+      });
+
+      await this.registrarHistorial(
+        tx,
+        id,
+        'BAJA',
+        equipo.Estatus,
+        equipo.Estatus,
+        'Equipo dado de baja',
+        null,
+        usuarioId
+      );
     });
 
     return { message: 'Equipo dado de baja correctamente', data: { EquipoID: id } };
@@ -531,7 +699,7 @@ class EquiposService {
   /**
    * Activa un equipo
    */
-  async activate(id: number) {
+  async activate(id: number, usuarioId?: number) {
     const equipo = await prisma.equipos.findFirst({
       where: { EquipoID: id, IsActive: 0 },
     });
@@ -540,9 +708,22 @@ class EquiposService {
       throw new HttpError('Equipo no encontrado o ya está activo', 404);
     }
 
-    await prisma.equipos.update({
-      where: { EquipoID: id },
-      data: { IsActive: 1 },
+    await prisma.$transaction(async (tx) => {
+      await tx.equipos.update({
+        where: { EquipoID: id },
+        data: { IsActive: 1 },
+      });
+
+      await this.registrarHistorial(
+        tx,
+        id,
+        'ACTIVACION',
+        equipo.Estatus,
+        equipo.Estatus,
+        'Equipo reactivado',
+        null,
+        usuarioId
+      );
     });
 
     return { message: 'Equipo activado correctamente', data: { EquipoID: id } };
@@ -685,11 +866,11 @@ class EquiposService {
       select: { CostoPromedio: true },
     });
 
-    // Registrar en kardex
+    // Registrar en kardex (usar moment para evitar problemas de zona horaria)
     await tx.kardex_inventario.create({
       data: {
         RefaccionID: refaccionId,
-        FechaMovimiento: new Date(),
+        FechaMovimiento: new Date(moment().format('YYYY-MM-DD')),
         TipoMovimiento: 'Traspaso_Bodega_Equipo',
         Cantidad: -cantidad,
         CostoPromedioMovimiento: refaccion?.CostoPromedio || 0,
@@ -723,16 +904,108 @@ class EquiposService {
       select: { CostoPromedio: true },
     });
 
-    // Registrar en kardex
+    // Registrar en kardex (usar moment para evitar problemas de zona horaria)
     await tx.kardex_inventario.create({
       data: {
         RefaccionID: refaccionId,
-        FechaMovimiento: new Date(),
+        FechaMovimiento: new Date(moment().format('YYYY-MM-DD')),
         TipoMovimiento: 'Traspaso_Equipo',
         Cantidad: cantidad,
         CostoPromedioMovimiento: refaccion?.CostoPromedio || 0,
         UsuarioID: usuarioId || null,
         Observaciones: 'Retorno de equipo a bodega',
+      },
+    });
+  }
+
+  /**
+   * Descuenta del inventario con tipo de movimiento específico
+   * Usado para diferenciar entre armado normal y reacondicionamiento
+   */
+  private async descontarInventarioConTipo(
+    tx: Prisma.TransactionClient,
+    refaccionId: number,
+    cantidad: number,
+    tipoMovimiento: string,
+    equipoId: number,
+    usuarioId?: number
+  ): Promise<void> {
+    // Actualizar inventario
+    await tx.inventario.updateMany({
+      where: { RefaccionID: refaccionId, IsActive: 1 },
+      data: {
+        StockActual: { decrement: cantidad },
+        FechaUltimoMovimiento: new Date(),
+      },
+    });
+
+    // Obtener costo promedio para kardex
+    const refaccion = await tx.catalogo_refacciones.findUnique({
+      where: { RefaccionID: refaccionId },
+      select: { CostoPromedio: true },
+    });
+
+    // Determinar observación según tipo
+    const observacion = tipoMovimiento === 'Reacondicionamiento_Entrada'
+      ? `Entrada a equipo ${equipoId} durante reacondicionamiento`
+      : `Salida para equipo ${equipoId}`;
+
+    // Registrar en kardex (usar moment para evitar problemas de zona horaria)
+    await tx.kardex_inventario.create({
+      data: {
+        RefaccionID: refaccionId,
+        FechaMovimiento: new Date(moment().format('YYYY-MM-DD')),
+        TipoMovimiento: tipoMovimiento as any,
+        Cantidad: -cantidad,
+        CostoPromedioMovimiento: refaccion?.CostoPromedio || 0,
+        UsuarioID: usuarioId || null,
+        Observaciones: observacion,
+      },
+    });
+  }
+
+  /**
+   * Incrementa el inventario con tipo de movimiento específico
+   * Usado para diferenciar entre retorno normal y reacondicionamiento
+   */
+  private async incrementarInventarioConTipo(
+    tx: Prisma.TransactionClient,
+    refaccionId: number,
+    cantidad: number,
+    tipoMovimiento: string,
+    equipoId: number,
+    usuarioId?: number
+  ): Promise<void> {
+    // Actualizar inventario
+    await tx.inventario.updateMany({
+      where: { RefaccionID: refaccionId, IsActive: 1 },
+      data: {
+        StockActual: { increment: cantidad },
+        FechaUltimoMovimiento: new Date(),
+      },
+    });
+
+    // Obtener costo promedio para kardex
+    const refaccion = await tx.catalogo_refacciones.findUnique({
+      where: { RefaccionID: refaccionId },
+      select: { CostoPromedio: true },
+    });
+
+    // Determinar observación según tipo
+    const observacion = tipoMovimiento === 'Reacondicionamiento_Salida'
+      ? `Salida de equipo ${equipoId} durante reacondicionamiento`
+      : `Retorno desde equipo ${equipoId} a bodega`;
+
+    // Registrar en kardex (usar moment para evitar problemas de zona horaria)
+    await tx.kardex_inventario.create({
+      data: {
+        RefaccionID: refaccionId,
+        FechaMovimiento: new Date(moment().format('YYYY-MM-DD')),
+        TipoMovimiento: tipoMovimiento as any,
+        Cantidad: cantidad,
+        CostoPromedioMovimiento: refaccion?.CostoPromedio || 0,
+        UsuarioID: usuarioId || null,
+        Observaciones: observacion,
       },
     });
   }
@@ -875,6 +1148,36 @@ class EquiposService {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // UTILIDADES PRIVADAS - HISTORIAL
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Registra un evento en el historial del equipo
+   */
+  private async registrarHistorial(
+    tx: Prisma.TransactionClient,
+    equipoId: number,
+    tipoAccion: string,
+    estatusAnterior: string | null,
+    estatusNuevo: string | null,
+    descripcion: string,
+    detalleJSON?: object,
+    usuarioId?: number
+  ): Promise<void> {
+    await tx.equipos_historial.create({
+      data: {
+        EquipoID: equipoId,
+        TipoAccion: tipoAccion as TipoAccionEquipo,
+        EstatusAnterior: estatusAnterior as EstatusEquipo | null,
+        EstatusNuevo: estatusNuevo as EstatusEquipo | null,
+        Descripcion: descripcion,
+        DetalleJSON: detalleJSON ? JSON.stringify(detalleJSON) : null,
+        UsuarioID: usuarioId || null,
+      },
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // UTILIDADES PRIVADAS - FORMATEO
   // ═══════════════════════════════════════════════════════════════════════════
 
@@ -890,6 +1193,8 @@ class EquiposService {
       FechaCreacion: equipo.FechaCreacion ? moment(equipo.FechaCreacion).format('YYYY-MM-DD') : null,
       FechaInstalacion: equipo.FechaInstalacion ? moment(equipo.FechaInstalacion).format('YYYY-MM-DD') : null,
       FechaDesmontaje: equipo.FechaDesmontaje ? moment(equipo.FechaDesmontaje).format('YYYY-MM-DD') : null,
+      FechaReacondicionamiento: equipo.FechaReacondicionamiento ? moment(equipo.FechaReacondicionamiento).format('YYYY-MM-DD') : null,
+      VecesReacondicionado: equipo.VecesReacondicionado || 0,
       Plantilla: {
         PlantillaEquipoID: equipo.plantilla.PlantillaEquipoID,
         NombreEquipo: equipo.plantilla.NombreEquipo,
@@ -914,6 +1219,8 @@ class EquiposService {
       FechaCreacion: equipo.FechaCreacion ? moment(equipo.FechaCreacion).format('YYYY-MM-DD') : null,
       FechaInstalacion: equipo.FechaInstalacion ? moment(equipo.FechaInstalacion).format('YYYY-MM-DD') : null,
       FechaDesmontaje: equipo.FechaDesmontaje ? moment(equipo.FechaDesmontaje).format('YYYY-MM-DD') : null,
+      FechaReacondicionamiento: equipo.FechaReacondicionamiento ? moment(equipo.FechaReacondicionamiento).format('YYYY-MM-DD') : null,
+      VecesReacondicionado: equipo.VecesReacondicionado || 0,
       UsuarioCreadorID: equipo.UsuarioCreadorID,
       Plantilla: {
         PlantillaEquipoID: equipo.plantilla.PlantillaEquipoID,

@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { contratosService } from './contratos.service';
 import { success } from '../../utils/response';
-import { ContratosQueryDto, ServiciosQueryDto } from './contratos.schema';
+import { ContratosQueryDto } from './contratos.schema';
 
 class ContratosController {
   // =============================================
@@ -126,45 +126,7 @@ class ContratosController {
     return success(res, result.message, result.data);
   }
 
-  // =============================================
-  // SERVICIOS
-  // =============================================
-
-  async createServicio(req: Request, res: Response) {
-    const { ContratoEquipoID } = req.params as unknown as { ContratoEquipoID: number };
-    const result = await contratosService.createServicio(ContratoEquipoID, req.body);
-    return success(res, result.message, result.data, 201);
-  }
-
-  async getServiciosByContrato(req: Request, res: Response) {
-    const { ContratoID } = req.params as unknown as { ContratoID: number };
-    const result = await contratosService.getServiciosByContrato(ContratoID);
-    return success(res, result.message, result.data);
-  }
-
-  async getServiciosProgramados(req: Request, res: Response) {
-    const query = req.query as unknown as ServiciosQueryDto;
-    const result = await contratosService.getServiciosProgramados(query);
-    return success(res, result.message, result.data);
-  }
-
-  async updateServicio(req: Request, res: Response) {
-    const { ServicioID } = req.params as unknown as { ServicioID: number };
-    const result = await contratosService.updateServicio(ServicioID, req.body);
-    return success(res, result.message, result.data);
-  }
-
-  async completarServicio(req: Request, res: Response) {
-    const { ServicioID } = req.params as unknown as { ServicioID: number };
-    const result = await contratosService.completarServicio(ServicioID, req.body);
-    return success(res, result.message, result.data);
-  }
-
-  async cancelarServicio(req: Request, res: Response) {
-    const { ServicioID } = req.params as unknown as { ServicioID: number };
-    const result = await contratosService.cancelarServicio(ServicioID);
-    return success(res, result.message, result.data);
-  }
+  // NOTA: Los servicios ahora se manejan en el módulo /servicios
 }
 
 export const contratosController = new ContratosController();

@@ -205,7 +205,7 @@ class InventarioService {
 
     const kardexFormateado = kardex.map((item) => ({
       ...item,
-      FechaMovimiento: item.FechaMovimiento ? moment(item.FechaMovimiento).format('YYYY-MM-DD') : null,
+      FechaMovimiento: item.FechaMovimiento ? moment.utc(item.FechaMovimiento).format('YYYY-MM-DD') : null,
       refaccion: item.RefaccionID ? refaccionesMap.get(item.RefaccionID) || null : null,
     }));
 
@@ -250,7 +250,7 @@ class InventarioService {
 
     const kardexFormateado = kardex.map((item) => ({
       ...item,
-      FechaMovimiento: item.FechaMovimiento ? moment(item.FechaMovimiento).format('YYYY-MM-DD') : null,
+      FechaMovimiento: item.FechaMovimiento ? moment.utc(item.FechaMovimiento).format('YYYY-MM-DD') : null,
       refaccion,
     }));
 

@@ -40,6 +40,7 @@ import { plantillasEquipoRoutes } from './modules/plantillas-equipo';
 import { equiposRoutes } from './modules/equipos';
 import { presupuestosRoutes } from './modules/presupuestos';
 import { contratosRoutes } from './modules/contratos';
+import { serviciosRoutes } from './modules/servicios';
 
 const app = express();
 
@@ -94,6 +95,7 @@ app.use('/plantillas-equipo', plantillasEquipoRoutes);
 app.use('/equipos', equiposRoutes);
 app.use('/presupuestos', presupuestosRoutes);
 app.use('/contratos', contratosRoutes);
+app.use('/servicios', serviciosRoutes);
 
 // Error handler (debe ir al final)
 app.use(errorHandler);

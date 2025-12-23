@@ -5,8 +5,7 @@ export const EstatusContrato = z.enum(['EN_REVISION', 'ACTIVO', 'VENCIDO', 'CANC
 export const CondicionesPago = z.enum(['MENSUAL', 'TRIMESTRAL', 'SEMESTRAL', 'ANUAL']);
 export const ModalidadContrato = z.enum(['VENTA', 'RENTA', 'COMODATO', 'MANTENIMIENTO']);
 export const EstatusContratoEquipo = z.enum(['PENDIENTE', 'INSTALADO', 'RETIRADO']);
-export const TipoServicioContrato = z.enum(['INSTALACION', 'MANTENIMIENTO_PREVENTIVO', 'MANTENIMIENTO_CORRECTIVO', 'REPARACION', 'DESMONTAJE']);
-export const EstatusServicio = z.enum(['PROGRAMADO', 'EN_PROCESO', 'COMPLETADO', 'CANCELADO']);
+// NOTA: TipoServicio y EstatusServicio ahora están en el módulo /servicios
 
 // Schema para crear contrato desde presupuesto aprobado
 export const createContratoSchema = z.object({
@@ -54,31 +53,7 @@ export const updateEquipoContratoSchema = z.object({
   Observaciones: z.string().max(500).optional().nullable(),
 });
 
-// Schema para programar servicio
-export const createServicioSchema = z.object({
-  TipoServicio: TipoServicioContrato,
-  FechaProgramada: z.string({ required_error: 'La fecha programada es requerida' }),
-  TecnicoID: z.number().optional().nullable(),
-  Costo: z.number().min(0).default(0),
-  Observaciones: z.string().max(500).optional().nullable(),
-  UsuarioID: z.number().optional().nullable(),
-});
-
-// Schema para actualizar servicio
-export const updateServicioSchema = z.object({
-  FechaProgramada: z.string().optional(),
-  TecnicoID: z.number().optional().nullable(),
-  Costo: z.number().min(0).optional(),
-  Observaciones: z.string().max(500).optional().nullable(),
-  Estatus: EstatusServicio.optional(),
-});
-
-// Schema para completar servicio
-export const completarServicioSchema = z.object({
-  FechaEjecucion: z.string().optional(),
-  Observaciones: z.string().max(500).optional().nullable(),
-  Costo: z.number().min(0).optional(),
-});
+// NOTA: Los schemas de servicios ahora están en el módulo /servicios
 
 // Schema para cancelar contrato
 export const cancelarContratoSchema = z.object({
@@ -113,10 +88,6 @@ export const contratoEquipoIdParamSchema = z.object({
   ContratoEquipoID: z.string().regex(/^\d+$/, 'ID debe ser un número válido').transform(Number),
 });
 
-export const servicioIdParamSchema = z.object({
-  ServicioID: z.string().regex(/^\d+$/, 'ID debe ser un número válido').transform(Number),
-});
-
 export const clienteIdParamSchema = z.object({
   ClienteID: z.string().regex(/^\d+$/, 'ID debe ser un número válido').transform(Number),
 });
@@ -129,24 +100,13 @@ export const contratosQuerySchema = z.object({
   fechaHasta: z.string().optional(),
 });
 
-export const serviciosQuerySchema = z.object({
-  estatus: EstatusServicio.optional(),
-  tecnicoId: z.string().regex(/^\d+$/).transform(Number).optional(),
-  fechaDesde: z.string().optional(),
-  fechaHasta: z.string().optional(),
-});
-
 // Types
 export type CreateContratoDto = z.infer<typeof createContratoSchema>;
 export type UpdateContratoDto = z.infer<typeof updateContratoSchema>;
 export type AddEquipoDto = z.infer<typeof addEquipoSchema>;
 export type AsignarEquipoDto = z.infer<typeof asignarEquipoSchema>;
 export type UpdateEquipoContratoDto = z.infer<typeof updateEquipoContratoSchema>;
-export type CreateServicioDto = z.infer<typeof createServicioSchema>;
-export type UpdateServicioDto = z.infer<typeof updateServicioSchema>;
-export type CompletarServicioDto = z.infer<typeof completarServicioSchema>;
 export type CancelarContratoDto = z.infer<typeof cancelarContratoSchema>;
 export type RenovarContratoDto = z.infer<typeof renovarContratoSchema>;
 export type ActualizarMontoDto = z.infer<typeof actualizarMontoSchema>;
 export type ContratosQueryDto = z.infer<typeof contratosQuerySchema>;
-export type ServiciosQueryDto = z.infer<typeof serviciosQuerySchema>;

@@ -3,7 +3,8 @@
     "allow": [
       "Bash(npm install:*)",
       "Bash(if not exist \"d:\\documentos\\DESARROLLO\\PC ORIENTE\\PURIFREZE_2.0\\purifreeze20_backend_express\\docs\" mkdir \"d:\\documentos\\DESARROLLO\\PC ORIENTE\\PURIFREZE_2.0\\purifreeze20_backend_express\\docs\")",
-      "Bash(mkdir:*)"
+      "Bash(mkdir:*)",
+      "Bash(npx tsc:*)"
     ],
     "deny": [],
     "ask": []
