@@ -6,26 +6,50 @@
 
 **Prefijo de ruta:** `/equipos`
 
-**Autenticación:** Bearer Token (opcional, pero se registra el usuario en movimientos)
+**Autenticación:** Bearer Token (JWT)
 
 ---
 
 ## Conceptos Importantes
 
-### Estados del Equipo
+### Tipos de Equipos
 
-| Estado | Descripción | Acciones Permitidas |
-|--------|-------------|---------------------|
-| `Armado` | Estado inicial al crear el equipo | Modificar refacciones, actualizar observaciones, instalar |
-| `Instalado` | El equipo está en uso con un cliente | Desmontar (solo Purifreeze) |
-| `Desmontado` | El equipo fue retirado | Solo consulta (historial) |
+| Tipo | EsExterno | Descripción |
+|------|-----------|-------------|
+| **Purifreeze** | 0 | Equipos internos que afectan inventario |
+| **Externo** | 1 | Equipos de terceros, no afectan inventario |
 
-### Tipos de Equipo
+### Estados del Equipo (Flujo de Vida)
 
-| Tipo | EsExterno | Afecta Inventario | Puede Desmontarse |
-|------|-----------|-------------------|-------------------|
-| **Interno (Purifreeze)** | `false` | ✅ Sí | ✅ Sí |
-| **Externo (otra empresa)** | `true` | ❌ No | ❌ No |
+```
+                    EQUIPOS PURIFREEZE (Internos)
+
+   [Armado] ──────────────────► [Instalado] ──────────────► [Desmontado]
+       ▲                              │                           │
+       │                              │                           │ (piezas individuales)
+       │                              ▼                           │
+       │                       [Reacondicionado] ◄────────────────┘
+       │                              │ (equipo completo)
+       │                              │
+       └──────────────────────────────┘
+        (finalizar reacondicionamiento)
+```
+
+| Estado | Descripción | Operaciones Permitidas |
+|--------|-------------|------------------------|
+| **Armado** | Equipo nuevo, listo para instalar | Agregar/quitar/modificar refacciones, Instalar |
+| **Instalado** | Equipo en uso con un cliente | Solo desmontar (desde servicios) |
+| **Reacondicionado** | Equipo retirado en proceso de reparación | Agregar/quitar/modificar refacciones, Finalizar reacondicionamiento |
+| **Desmontado** | Equipo desarmado (piezas individuales al inventario) | Sin operaciones |
+
+### Movimientos de Kardex
+
+| Tipo de Movimiento | Descripción |
+|--------------------|-------------|
+| `Traspaso_Bodega_Equipo` | Salida de bodega al armar equipo |
+| `Traspaso_Equipo` | Retorno de equipo a bodega |
+| `Reacondicionamiento_Entrada` | Entrada a equipo durante reacondicionamiento |
+| `Reacondicionamiento_Salida` | Salida de equipo durante reacondicionamiento |
 
 ### Número de Serie
 
@@ -43,65 +67,11 @@ El prefijo se genera desde el nombre de la plantilla:
 
 ## Endpoints
 
-### 1. Buscar Refacciones con Stock Disponible
-
-**Endpoint:** `GET /equipos/refacciones`
-
-**Descripción:** Busca refacciones del catálogo mostrando el stock disponible en el inventario general. Útil para seleccionar refacciones al armar o editar un equipo interno.
-
-**Query Params:**
-| Parámetro | Tipo | Requerido | Descripción |
-|-----------|------|-----------|-------------|
-| `q` | string | No | Búsqueda por nombre, nombre corto o código |
-
-**Ejemplo de Request:**
-```
-GET /equipos/refacciones?q=membrana
-```
-
-**Response Exitoso (200):**
-```json
-{
-  "status": 200,
-  "message": "Refacciones encontradas",
-  "error": false,
-  "data": [
-    {
-      "RefaccionID": 10,
-      "NombrePieza": "Membrana RO 75GPD",
-      "NombreCorto": "MEM-RO-75",
-      "Codigo": "REF-010",
-      "CostoPromedio": 350.00,
-      "Unidad": "Pieza",
-      "StockDisponible": 25
-    },
-    {
-      "RefaccionID": 11,
-      "NombrePieza": "Membrana RO 100GPD",
-      "NombreCorto": "MEM-RO-100",
-      "Codigo": "REF-011",
-      "CostoPromedio": 450.00,
-      "Unidad": "Pieza",
-      "StockDisponible": 15
-    }
-  ]
-}
-```
-
-**Notas:**
-- Devuelve máximo 30 resultados
-- `StockDisponible` muestra el stock actual en bodega general
-- Para equipos externos no es necesario validar stock, pero este endpoint ayuda a visualizar disponibilidad
-
----
-
-### 2. Crear Equipos desde Plantilla
+### 1. Crear Equipos desde Plantilla
 
 **Endpoint:** `POST /equipos`
 
-**Descripción:** Crea uno o varios equipos idénticos basados en una plantilla. Si la plantilla es interna (Purifreeze), valida y descuenta del inventario.
-
-> **Nota:** Antes de crear equipos internos, use `GET /equipos/refacciones` para verificar que hay stock suficiente de las refacciones de la plantilla.
+**Descripción:** Crea uno o más equipos basados en una plantilla existente. Para equipos Purifreeze, valida y descuenta el inventario necesario.
 
 **Headers:**
 ```
@@ -110,18 +80,17 @@ Authorization: Bearer {token}
 ```
 
 **Payload:**
+
 | Campo | Tipo | Requerido | Validaciones | Descripción |
 |-------|------|-----------|--------------|-------------|
 | `PlantillaEquipoID` | number | Sí | - | ID de la plantilla base |
-| `Cantidad` | number | Sí | min: 1, max: 50 | Cantidad de equipos a crear |
-| `Observaciones` | string | No | max: 500 | Observaciones para todos los equipos |
+| `Cantidad` | number | No | min: 1, max: 50 | Cantidad de equipos a crear (default: 1) |
 
 **Ejemplo de Request:**
 ```json
 {
   "PlantillaEquipoID": 1,
-  "Cantidad": 5,
-  "Observaciones": "Lote para cliente ABC"
+  "Cantidad": 3
 }
 ```
 
@@ -129,24 +98,29 @@ Authorization: Bearer {token}
 ```json
 {
   "status": 201,
-  "message": "5 equipo(s) creado(s) correctamente",
+  "message": "3 equipo(s) creado(s) correctamente",
   "error": false,
   "data": [
     {
       "EquipoID": 1,
       "NumeroSerie": "PUR-24-0001",
-      "NombreEquipo": "Purificador Básico",
-      "Estatus": "Armado",
       "EsExterno": false,
-      "FechaCreacion": "2024-12-06"
-    },
-    {
-      "EquipoID": 2,
-      "NumeroSerie": "PUR-24-0002",
-      "NombreEquipo": "Purificador Básico",
       "Estatus": "Armado",
-      "EsExterno": false,
-      "FechaCreacion": "2024-12-06"
+      "Observaciones": null,
+      "FechaCreacion": "2024-12-23",
+      "FechaInstalacion": null,
+      "FechaDesmontaje": null,
+      "FechaReacondicionamiento": null,
+      "VecesReacondicionado": 0,
+      "Plantilla": {
+        "PlantillaEquipoID": 1,
+        "NombreEquipo": "Purificador Básico",
+        "Codigo": "PUR-001"
+      },
+      "TotalRefacciones": 5,
+      "CostoTotal": 1500.00,
+      "PrecioVenta": 2025.00,
+      "PrecioRenta": 225.00
     }
   ]
 }
@@ -156,24 +130,31 @@ Authorization: Bearer {token}
 
 | Código | Mensaje | Causa |
 |--------|---------|-------|
-| 400 | Stock insuficiente para "{NombrePieza}". Disponible: X, Requerido: Y | No hay stock suficiente para crear los equipos |
-| 404 | Plantilla no encontrada | PlantillaEquipoID inválido o inactivo |
+| 400 | Bad Request | Validación Zod fallida |
+| 400 | Stock insuficiente para "X". Disponible: Y, Requerido: Z | No hay suficiente inventario |
+| 404 | Plantilla no encontrada | PlantillaEquipoID no existe o inactiva |
 
 ---
 
-### 2. Obtener Todos los Equipos
+### 2. Listar Equipos
 
 **Endpoint:** `GET /equipos`
 
-**Descripción:** Obtiene la lista de equipos con filtros opcionales.
+**Descripción:** Obtiene todos los equipos activos con filtros opcionales.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
 
 **Query Params:**
-| Parámetro | Tipo | Requerido | Valores | Descripción |
-|-----------|------|-----------|---------|-------------|
-| `q` | string | No | - | Búsqueda por número de serie, observaciones o nombre de plantilla |
-| `estatus` | string | No | `todos`, `Armado`, `Instalado`, `Desmontado` | Filtrar por estado |
-| `tipo` | string | No | `todos`, `interno`, `externo` | Filtrar por tipo de equipo |
-| `plantillaId` | number | No | - | Filtrar por plantilla específica |
+
+| Parámetro | Tipo | Requerido | Descripción | Valores |
+|-----------|------|-----------|-------------|---------|
+| `q` | string | No | Buscar por número de serie, observaciones o nombre de plantilla | - |
+| `estatus` | string | No | Filtrar por estado | todos, Armado, Instalado, Reacondicionado, Desmontado |
+| `tipo` | string | No | Filtrar por tipo de equipo | todos, interno, externo |
+| `plantillaId` | number | No | Filtrar por ID de plantilla | - |
 
 **Ejemplo de Request:**
 ```
@@ -184,7 +165,7 @@ GET /equipos?estatus=Armado&tipo=interno
 ```json
 {
   "status": 200,
-  "message": "Equipos obtenidos",
+  "message": "Equipos encontrados",
   "error": false,
   "data": [
     {
@@ -192,16 +173,18 @@ GET /equipos?estatus=Armado&tipo=interno
       "NumeroSerie": "PUR-24-0001",
       "EsExterno": false,
       "Estatus": "Armado",
-      "Observaciones": "Lote para cliente ABC",
-      "FechaCreacion": "2024-12-06",
+      "Observaciones": null,
+      "FechaCreacion": "2024-12-23",
       "FechaInstalacion": null,
       "FechaDesmontaje": null,
+      "FechaReacondicionamiento": null,
+      "VecesReacondicionado": 0,
       "Plantilla": {
         "PlantillaEquipoID": 1,
         "NombreEquipo": "Purificador Básico",
-        "Codigo": "PB-001"
+        "Codigo": "PUR-001"
       },
-      "TotalRefacciones": 8,
+      "TotalRefacciones": 5,
       "CostoTotal": 1500.00,
       "PrecioVenta": 2025.00,
       "PrecioRenta": 225.00
@@ -216,9 +199,15 @@ GET /equipos?estatus=Armado&tipo=interno
 
 **Endpoint:** `GET /equipos/:EquipoID`
 
-**Descripción:** Obtiene los detalles completos de un equipo incluyendo todas sus refacciones.
+**Descripción:** Obtiene un equipo específico con todos sus detalles incluyendo refacciones.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
 
 **Parámetros de URL:**
+
 | Parámetro | Tipo | Requerido | Descripción |
 |-----------|------|-----------|-------------|
 | `EquipoID` | number | Sí | ID del equipo |
@@ -227,22 +216,24 @@ GET /equipos?estatus=Armado&tipo=interno
 ```json
 {
   "status": 200,
-  "message": "Equipo obtenido",
+  "message": "Equipo encontrado",
   "error": false,
   "data": {
     "EquipoID": 1,
     "NumeroSerie": "PUR-24-0001",
     "EsExterno": false,
     "Estatus": "Armado",
-    "Observaciones": "Lote para cliente ABC",
-    "FechaCreacion": "2024-12-06",
+    "Observaciones": null,
+    "FechaCreacion": "2024-12-23",
     "FechaInstalacion": null,
     "FechaDesmontaje": null,
-    "UsuarioCreadorID": 5,
+    "FechaReacondicionamiento": null,
+    "VecesReacondicionado": 0,
+    "UsuarioCreadorID": 1,
     "Plantilla": {
       "PlantillaEquipoID": 1,
       "NombreEquipo": "Purificador Básico",
-      "Codigo": "PB-001",
+      "Codigo": "PUR-001",
       "PorcentajeVenta": 35,
       "PorcentajeRenta": 15
     },
@@ -255,26 +246,13 @@ GET /equipos?estatus=Armado&tipo=interno
         "RefaccionID": 10,
         "Cantidad": 2,
         "Refaccion": {
-          "NombrePieza": "Membrana RO",
-          "NombreCorto": "MEM-RO",
-          "Codigo": "REF-010",
-          "CostoPromedio": 350.00,
+          "NombrePieza": "Filtro de carbón activado",
+          "NombreCorto": "Filtro CA",
+          "Codigo": "FLT-001",
+          "CostoPromedio": 250.00,
           "Unidad": "Pieza"
         },
-        "Subtotal": 700.00
-      },
-      {
-        "EquipoDetalleID": 2,
-        "RefaccionID": 15,
-        "Cantidad": 1,
-        "Refaccion": {
-          "NombrePieza": "Bomba de presión",
-          "NombreCorto": "BOMBA",
-          "Codigo": "REF-015",
-          "CostoPromedio": 800.00,
-          "Unidad": "Pieza"
-        },
-        "Subtotal": 800.00
+        "Subtotal": 500.00
       }
     ]
   }
@@ -285,7 +263,7 @@ GET /equipos?estatus=Armado&tipo=interno
 
 | Código | Mensaje | Causa |
 |--------|---------|-------|
-| 404 | Equipo no encontrado | EquipoID inválido o inactivo |
+| 404 | Equipo no encontrado | EquipoID no existe o está inactivo |
 
 ---
 
@@ -293,22 +271,30 @@ GET /equipos?estatus=Armado&tipo=interno
 
 **Endpoint:** `PUT /equipos/:EquipoID`
 
-**Descripción:** Actualiza las observaciones de un equipo. Solo disponible en estado `Armado`.
+**Descripción:** Actualiza las observaciones de un equipo. Solo permitido en estados **Armado** o **Reacondicionado**.
+
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
 
 **Parámetros de URL:**
+
 | Parámetro | Tipo | Requerido | Descripción |
 |-----------|------|-----------|-------------|
 | `EquipoID` | number | Sí | ID del equipo |
 
 **Payload:**
+
 | Campo | Tipo | Requerido | Validaciones | Descripción |
 |-------|------|-----------|--------------|-------------|
-| `Observaciones` | string | No | max: 500, nullable | Nuevas observaciones |
+| `Observaciones` | string | No | max: 500 | Observaciones del equipo |
 
 **Ejemplo de Request:**
 ```json
 {
-  "Observaciones": "Equipo ajustado para cliente especial"
+  "Observaciones": "Equipo revisado y listo para uso"
 }
 ```
 
@@ -318,7 +304,7 @@ GET /equipos?estatus=Armado&tipo=interno
   "status": 200,
   "message": "Equipo actualizado correctamente",
   "error": false,
-  "data": { ... equipo completo actualizado ... }
+  "data": { ... }
 }
 ```
 
@@ -326,32 +312,79 @@ GET /equipos?estatus=Armado&tipo=interno
 
 | Código | Mensaje | Causa |
 |--------|---------|-------|
-| 400 | Esta operación solo está permitida para equipos en estado: Armado. Estado actual: Instalado | El equipo no está en estado Armado |
-| 404 | Equipo no encontrado | EquipoID inválido o inactivo |
+| 400 | Esta operación solo está permitida para equipos en estado: Armado, Reacondicionado | Estado no permitido |
+| 404 | Equipo no encontrado | EquipoID no existe |
 
 ---
 
-### 5. Agregar Refacción al Equipo
+### 5. Buscar Refacciones con Stock
+
+**Endpoint:** `GET /equipos/refacciones`
+
+**Descripción:** Busca refacciones disponibles mostrando el stock del inventario general. Útil para agregar refacciones a equipos.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Query Params:**
+
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `q` | string | No | Buscar por nombre, código o nombre corto |
+
+**Response Exitoso (200):**
+```json
+{
+  "status": 200,
+  "message": "Refacciones encontradas",
+  "error": false,
+  "data": [
+    {
+      "RefaccionID": 10,
+      "NombrePieza": "Filtro de carbón activado",
+      "NombreCorto": "Filtro CA",
+      "Codigo": "FLT-001",
+      "CostoPromedio": 250.00,
+      "Unidad": "Pieza",
+      "StockDisponible": 50
+    }
+  ]
+}
+```
+
+---
+
+### 6. Agregar Refacción a Equipo
 
 **Endpoint:** `POST /equipos/:EquipoID/refacciones`
 
-**Descripción:** Agrega una nueva refacción al equipo. Solo disponible en estado `Armado`. Si es equipo interno, valida y descuenta del inventario.
+**Descripción:** Agrega una nueva refacción al equipo. Solo permitido en estados **Armado** o **Reacondicionado**. Para equipos Purifreeze, descuenta del inventario.
+
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
 
 **Parámetros de URL:**
+
 | Parámetro | Tipo | Requerido | Descripción |
 |-----------|------|-----------|-------------|
 | `EquipoID` | number | Sí | ID del equipo |
 
 **Payload:**
+
 | Campo | Tipo | Requerido | Validaciones | Descripción |
 |-------|------|-----------|--------------|-------------|
-| `RefaccionID` | number | Sí | - | ID de la refacción a agregar |
+| `RefaccionID` | number | Sí | - | ID de la refacción |
 | `Cantidad` | number | Sí | min: 1 | Cantidad a agregar |
 
 **Ejemplo de Request:**
 ```json
 {
-  "RefaccionID": 25,
+  "RefaccionID": 10,
   "Cantidad": 2
 }
 ```
@@ -362,35 +395,47 @@ GET /equipos?estatus=Armado&tipo=interno
   "status": 201,
   "message": "Refacción agregada correctamente",
   "error": false,
-  "data": { ... equipo completo actualizado ... }
+  "data": { ... }
 }
 ```
+
+**Comportamiento de Kardex:**
+- **Estado Armado**: Registra movimiento `Traspaso_Bodega_Equipo`
+- **Estado Reacondicionado**: Registra movimiento `Reacondicionamiento_Entrada`
 
 **Errores Posibles:**
 
 | Código | Mensaje | Causa |
 |--------|---------|-------|
-| 400 | Esta refacción ya existe en el equipo | La refacción ya está en el equipo |
-| 400 | Stock insuficiente para "{NombrePieza}" | No hay stock suficiente (solo equipos internos) |
-| 400 | Esta operación solo está permitida para equipos en estado: Armado | El equipo no está en estado Armado |
-| 404 | Refacción no encontrada | RefaccionID inválido o inactivo |
-| 404 | Equipo no encontrado | EquipoID inválido o inactivo |
+| 400 | Esta refacción ya existe en el equipo | Refacción duplicada |
+| 400 | Stock insuficiente para "X" | No hay inventario suficiente |
+| 400 | Esta operación solo está permitida para equipos en estado: Armado, Reacondicionado | Estado no permitido |
+| 404 | Equipo no encontrado | EquipoID no existe |
+| 404 | Refacción no encontrada | RefaccionID no existe |
 
 ---
 
-### 6. Modificar Cantidad de Refacción
+### 7. Modificar Cantidad de Refacción
 
 **Endpoint:** `PATCH /equipos/:EquipoID/refacciones/:EquipoDetalleID/cantidad`
 
-**Descripción:** Modifica la cantidad de una refacción existente en el equipo. Solo disponible en estado `Armado`. Si es equipo interno, ajusta el inventario automáticamente.
+**Descripción:** Modifica la cantidad de una refacción en el equipo. Solo permitido en estados **Armado** o **Reacondicionado**. Ajusta el inventario automáticamente.
+
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
 
 **Parámetros de URL:**
+
 | Parámetro | Tipo | Requerido | Descripción |
 |-----------|------|-----------|-------------|
 | `EquipoID` | number | Sí | ID del equipo |
 | `EquipoDetalleID` | number | Sí | ID del detalle a modificar |
 
 **Payload:**
+
 | Campo | Tipo | Requerido | Validaciones | Descripción |
 |-------|------|-----------|--------------|-------------|
 | `Cantidad` | number | Sí | min: 1 | Nueva cantidad |
@@ -398,7 +443,7 @@ GET /equipos?estatus=Armado&tipo=interno
 **Ejemplo de Request:**
 ```json
 {
-  "Cantidad": 3
+  "Cantidad": 5
 }
 ```
 
@@ -408,64 +453,67 @@ GET /equipos?estatus=Armado&tipo=interno
   "status": 200,
   "message": "Cantidad actualizada correctamente",
   "error": false,
-  "data": { ... equipo completo actualizado ... }
+  "data": { ... }
 }
 ```
 
-**Comportamiento de Inventario (equipos internos):**
-- Si la nueva cantidad es **mayor**: descuenta la diferencia del inventario
-- Si la nueva cantidad es **menor**: devuelve la diferencia al inventario
+**Comportamiento de Kardex:**
+- Si **aumenta** cantidad:
+  - Estado Armado: `Traspaso_Bodega_Equipo` (salida de bodega)
+  - Estado Reacondicionado: `Reacondicionamiento_Entrada`
+- Si **disminuye** cantidad:
+  - Estado Armado: `Traspaso_Equipo` (entrada a bodega)
+  - Estado Reacondicionado: `Reacondicionamiento_Salida`
 
 **Errores Posibles:**
 
 | Código | Mensaje | Causa |
 |--------|---------|-------|
-| 400 | Stock insuficiente para "{NombrePieza}" | No hay stock para incrementar (solo internos) |
-| 400 | Esta operación solo está permitida para equipos en estado: Armado | El equipo no está en estado Armado |
-| 404 | Detalle de equipo no encontrado | EquipoDetalleID inválido |
-| 404 | Equipo no encontrado | EquipoID inválido o inactivo |
+| 400 | Stock insuficiente | Si aumenta cantidad y no hay inventario |
+| 404 | Detalle de equipo no encontrado | EquipoDetalleID no existe |
 
 ---
 
-### 7. Eliminar Refacción del Equipo
+### 8. Eliminar Refacción de Equipo
 
 **Endpoint:** `DELETE /equipos/:EquipoID/refacciones/:EquipoDetalleID`
 
-**Descripción:** Elimina una refacción del equipo. Solo disponible en estado `Armado`. Para equipos internos, se debe especificar el destino de las refacciones.
+**Descripción:** Elimina una refacción del equipo. Solo permitido en estados **Armado** o **Reacondicionado**. Debe especificar el destino de las piezas.
+
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
 
 **Parámetros de URL:**
+
 | Parámetro | Tipo | Requerido | Descripción |
 |-----------|------|-----------|-------------|
 | `EquipoID` | number | Sí | ID del equipo |
 | `EquipoDetalleID` | number | Sí | ID del detalle a eliminar |
 
 **Payload:**
+
 | Campo | Tipo | Requerido | Validaciones | Descripción |
 |-------|------|-----------|--------------|-------------|
-| `Destino` | string | Sí | `inventario` o `danada` | A dónde van las refacciones |
-| `MotivoDano` | string | Condicional | Ver valores permitidos | Requerido si Destino = `danada` |
-| `Observaciones` | string | No | max: 255 | Observaciones del daño |
+| `Destino` | string | Sí | enum: inventario, danada | Destino de las piezas |
+| `MotivoDano` | string | Condicional | enum: Defecto_Fabrica, Mal_Uso, Desgaste_Normal, Accidente, Otro | Requerido si destino es "danada" |
+| `Observaciones` | string | No | max: 255 | Observaciones adicionales |
 
-**Valores de MotivoDano:**
-- `Defecto_Fabrica`
-- `Mal_Uso`
-- `Desgaste_Normal`
-- `Accidente`
-- `Otro`
-
-**Ejemplo de Request (regresar a inventario):**
+**Ejemplo de Request (retorno a inventario):**
 ```json
 {
   "Destino": "inventario"
 }
 ```
 
-**Ejemplo de Request (refacción dañada):**
+**Ejemplo de Request (pieza dañada):**
 ```json
 {
   "Destino": "danada",
-  "MotivoDano": "Defecto_Fabrica",
-  "Observaciones": "La pieza venía defectuosa"
+  "MotivoDano": "Desgaste_Normal",
+  "Observaciones": "Filtro con perforaciones"
 }
 ```
 
@@ -475,41 +523,51 @@ GET /equipos?estatus=Armado&tipo=interno
   "status": 200,
   "message": "Refacción eliminada correctamente",
   "error": false,
-  "data": { ... equipo completo actualizado ... }
+  "data": { ... }
 }
 ```
+
+**Comportamiento de Kardex:**
+- **Estado Armado**: Registra `Traspaso_Equipo`
+- **Estado Reacondicionado**: Registra `Reacondicionamiento_Salida`
 
 **Errores Posibles:**
 
 | Código | Mensaje | Causa |
 |--------|---------|-------|
-| 400 | MotivoDano es requerido cuando el destino es dañada | Falta MotivoDano |
-| 400 | Esta operación solo está permitida para equipos en estado: Armado | El equipo no está en estado Armado |
-| 404 | Detalle de equipo no encontrado | EquipoDetalleID inválido |
-| 404 | Equipo no encontrado | EquipoID inválido o inactivo |
+| 400 | MotivoDano es requerido cuando el destino es dañada | Falta motivo de daño |
+| 404 | Detalle de equipo no encontrado | EquipoDetalleID no existe |
 
 ---
 
-### 8. Instalar Equipo
+### 9. Instalar Equipo
 
 **Endpoint:** `PATCH /equipos/:EquipoID/instalar`
 
-**Descripción:** Cambia el estado del equipo de `Armado` a `Instalado`. Una vez instalado, no se pueden modificar las refacciones.
+**Descripción:** Cambia el estado del equipo de **Armado** o **Reacondicionado** a **Instalado**.
+
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
 
 **Parámetros de URL:**
+
 | Parámetro | Tipo | Requerido | Descripción |
 |-----------|------|-----------|-------------|
 | `EquipoID` | number | Sí | ID del equipo |
 
 **Payload:**
+
 | Campo | Tipo | Requerido | Validaciones | Descripción |
 |-------|------|-----------|--------------|-------------|
-| `FechaInstalacion` | string | No | formato fecha | Fecha de instalación (default: hoy) |
+| `FechaInstalacion` | string | No | formato ISO | Fecha de instalación (default: fecha actual) |
 
 **Ejemplo de Request:**
 ```json
 {
-  "FechaInstalacion": "2024-12-06"
+  "FechaInstalacion": "2024-12-23"
 }
 ```
 
@@ -519,13 +577,7 @@ GET /equipos?estatus=Armado&tipo=interno
   "status": 200,
   "message": "Equipo instalado correctamente",
   "error": false,
-  "data": {
-    "EquipoID": 1,
-    "NumeroSerie": "PUR-24-0001",
-    "Estatus": "Instalado",
-    "FechaInstalacion": "2024-12-06",
-    ...
-  }
+  "data": { ... }
 }
 ```
 
@@ -533,57 +585,83 @@ GET /equipos?estatus=Armado&tipo=interno
 
 | Código | Mensaje | Causa |
 |--------|---------|-------|
-| 400 | Esta operación solo está permitida para equipos en estado: Armado | El equipo ya está instalado o desmontado |
-| 404 | Equipo no encontrado | EquipoID inválido o inactivo |
+| 400 | Esta operación solo está permitida para equipos en estado: Armado, Reacondicionado | Estado no permitido |
 
 ---
 
-### 9. Desmontar Equipo
+### 10. Desmontar Equipo
 
 **Endpoint:** `PATCH /equipos/:EquipoID/desmontar`
 
-**Descripción:** Cambia el estado del equipo de `Instalado` a `Desmontado`. **Solo disponible para equipos Purifreeze (internos)**. Permite especificar el destino de cada refacción.
+**Descripción:** Desmonta un equipo instalado. Solo para equipos Purifreeze. **NOTA:** El flujo principal de desmontaje es desde el módulo de servicios.
+
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
 
 **Parámetros de URL:**
+
 | Parámetro | Tipo | Requerido | Descripción |
 |-----------|------|-----------|-------------|
 | `EquipoID` | number | Sí | ID del equipo |
 
 **Payload:**
+
 | Campo | Tipo | Requerido | Validaciones | Descripción |
 |-------|------|-----------|--------------|-------------|
-| `FechaDesmontaje` | string | No | formato fecha | Fecha de desmontaje (default: hoy) |
-| `Observaciones` | string | No | max: 500 | Observaciones del desmontaje |
-| `Refacciones` | array | No | - | Lista de refacciones con su destino |
+| `FechaDesmontaje` | string | No | formato ISO | Fecha de desmontaje (default: fecha actual) |
+| `Observaciones` | string | No | max: 500 | Observaciones |
+| `Refacciones` | array | No | - | Array de refacciones a procesar |
 
-**Estructura de cada elemento en Refacciones:**
+**Estructura de Refacciones:**
+
 | Campo | Tipo | Requerido | Descripción |
 |-------|------|-----------|-------------|
 | `RefaccionID` | number | Sí | ID de la refacción |
 | `Cantidad` | number | Sí | Cantidad a procesar |
-| `Destino` | string | Sí | `inventario` o `danada` |
-| `MotivoDano` | string | Condicional | Requerido si Destino = `danada` |
+| `Destino` | string | Sí | inventario o danada |
+| `MotivoDano` | string | Condicional | Requerido si destino es danada |
 | `ObservacionesDano` | string | No | Observaciones del daño |
+
+**Errores Posibles:**
+
+| Código | Mensaje | Causa |
+|--------|---------|-------|
+| 400 | Solo equipos Purifreeze pueden desmontarse | Equipo externo |
+| 400 | Esta operación solo está permitida para equipos en estado: Instalado | Estado no permitido |
+
+---
+
+### 11. Finalizar Reacondicionamiento
+
+**Endpoint:** `PATCH /equipos/:EquipoID/finalizar-reacondicionamiento`
+
+**Descripción:** Finaliza el proceso de reacondicionamiento y marca el equipo como listo para nuevo uso (cambia estado a **Armado**). Incrementa el contador de veces reacondicionado.
+
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
+
+**Parámetros de URL:**
+
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `EquipoID` | number | Sí | ID del equipo |
+
+**Payload:**
+
+| Campo | Tipo | Requerido | Validaciones | Descripción |
+|-------|------|-----------|--------------|-------------|
+| `Observaciones` | string | No | max: 500 | Observaciones del reacondicionamiento |
 
 **Ejemplo de Request:**
 ```json
 {
-  "FechaDesmontaje": "2024-12-06",
-  "Observaciones": "Equipo retirado por fin de contrato",
-  "Refacciones": [
-    {
-      "RefaccionID": 10,
-      "Cantidad": 2,
-      "Destino": "inventario"
-    },
-    {
-      "RefaccionID": 15,
-      "Cantidad": 1,
-      "Destino": "danada",
-      "MotivoDano": "Desgaste_Normal",
-      "ObservacionesDano": "Bomba con desgaste después de 2 años de uso"
-    }
-  ]
+  "Observaciones": "Se reemplazaron filtros y se verificó funcionamiento"
 }
 ```
 
@@ -591,13 +669,15 @@ GET /equipos?estatus=Armado&tipo=interno
 ```json
 {
   "status": 200,
-  "message": "Equipo desmontado correctamente",
+  "message": "Reacondicionamiento finalizado. Equipo listo para nuevo uso.",
   "error": false,
   "data": {
     "EquipoID": 1,
     "NumeroSerie": "PUR-24-0001",
-    "Estatus": "Desmontado",
-    "FechaDesmontaje": "2024-12-06",
+    "EsExterno": false,
+    "Estatus": "Armado",
+    "VecesReacondicionado": 1,
+    "FechaReacondicionamiento": "2024-12-23",
     ...
   }
 }
@@ -607,25 +687,22 @@ GET /equipos?estatus=Armado&tipo=interno
 
 | Código | Mensaje | Causa |
 |--------|---------|-------|
-| 400 | Solo equipos Purifreeze pueden desmontarse | Intentando desmontar equipo externo |
-| 400 | Esta operación solo está permitida para equipos en estado: Instalado | El equipo no está instalado |
-| 400 | Cantidad excede lo disponible para refacción X | Cantidad mayor a la del equipo |
-| 400 | MotivoDano es requerido para refacción X | Falta MotivoDano cuando Destino = `danada` |
-| 404 | Refacción X no encontrada en el equipo | RefaccionID no pertenece al equipo |
-| 404 | Equipo no encontrado | EquipoID inválido o inactivo |
+| 400 | Solo equipos Purifreeze pueden reacondicionarse | Equipo externo |
+| 400 | Esta operación solo está permitida para equipos en estado: Reacondicionado | Estado no permitido |
+| 404 | Equipo no encontrado | EquipoID no existe |
 
 ---
 
-### 10. Dar de Baja Equipo
+### 12. Dar de Baja Equipo
 
 **Endpoint:** `PATCH /equipos/baja/:EquipoID`
 
-**Descripción:** Desactiva un equipo (soft delete).
+**Descripción:** Realiza soft delete del equipo.
 
-**Parámetros de URL:**
-| Parámetro | Tipo | Requerido | Descripción |
-|-----------|------|-----------|-------------|
-| `EquipoID` | number | Sí | ID del equipo |
+**Headers:**
+```
+Authorization: Bearer {token}
+```
 
 **Response Exitoso (200):**
 ```json
@@ -633,24 +710,22 @@ GET /equipos?estatus=Armado&tipo=interno
   "status": 200,
   "message": "Equipo dado de baja correctamente",
   "error": false,
-  "data": {
-    "EquipoID": 1
-  }
+  "data": { "EquipoID": 1 }
 }
 ```
 
 ---
 
-### 11. Activar Equipo
+### 13. Activar Equipo
 
 **Endpoint:** `PATCH /equipos/activar/:EquipoID`
 
-**Descripción:** Reactiva un equipo previamente dado de baja.
+**Descripción:** Reactiva un equipo dado de baja.
 
-**Parámetros de URL:**
-| Parámetro | Tipo | Requerido | Descripción |
-|-----------|------|-----------|-------------|
-| `EquipoID` | number | Sí | ID del equipo |
+**Headers:**
+```
+Authorization: Bearer {token}
+```
 
 **Response Exitoso (200):**
 ```json
@@ -658,50 +733,84 @@ GET /equipos?estatus=Armado&tipo=interno
   "status": 200,
   "message": "Equipo activado correctamente",
   "error": false,
-  "data": {
-    "EquipoID": 1
-  }
+  "data": { "EquipoID": 1 }
 }
 ```
 
 ---
 
-## Modelo de Datos
+## Modelos de Datos
 
 ### equipos
 
 | Campo | Tipo | Nullable | Descripción |
 |-------|------|----------|-------------|
 | EquipoID | Int | No | Clave primaria |
-| PlantillaEquipoID | Int | No | FK a plantillas_equipo |
-| NumeroSerie | String | No | Identificador único auto-generado |
-| EsExterno | Int (0/1) | No | 0 = Interno, 1 = Externo |
-| Estatus | Enum | No | Armado, Instalado, Desmontado |
-| Observaciones | String | Sí | Máx 500 caracteres |
-| FechaCreacion | Date | No | Fecha de creación |
+| PlantillaEquipoID | Int | No | FK a plantilla |
+| NumeroSerie | String(50) | No | Único, autogenerado |
+| EsExterno | TinyInt | No | 0=Purifreeze, 1=Externo |
+| Estatus | Enum | No | Armado, Instalado, Reacondicionado, Desmontado |
+| Observaciones | String(500) | Sí | Notas del equipo |
+| FechaCreacion | Date | No | Fecha de armado |
 | FechaInstalacion | Date | Sí | Fecha de instalación |
 | FechaDesmontaje | Date | Sí | Fecha de desmontaje |
-| UsuarioCreadorID | Int | Sí | FK a usuarios |
-| IsActive | Int (0/1) | Sí | Soft delete |
+| FechaReacondicionamiento | Date | Sí | Última fecha de reacondicionamiento |
+| VecesReacondicionado | Int | No | Contador de reacondicionamientos (default: 0) |
+| UsuarioCreadorID | Int | Sí | Usuario que creó el equipo |
+| ClienteID | Int | Sí | Cliente actual (cuando está instalado) |
+| SucursalID | Int | Sí | Sucursal actual (cuando está instalado) |
+| ContratoID | Int | Sí | Contrato actual (cuando está instalado) |
+| IsActive | TinyInt | Sí | Soft delete |
 
 ### equipos_detalle
 
 | Campo | Tipo | Nullable | Descripción |
 |-------|------|----------|-------------|
 | EquipoDetalleID | Int | No | Clave primaria |
-| EquipoID | Int | No | FK a equipos |
-| RefaccionID | Int | No | FK a catalogo_refacciones |
-| Cantidad | Int | No | Cantidad de la refacción |
-| IsActive | Int (0/1) | Sí | Soft delete |
+| EquipoID | Int | No | FK a equipo |
+| RefaccionID | Int | No | FK a refacción |
+| Cantidad | Int | No | Cantidad de piezas |
+| IsActive | TinyInt | Sí | Soft delete |
+
+### equipos_historial
+
+| Campo | Tipo | Nullable | Descripción |
+|-------|------|----------|-------------|
+| EquipoHistorialID | Int | No | Clave primaria |
+| EquipoID | Int | No | FK a equipo |
+| TipoAccion | Enum | No | Tipo de acción realizada |
+| EstatusAnterior | Enum | Sí | Estado antes del cambio |
+| EstatusNuevo | Enum | Sí | Estado después del cambio |
+| Descripcion | String(500) | No | Descripción del evento |
+| DetalleJSON | Text | Sí | Datos adicionales en JSON |
+| UsuarioID | Int | Sí | Usuario que realizó la acción |
+| FechaAccion | DateTime | No | Fecha y hora del evento |
+
+### TipoAccionEquipo (Enum)
+
+| Valor | Descripción |
+|-------|-------------|
+| CREACION | Equipo creado |
+| INSTALACION | Equipo instalado en cliente |
+| DESINSTALACION | Equipo retirado de cliente |
+| INICIO_REACONDICIONAMIENTO | Comenzó reacondicionamiento |
+| FIN_REACONDICIONAMIENTO | Finalizó reacondicionamiento |
+| AGREGAR_REFACCION | Refacción agregada |
+| MODIFICAR_REFACCION | Cantidad de refacción modificada |
+| ELIMINAR_REFACCION | Refacción eliminada |
+| MODIFICACION | Observaciones actualizadas |
+| BAJA | Equipo dado de baja |
+| ACTIVACION | Equipo reactivado |
 
 ---
 
 ## Relaciones
 
-- **equipos → plantillas_equipo:** Cada equipo se basa en una plantilla
-- **equipos → equipos_detalle:** Un equipo tiene múltiples refacciones
-- **equipos_detalle → catalogo_refacciones:** Cada detalle referencia una refacción
-- **equipos → refacciones_danadas:** Las piezas dañadas se vinculan al equipo origen
+- **Plantilla:** Cada equipo se basa en una plantilla (`plantillas_equipo`)
+- **Detalles:** Un equipo tiene múltiples refacciones (`equipos_detalle`)
+- **Cliente/Sucursal/Contrato:** Ubicación actual del equipo cuando está instalado
+- **Historial:** Registro de todos los eventos del equipo (`equipos_historial`)
+- **Refacciones dañadas:** Historial de piezas dañadas (`refacciones_danadas`)
 
 ---
 
@@ -717,37 +826,64 @@ GET /equipos?estatus=Armado&tipo=interno
    - PATCH /equipos/:id/refacciones/:id/cantidad (modificar)
    - DELETE /equipos/:id/refacciones/:id (eliminar)
    ↓
-3. PATCH /equipos/:id/instalar (cuando esté listo)
+3. Equipo listo en estado "Armado"
 ```
 
-### Desmontar Equipo
+### Ciclo de Vida del Equipo
 
 ```
-1. PATCH /equipos/:id/desmontar
-   - Especificar destino de cada refacción
-   - inventario: piezas en buen estado
-   - danada: piezas deterioradas
+1. [Armado] → Servicio de instalación → [Instalado]
+   ↓
+2. [Instalado] → Servicio de desinstalación
+   ↓
+   ├─ Con EQUIPO_COMPLETO → [Reacondicionado]
+   │   ↓
+   │   Ajustar refacciones (agregar/quitar/modificar)
+   │   ↓
+   │   PATCH /equipos/:id/finalizar-reacondicionamiento → [Armado]
+   │   ↓
+   │   Vuelve a estar disponible para nuevo uso
+   │
+   └─ Con PIEZAS_INDIVIDUALES → [Desmontado]
+       (Las piezas regresan al inventario)
 ```
 
 ---
 
 ## Notas Importantes
 
-1. **Equipos Externos (otra empresa):**
-   - No afectan el inventario en ninguna operación
-   - No pueden ser desmontados
-   - Se usan para registro y seguimiento únicamente
+1. **Equipos Externos vs Purifreeze:**
+   - Los equipos externos **NO afectan** el inventario
+   - Los equipos externos **NO pueden reacondicionarse**
+   - Los equipos externos **NO pueden desmontarse**
 
-2. **Kardex:** Todos los movimientos de inventario se registran automáticamente en `kardex_inventario` con tipo `Traspaso_Bodega_Equipo` (salidas) o `Traspaso_Equipo` (entradas).
+2. **Flujo de Servicios:**
+   - La instalación y desinstalación principal se manejan desde el módulo de **servicios**
+   - El cambio a estado "Reacondicionado" se hace desde servicios con acción `EQUIPO_COMPLETO`
+   - El cambio a estado "Desmontado" se hace desde servicios con acción `PIEZAS_INDIVIDUALES`
 
-3. **Refacciones Dañadas:** Se registran en `refacciones_danadas` con referencia al EquipoID de origen.
+3. **Inventario y Kardex:**
+   - Cada operación en equipos Purifreeze afecta el inventario general
+   - Se registra en kardex con el tipo de movimiento correspondiente
+   - En estado Reacondicionado, los movimientos usan tipos específicos (`Reacondicionamiento_Entrada/Salida`)
 
-4. **Precios Calculados:** CostoTotal, PrecioVenta y PrecioRenta se calculan dinámicamente basados en:
-   - Suma de (CostoPromedio × Cantidad) de cada refacción
-   - PorcentajeVenta y PorcentajeRenta de la plantilla
+4. **Historial:**
+   - **TODAS** las operaciones quedan registradas en `equipos_historial`
+   - Incluye: usuario, estados anterior/nuevo, descripción y detalles en JSON
+   - Permite trazabilidad completa del ciclo de vida del equipo
 
-5. **Soft Delete:** El campo `IsActive` indica si el registro está activo (1) o dado de baja (0).
+5. **Reacondicionamiento:**
+   - El contador `VecesReacondicionado` indica cuántas veces se ha reacondicionado el equipo
+   - La fecha `FechaReacondicionamiento` muestra la última vez que se finalizó un reacondicionamiento
+   - Un equipo puede ser reacondicionado múltiples veces durante su vida útil
+
+6. **Precios Calculados:**
+   - `CostoTotal`: Suma de (CostoPromedio × Cantidad) de cada refacción
+   - `PrecioVenta`: CostoTotal × (1 + PorcentajeVenta/100)
+   - `PrecioRenta`: CostoTotal × (PorcentajeRenta/100)
+
+7. **Soft Delete:** El campo `IsActive` indica si el registro está activo (1) o dado de baja (0).
 
 ---
 
-**Última actualización:** 2024-12-06
+**Última actualización:** 2025-12-23

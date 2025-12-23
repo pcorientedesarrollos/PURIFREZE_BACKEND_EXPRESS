@@ -6,7 +6,7 @@
 
 **Prefijo de ruta:** `/contratos`
 
-**Autenticación:** No requerida (verificar si se implementa middleware de auth)
+**Autenticación:** Bearer Token requerido
 
 ---
 
@@ -105,15 +105,22 @@ Cuando se crea un contrato desde un presupuesto:
 
 ## Endpoints
 
+---
+
+## CONTRATOS - CRUD
+
+---
+
 ### 1. Crear Contrato
 
 **Endpoint:** `POST /contratos`
 
-**Descripción:** Crea un contrato desde un presupuesto aprobado.
+**Descripción:** Crea un contrato desde un presupuesto aprobado. Los items del presupuesto se pre-cargan automáticamente como pendientes de asignar equipo físico.
 
 **Headers:**
 ```
 Content-Type: application/json
+Authorization: Bearer {token}
 ```
 
 **Payload:**
@@ -168,7 +175,6 @@ Content-Type: application/json
     "Observaciones": "Contrato de renta anual",
     "ContratoOrigenID": null,
     "UsuarioID": 1,
-    "FechaCreacion": "2025-12-13T00:00:00.000Z",
     "IsActive": 1,
     "cliente": {
       "ClienteID": 1,
@@ -181,6 +187,7 @@ Content-Type: application/json
       "Total": 15000.00,
       "FechaCreacion": "2025-12-10T00:00:00.000Z"
     },
+    "contrato_origen": null,
     "equipos": [
       {
         "ContratoEquipoID": 1,
@@ -189,19 +196,40 @@ Content-Type: application/json
         "Modalidad": "RENTA",
         "PrecioUnitario": 450.00,
         "PeriodoMeses": 12,
+        "FechaInstalacion": null,
+        "FechaRetiro": null,
         "Estatus": "PENDIENTE",
+        "Observaciones": null,
+        "IsActive": 1,
+        "PlantillaEquipoID": 1,
+        "RefaccionID": null,
         "TipoItem": "EQUIPO_PURIFREEZE",
         "Descripcion": "[PF-001] Enfriador Industrial 5000",
         "CantidadRequerida": 2,
         "CantidadAsignada": 0,
+        "equipo": null,
         "plantilla": {
           "PlantillaEquipoID": 1,
           "NombreEquipo": "Enfriador Industrial 5000",
-          "Codigo": "PF-001"
-        }
+          "Codigo": "PF-001",
+          "EsExterno": false
+        },
+        "refaccion": null,
+        "servicios": []
       }
     ],
-    "historial": []
+    "historial": [
+      {
+        "HistorialID": 1,
+        "ContratoID": 1,
+        "TipoAccion": "CREACION",
+        "Descripcion": "Contrato CTR-25-0001 creado desde presupuesto #1 con 2 items pendientes de asignar",
+        "UsuarioID": 1,
+        "ValorAnterior": null,
+        "ValorNuevo": null,
+        "FechaAccion": "2025-01-01T12:00:00.000Z"
+      }
+    ]
   }
 }
 ```
@@ -212,6 +240,9 @@ Content-Type: application/json
 
 | Código | Mensaje | Causa |
 |--------|---------|-------|
+| 400 | Bad Request (PresupuestoID: El PresupuestoID es requerido) | Falta el ID del presupuesto |
+| 400 | Bad Request (FechaInicio: La fecha de inicio es requerida) | Falta la fecha de inicio |
+| 400 | Bad Request (DiaPago: Number must be less than or equal to 28) | Día de pago fuera de rango |
 | 404 | El presupuesto no existe | PresupuestoID inválido |
 | 300 | Solo se pueden crear contratos de presupuestos aprobados | Presupuesto no aprobado |
 | 300 | Ya existe un contrato activo para este presupuesto | Contrato duplicado |
@@ -224,10 +255,15 @@ Content-Type: application/json
 
 **Descripción:** Lista todos los contratos con filtros opcionales.
 
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
 **Query Params:**
 | Parámetro | Tipo | Requerido | Descripción |
 |-----------|------|-----------|-------------|
-| `estatus` | enum | No | Filtrar por estatus |
+| `estatus` | enum | No | Filtrar por estatus: EN_REVISION, ACTIVO, VENCIDO, CANCELADO, RENOVADO |
 | `clienteId` | number | No | Filtrar por cliente |
 | `fechaDesde` | string | No | Fecha inicio desde (YYYY-MM-DD) |
 | `fechaHasta` | string | No | Fecha inicio hasta (YYYY-MM-DD) |
@@ -244,11 +280,22 @@ Content-Type: application/json
     {
       "ContratoID": 1,
       "NumeroContrato": "CTR-25-0001",
+      "PresupuestoID": 1,
       "ClienteID": 1,
-      "Estatus": "ACTIVO",
+      "SucursalID": null,
       "FechaInicio": "2025-01-01T00:00:00.000Z",
       "FechaFin": "2025-12-31T00:00:00.000Z",
       "MontoTotal": 5400.00,
+      "CondicionesPago": "MENSUAL",
+      "DiaPago": 15,
+      "FrecuenciaMantenimiento": 3,
+      "PenalizacionCancelacion": 10,
+      "Estatus": "ACTIVO",
+      "MotivosCancelacion": null,
+      "ContratoOrigenID": null,
+      "Observaciones": null,
+      "UsuarioID": 1,
+      "IsActive": 1,
       "cliente": {
         "ClienteID": 1,
         "NombreComercio": "Tiendas XYZ"
@@ -274,10 +321,155 @@ Content-Type: application/json
 
 **Descripción:** Obtiene un contrato con todos sus detalles, equipos, servicios e historial.
 
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
 **Parámetros de URL:**
 | Parámetro | Tipo | Requerido | Descripción |
 |-----------|------|-----------|-------------|
 | `ContratoID` | number | Sí | ID del contrato |
+
+**Response Exitoso (200):**
+```json
+{
+  "status": 200,
+  "message": "Contrato obtenido",
+  "error": false,
+  "data": {
+    "ContratoID": 1,
+    "NumeroContrato": "CTR-25-0001",
+    "PresupuestoID": 1,
+    "ClienteID": 1,
+    "SucursalID": 2,
+    "FechaInicio": "2025-01-01T00:00:00.000Z",
+    "FechaFin": "2025-12-31T00:00:00.000Z",
+    "MontoTotal": 5400.00,
+    "CondicionesPago": "MENSUAL",
+    "DiaPago": 15,
+    "FrecuenciaMantenimiento": 3,
+    "PenalizacionCancelacion": 10,
+    "Estatus": "ACTIVO",
+    "MotivosCancelacion": null,
+    "ContratoOrigenID": null,
+    "Observaciones": null,
+    "UsuarioID": 1,
+    "IsActive": 1,
+    "cliente": {
+      "ClienteID": 1,
+      "NombreComercio": "Tiendas XYZ",
+      "Observaciones": "Cliente preferente"
+    },
+    "sucursal": {
+      "SucursalID": 2,
+      "NombreSucursal": "Sucursal Norte",
+      "Direccion": "Blvd. Norte #456",
+      "Telefono": "844-111-2222",
+      "Contacto": "Juan Pérez"
+    },
+    "presupuesto": {
+      "PresupuestoID": 1,
+      "Total": 15000.00,
+      "FechaCreacion": "2025-12-10T00:00:00.000Z"
+    },
+    "contrato_origen": null,
+    "equipos": [
+      {
+        "ContratoEquipoID": 1,
+        "ContratoID": 1,
+        "EquipoID": 5,
+        "Modalidad": "RENTA",
+        "PrecioUnitario": 450.00,
+        "PeriodoMeses": 12,
+        "FechaInstalacion": "2025-01-05T14:00:00.000Z",
+        "FechaRetiro": null,
+        "Estatus": "INSTALADO",
+        "Observaciones": null,
+        "IsActive": 1,
+        "PlantillaEquipoID": 1,
+        "RefaccionID": null,
+        "TipoItem": "EQUIPO_PURIFREEZE",
+        "Descripcion": "[PF-001] Enfriador Industrial 5000",
+        "CantidadRequerida": 1,
+        "CantidadAsignada": 1,
+        "equipo": {
+          "EquipoID": 5,
+          "NumeroSerie": "PUR-25-0005",
+          "EsExterno": false,
+          "Estatus": "Instalado",
+          "plantilla": {
+            "PlantillaEquipoID": 1,
+            "NombreEquipo": "Enfriador Industrial 5000",
+            "Codigo": "PF-001"
+          }
+        },
+        "plantilla": {
+          "PlantillaEquipoID": 1,
+          "NombreEquipo": "Enfriador Industrial 5000",
+          "Codigo": "PF-001",
+          "EsExterno": false
+        },
+        "refaccion": null,
+        "servicios": [
+          {
+            "ServicioID": 1,
+            "ContratoEquipoID": 1,
+            "TipoServicio": "INSTALACION",
+            "FechaProgramada": "2025-01-05T10:00:00.000Z",
+            "FechaEjecucion": "2025-01-05T14:00:00.000Z",
+            "TecnicoID": 2,
+            "Costo": 500,
+            "Estatus": "COMPLETADO",
+            "Observaciones": "Instalación exitosa",
+            "UsuarioID": 1,
+            "IsActive": 1
+          }
+        ]
+      }
+    ],
+    "historial": [
+      {
+        "HistorialID": 3,
+        "ContratoID": 1,
+        "TipoAccion": "ACTIVACION",
+        "Descripcion": "Contrato activado con monto total: $5400.00",
+        "UsuarioID": 1,
+        "ValorAnterior": null,
+        "ValorNuevo": null,
+        "FechaAccion": "2025-01-02T09:00:00.000Z"
+      },
+      {
+        "HistorialID": 2,
+        "ContratoID": 1,
+        "TipoAccion": "AGREGAR_EQUIPO",
+        "Descripcion": "Equipo PUR-25-0005 asignado al item: [PF-001] Enfriador Industrial 5000",
+        "UsuarioID": 1,
+        "ValorAnterior": null,
+        "ValorNuevo": null,
+        "FechaAccion": "2025-01-01T15:00:00.000Z"
+      },
+      {
+        "HistorialID": 1,
+        "ContratoID": 1,
+        "TipoAccion": "CREACION",
+        "Descripcion": "Contrato CTR-25-0001 creado desde presupuesto #1",
+        "UsuarioID": 1,
+        "ValorAnterior": null,
+        "ValorNuevo": null,
+        "FechaAccion": "2025-01-01T12:00:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+**Errores Posibles:**
+
+| Código | Mensaje | Causa |
+|--------|---------|-------|
+| 400 | Bad Request (ContratoID: ID debe ser un número válido) | ID no es número |
+| 404 | Contrato no encontrado | ContratoID no existe |
 
 ---
 
@@ -285,7 +477,50 @@ Content-Type: application/json
 
 **Endpoint:** `GET /contratos/cliente/:ClienteID`
 
-**Descripción:** Lista todos los contratos de un cliente.
+**Descripción:** Lista todos los contratos de un cliente específico.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Parámetros de URL:**
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `ClienteID` | number | Sí | ID del cliente |
+
+**Response Exitoso (200):**
+```json
+{
+  "status": 200,
+  "message": "Contratos del cliente obtenidos",
+  "error": false,
+  "data": [
+    {
+      "ContratoID": 1,
+      "NumeroContrato": "CTR-25-0001",
+      "PresupuestoID": 1,
+      "ClienteID": 1,
+      "SucursalID": 2,
+      "FechaInicio": "2025-01-01T00:00:00.000Z",
+      "FechaFin": "2025-12-31T00:00:00.000Z",
+      "MontoTotal": 5400.00,
+      "Estatus": "ACTIVO",
+      "cliente": {
+        "ClienteID": 1,
+        "NombreComercio": "Tiendas XYZ"
+      },
+      "sucursal": {
+        "SucursalID": 2,
+        "NombreSucursal": "Sucursal Norte"
+      },
+      "_count": {
+        "equipos": 3
+      }
+    }
+  ]
+}
+```
 
 ---
 
@@ -293,19 +528,57 @@ Content-Type: application/json
 
 **Endpoint:** `PUT /contratos/:ContratoID`
 
-**Descripción:** Actualiza datos del contrato. Solo funciona si está EN_REVISION.
+**Descripción:** Actualiza datos del contrato. **Solo funciona si está EN_REVISION.**
+
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
+
+**Parámetros de URL:**
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `ContratoID` | number | Sí | ID del contrato |
 
 **Payload:**
-| Campo | Tipo | Requerido | Descripción |
-|-------|------|-----------|-------------|
-| `FechaInicio` | string | No | Nueva fecha de inicio |
-| `FechaFin` | string | No | Nueva fecha de fin |
-| `CondicionesPago` | enum | No | Nuevas condiciones |
-| `DiaPago` | number | No | Nuevo día de pago |
-| `FrecuenciaMantenimiento` | number | No | Nueva frecuencia |
-| `PenalizacionCancelacion` | number | No | Nueva penalización |
-| `Observaciones` | string | No | Nuevas observaciones |
-| `UsuarioID` | number | Sí | Usuario que modifica |
+| Campo | Tipo | Requerido | Validaciones | Descripción |
+|-------|------|-----------|--------------|-------------|
+| `FechaInicio` | string | No | Formato fecha | Nueva fecha de inicio |
+| `FechaFin` | string | No | Formato fecha | Nueva fecha de fin |
+| `CondicionesPago` | enum | No | Enum | Nuevas condiciones |
+| `DiaPago` | number | No | 1-28 | Nuevo día de pago |
+| `FrecuenciaMantenimiento` | number | No | min: 1 | Nueva frecuencia |
+| `PenalizacionCancelacion` | number | No | 0-100 | Nueva penalización |
+| `Observaciones` | string | No | max: 500 | Nuevas observaciones |
+| `UsuarioID` | number | Sí | - | Usuario que modifica |
+
+**Ejemplo de Request:**
+```json
+{
+  "FechaFin": "2026-06-30",
+  "DiaPago": 20,
+  "Observaciones": "Se extendió el contrato 6 meses",
+  "UsuarioID": 1
+}
+```
+
+**Response Exitoso (200):**
+```json
+{
+  "status": 200,
+  "message": "Contrato obtenido",
+  "error": false,
+  "data": { /* Contrato completo actualizado */ }
+}
+```
+
+**Errores Posibles:**
+
+| Código | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Contrato no encontrado | ContratoID no existe |
+| 300 | Solo se pueden editar contratos en revisión | Contrato no está EN_REVISION |
 
 ---
 
@@ -313,19 +586,52 @@ Content-Type: application/json
 
 **Endpoint:** `PATCH /contratos/:ContratoID/activar-contrato`
 
-**Descripción:** Cambia el estatus de EN_REVISION a ACTIVO. Requiere al menos un equipo asignado.
+**Descripción:** Cambia el estatus de `EN_REVISION` a `ACTIVO`. El contrato debe tener al menos un equipo asignado. Recalcula el monto total automáticamente.
+
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
+
+**Parámetros de URL:**
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `ContratoID` | number | Sí | ID del contrato |
 
 **Payload:**
+| Campo | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `UsuarioID` | number | Sí | ID del usuario que activa |
+
+**Ejemplo de Request:**
 ```json
 {
   "UsuarioID": 1
 }
 ```
 
+**Response Exitoso (200):**
+```json
+{
+  "status": 200,
+  "message": "Contrato activado",
+  "error": false,
+  "data": {
+    "ContratoID": 1,
+    "NumeroContrato": "CTR-25-0001",
+    "Estatus": "ACTIVO",
+    "MontoTotal": 5400.00
+  }
+}
+```
+
 **Errores Posibles:**
+
 | Código | Mensaje | Causa |
 |--------|---------|-------|
-| 300 | Solo se pueden activar contratos en revisión | Estatus incorrecto |
+| 404 | Contrato no encontrado | ContratoID no existe |
+| 300 | Solo se pueden activar contratos en revisión | Estatus no es EN_REVISION |
 | 300 | El contrato debe tener al menos un equipo asignado | Sin equipos |
 
 ---
@@ -334,15 +640,61 @@ Content-Type: application/json
 
 **Endpoint:** `PATCH /contratos/:ContratoID/cancelar`
 
-**Descripción:** Cancela el contrato y retira todos los equipos instalados.
+**Descripción:** Cancela el contrato y retira automáticamente todos los equipos instalados.
+
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
+
+**Parámetros de URL:**
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `ContratoID` | number | Sí | ID del contrato |
 
 **Payload:**
+| Campo | Tipo | Requerido | Validaciones | Descripción |
+|-------|------|-----------|--------------|-------------|
+| `MotivosCancelacion` | string | Sí | max: 500 | Razón de la cancelación |
+| `UsuarioID` | number | Sí | - | ID del usuario que cancela |
+
+**Ejemplo de Request:**
 ```json
 {
-  "MotivosCancelacion": "Cliente solicitó cancelación anticipada",
+  "MotivosCancelacion": "Cliente solicitó cancelación anticipada por cierre de negocio",
   "UsuarioID": 1
 }
 ```
+
+**Response Exitoso (200):**
+```json
+{
+  "status": 200,
+  "message": "Contrato obtenido",
+  "error": false,
+  "data": {
+    "ContratoID": 1,
+    "NumeroContrato": "CTR-25-0001",
+    "Estatus": "CANCELADO",
+    "MotivosCancelacion": "Cliente solicitó cancelación anticipada por cierre de negocio",
+    "equipos": [
+      {
+        "ContratoEquipoID": 1,
+        "Estatus": "RETIRADO",
+        "FechaRetiro": "2025-06-15T10:00:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+**Errores Posibles:**
+
+| Código | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Contrato no encontrado | ContratoID no existe |
+| 300 | El contrato ya está cancelado o renovado | Estatus es CANCELADO o RENOVADO |
 
 ---
 
@@ -350,30 +702,103 @@ Content-Type: application/json
 
 **Endpoint:** `POST /contratos/:ContratoID/renovar`
 
-**Descripción:** Crea un nuevo contrato vinculado al actual. Transfiere automáticamente los equipos instalados.
+**Descripción:** Crea un nuevo contrato vinculado al actual. Transfiere automáticamente los equipos instalados al nuevo contrato. El contrato original cambia a estatus `RENOVADO`.
+
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
+
+**Parámetros de URL:**
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `ContratoID` | number | Sí | ID del contrato a renovar |
 
 **Payload:**
+| Campo | Tipo | Requerido | Validaciones | Descripción |
+|-------|------|-----------|--------------|-------------|
+| `FechaInicio` | string | Sí | Formato fecha | Fecha inicio del nuevo contrato |
+| `FechaFin` | string | Sí | Formato fecha | Fecha fin del nuevo contrato |
+| `CondicionesPago` | enum | No | Enum | Mantiene las del original si no se especifica |
+| `DiaPago` | number | No | 1-28 | Mantiene el del original si no se especifica |
+| `FrecuenciaMantenimiento` | number | No | min: 1 | Frecuencia de mantenimiento |
+| `PenalizacionCancelacion` | number | No | 0-100 | Penalización |
+| `Observaciones` | string | No | max: 500 | Notas del nuevo contrato |
+| `UsuarioID` | number | Sí | - | ID del usuario |
+
+**Ejemplo de Request:**
 ```json
 {
   "FechaInicio": "2026-01-01",
   "FechaFin": "2026-12-31",
   "CondicionesPago": "MENSUAL",
   "DiaPago": 15,
+  "Observaciones": "Renovación anual",
   "UsuarioID": 1
 }
 ```
 
-**Response:** Retorna el nuevo contrato con estatus ACTIVO.
+**Response Exitoso (201):**
+```json
+{
+  "status": 201,
+  "message": "Contrato obtenido",
+  "error": false,
+  "data": {
+    "ContratoID": 2,
+    "NumeroContrato": "CTR-26-0001",
+    "ContratoOrigenID": 1,
+    "Estatus": "ACTIVO",
+    "MontoTotal": 5400.00,
+    "contrato_origen": {
+      "ContratoID": 1,
+      "NumeroContrato": "CTR-25-0001"
+    },
+    "equipos": [
+      {
+        "ContratoEquipoID": 5,
+        "EquipoID": 5,
+        "Estatus": "INSTALADO"
+      }
+    ]
+  }
+}
+```
+
+**Errores Posibles:**
+
+| Código | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Contrato no encontrado | ContratoID no existe |
+| 300 | Solo se pueden renovar contratos activos o vencidos | Estatus no es ACTIVO ni VENCIDO |
 
 ---
 
-### 9. Actualizar Monto
+### 9. Actualizar Monto del Contrato
 
 **Endpoint:** `PATCH /contratos/:ContratoID/monto`
 
-**Descripción:** Actualiza manualmente el monto total del contrato (solo contratos activos).
+**Descripción:** Actualiza manualmente el monto total del contrato. Solo para contratos activos.
+
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
+
+**Parámetros de URL:**
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `ContratoID` | number | Sí | ID del contrato |
 
 **Payload:**
+| Campo | Tipo | Requerido | Validaciones | Descripción |
+|-------|------|-----------|--------------|-------------|
+| `MontoTotal` | number | Sí | min: 0 | Nuevo monto total |
+| `UsuarioID` | number | Sí | - | ID del usuario |
+
+**Ejemplo de Request:**
 ```json
 {
   "MontoTotal": 6000.00,
@@ -381,23 +806,118 @@ Content-Type: application/json
 }
 ```
 
+**Response Exitoso (200):**
+```json
+{
+  "status": 200,
+  "message": "Monto actualizado",
+  "error": false,
+  "data": {
+    "ContratoID": 1,
+    "MontoTotal": 6000.00
+  }
+}
+```
+
+**Errores Posibles:**
+
+| Código | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Contrato no encontrado | ContratoID no existe |
+| 300 | Solo se puede actualizar el monto de contratos activos | Estatus no es ACTIVO |
+
 ---
 
-### 10. Dar de Baja / Activar Registro
+### 10. Dar de Baja Contrato (Soft Delete)
 
-**Endpoints:**
-- `PATCH /contratos/baja/:ContratoID` - Soft delete
-- `PATCH /contratos/activar/:ContratoID` - Reactivar registro
+**Endpoint:** `PATCH /contratos/baja/:ContratoID`
+
+**Descripción:** Marca el contrato como inactivo (IsActive = 0). No elimina el registro.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Parámetros de URL:**
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `ContratoID` | number | Sí | ID del contrato |
+
+**Response Exitoso (200):**
+```json
+{
+  "status": 200,
+  "message": "Contrato dado de baja",
+  "error": false,
+  "data": {
+    "ContratoID": 1,
+    "IsActive": 0
+  }
+}
+```
+
+**Errores Posibles:**
+
+| Código | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Contrato no encontrado | ContratoID no existe |
+| 300 | El contrato ya está dado de baja | IsActive ya es 0 |
 
 ---
 
-## Equipos del Contrato
+### 11. Activar Registro de Contrato
 
-### 11. Obtener Items Pendientes de Asignar
+**Endpoint:** `PATCH /contratos/activar/:ContratoID`
+
+**Descripción:** Reactiva un contrato que fue dado de baja (IsActive = 1).
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Parámetros de URL:**
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `ContratoID` | number | Sí | ID del contrato |
+
+**Response Exitoso (200):**
+```json
+{
+  "status": 200,
+  "message": "Contrato activado",
+  "error": false,
+  "data": {
+    "ContratoID": 1,
+    "IsActive": 1
+  }
+}
+```
+
+**Errores Posibles:**
+
+| Código | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Contrato no encontrado | ContratoID no existe |
+| 300 | El contrato ya está activo | IsActive ya es 1 |
+
+---
+
+## EQUIPOS DEL CONTRATO
+
+---
+
+### 12. Obtener Items Pendientes de Asignar
 
 **Endpoint:** `GET /contratos/:ContratoID/items-pendientes`
 
-**Descripción:** Lista los items pre-cargados del presupuesto que aún no tienen un equipo físico asignado.
+**Descripción:** Lista los items pre-cargados del presupuesto que aún no tienen un equipo físico asignado (EquipoID = null).
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
 
 **Parámetros de URL:**
 | Parámetro | Tipo | Requerido | Descripción |
@@ -418,12 +938,17 @@ Content-Type: application/json
       "Modalidad": "RENTA",
       "PrecioUnitario": 450.00,
       "PeriodoMeses": 12,
+      "FechaInstalacion": null,
+      "FechaRetiro": null,
       "Estatus": "PENDIENTE",
+      "Observaciones": null,
+      "IsActive": 1,
+      "PlantillaEquipoID": 1,
+      "RefaccionID": null,
       "TipoItem": "EQUIPO_PURIFREEZE",
       "Descripcion": "[PF-001] Enfriador Industrial 5000",
       "CantidadRequerida": 2,
       "CantidadAsignada": 0,
-      "PlantillaEquipoID": 1,
       "plantilla": {
         "PlantillaEquipoID": 1,
         "NombreEquipo": "Enfriador Industrial 5000",
@@ -436,13 +961,24 @@ Content-Type: application/json
 }
 ```
 
+**Errores Posibles:**
+
+| Código | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Contrato no encontrado | ContratoID no existe |
+
 ---
 
-### 12. Obtener Equipos Disponibles para un Item
+### 13. Obtener Equipos Disponibles para un Item
 
 **Endpoint:** `GET /contratos/equipos/:ContratoEquipoID/disponibles`
 
 **Descripción:** Lista los equipos físicos disponibles que pueden asignarse a un item pendiente. Filtra automáticamente por la plantilla requerida.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
 
 **Parámetros de URL:**
 | Parámetro | Tipo | Requerido | Descripción |
@@ -497,13 +1033,25 @@ Content-Type: application/json
 
 **Nota:** Solo muestra equipos en estado "Armado" o "Desmontado" que coincidan con la plantilla del item y que no estén ya asignados a otro item de este contrato.
 
+**Errores Posibles:**
+
+| Código | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Item del contrato no encontrado | ContratoEquipoID no existe |
+
 ---
 
-### 13. Asignar Equipo Físico a Item Pendiente
+### 14. Asignar Equipo Físico a Item Pendiente
 
 **Endpoint:** `PATCH /contratos/equipos/:ContratoEquipoID/asignar`
 
-**Descripción:** Asigna un equipo físico (con número de serie) a un item pendiente del contrato.
+**Descripción:** Asigna un equipo físico (con número de serie) a un item pendiente del contrato. Valida que el equipo corresponda a la plantilla requerida.
+
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
 
 **Parámetros de URL:**
 | Parámetro | Tipo | Requerido | Descripción |
@@ -511,13 +1059,13 @@ Content-Type: application/json
 | `ContratoEquipoID` | number | Sí | ID del item del contrato |
 
 **Payload:**
-| Campo | Tipo | Requerido | Descripción |
-|-------|------|-----------|-------------|
-| `EquipoID` | number | Sí | ID del equipo físico a asignar |
-| `Observaciones` | string | No | Notas adicionales |
-| `UsuarioID` | number | Sí | Usuario que realiza la asignación |
+| Campo | Tipo | Requerido | Validaciones | Descripción |
+|-------|------|-----------|--------------|-------------|
+| `EquipoID` | number | Sí | - | ID del equipo físico a asignar |
+| `Observaciones` | string | No | max: 500 | Notas adicionales |
+| `UsuarioID` | number | Sí | - | Usuario que realiza la asignación |
 
-**Ejemplo:**
+**Ejemplo de Request:**
 ```json
 {
   "EquipoID": 5,
@@ -526,14 +1074,24 @@ Content-Type: application/json
 }
 ```
 
-**Response Exitoso (200):** Retorna el contrato completo actualizado.
+**Response Exitoso (200):**
+```json
+{
+  "status": 200,
+  "message": "Contrato obtenido",
+  "error": false,
+  "data": { /* Contrato completo actualizado */ }
+}
+```
 
 **Errores Posibles:**
+
 | Código | Mensaje | Causa |
 |--------|---------|-------|
 | 404 | Item del contrato no encontrado | ContratoEquipoID inválido |
-| 300 | Este item ya tiene un equipo físico asignado | Ya asignado |
 | 404 | El equipo no existe | EquipoID inválido |
+| 300 | Este item ya tiene un equipo físico asignado | Ya asignado |
+| 300 | Solo se pueden asignar equipos a contratos en revisión o activos | Estatus no permitido |
 | 300 | El equipo no está activo | Equipo dado de baja |
 | 300 | El equipo debe estar en estado Armado o Desmontado | Estado incorrecto |
 | 300 | El equipo ya está asignado a otro contrato | Ocupado |
@@ -542,164 +1100,264 @@ Content-Type: application/json
 
 ---
 
-### 14. Agregar Equipo al Contrato (Nuevo)
+### 15. Agregar Equipo al Contrato (Nuevo)
 
 **Endpoint:** `POST /contratos/:ContratoID/equipos`
 
-**Descripción:** Agrega un equipo físico adicional al contrato (no viene del presupuesto original).
+**Descripción:** Agrega un equipo físico adicional al contrato (no viene del presupuesto original). Útil para agregar equipos después de crear el contrato.
+
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
+
+**Parámetros de URL:**
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `ContratoID` | number | Sí | ID del contrato |
 
 **Payload:**
-| Campo | Tipo | Requerido | Descripción |
-|-------|------|-----------|-------------|
-| `EquipoID` | number | Sí | ID del equipo físico |
-| `Modalidad` | enum | Sí | VENTA/RENTA/COMODATO/MANTENIMIENTO |
-| `PrecioUnitario` | number | No | Precio del equipo. Default: 0 |
-| `PeriodoMeses` | number | No | Meses (para RENTA) |
-| `Observaciones` | string | No | Notas |
-| `UsuarioID` | number | Sí | Usuario que agrega |
+| Campo | Tipo | Requerido | Validaciones | Descripción |
+|-------|------|-----------|--------------|-------------|
+| `EquipoID` | number | Sí | - | ID del equipo físico |
+| `Modalidad` | enum | Sí | VENTA/RENTA/COMODATO/MANTENIMIENTO | Modalidad del equipo |
+| `PrecioUnitario` | number | No | min: 0 | Precio del equipo. Default: 0 |
+| `PeriodoMeses` | number | No | min: 1 | Meses (para RENTA) |
+| `Observaciones` | string | No | max: 500 | Notas |
+| `UsuarioID` | number | Sí | - | Usuario que agrega |
 
-**Ejemplo:**
+**Ejemplo de Request:**
 ```json
 {
-  "EquipoID": 5,
+  "EquipoID": 10,
   "Modalidad": "RENTA",
   "PrecioUnitario": 450.00,
   "PeriodoMeses": 12,
+  "Observaciones": "Equipo adicional solicitado por cliente",
   "UsuarioID": 1
 }
 ```
 
+**Response Exitoso (200):**
+```json
+{
+  "status": 200,
+  "message": "Contrato obtenido",
+  "error": false,
+  "data": { /* Contrato completo actualizado */ }
+}
+```
+
 **Errores Posibles:**
+
 | Código | Mensaje | Causa |
 |--------|---------|-------|
+| 404 | Contrato no encontrado | ContratoID no existe |
 | 404 | El equipo no existe | EquipoID inválido |
+| 300 | Solo se pueden agregar equipos a contratos en revisión o activos | Estatus no permitido |
 | 300 | El equipo no está activo | Equipo dado de baja |
-| 300 | El equipo debe estar en estado Armado o Desmontado | Estado incorrecto |
+| 300 | El equipo debe estar en estado Armado o Desmontado para asignarlo | Estado incorrecto |
 | 300 | El equipo ya está asignado a otro contrato | Equipo ocupado |
 | 300 | El equipo ya está asignado a este contrato | Duplicado |
 
 ---
 
-### 15. Actualizar Equipo del Contrato
+### 16. Actualizar Equipo del Contrato
 
 **Endpoint:** `PUT /contratos/equipos/:ContratoEquipoID`
 
-**Descripción:** Modifica precio o período de un equipo asignado.
+**Descripción:** Modifica precio, período u observaciones de un equipo asignado.
+
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
+
+**Parámetros de URL:**
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `ContratoEquipoID` | number | Sí | ID del equipo en el contrato |
 
 **Payload:**
+| Campo | Tipo | Requerido | Validaciones | Descripción |
+|-------|------|-----------|--------------|-------------|
+| `PrecioUnitario` | number | No | min: 0 | Nuevo precio |
+| `PeriodoMeses` | number | No | min: 1 | Nuevo período |
+| `Observaciones` | string | No | max: 500 | Nuevas notas |
+| `UsuarioID` | number | Sí | - | ID del usuario |
+
+**Ejemplo de Request:**
 ```json
 {
   "PrecioUnitario": 500.00,
   "PeriodoMeses": 24,
-  "Observaciones": "Ajuste de precio",
+  "Observaciones": "Ajuste de precio por promoción",
   "UsuarioID": 1
 }
 ```
 
+**Response Exitoso (200):**
+```json
+{
+  "status": 200,
+  "message": "Contrato obtenido",
+  "error": false,
+  "data": { /* Contrato completo actualizado */ }
+}
+```
+
+**Errores Posibles:**
+
+| Código | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Equipo del contrato no encontrado | ContratoEquipoID no existe |
+| 300 | Solo se pueden modificar equipos de contratos en revisión o activos | Estatus no permitido |
+
 ---
 
-### 16. Instalar Equipo
+### 17. Instalar Equipo
 
 **Endpoint:** `PATCH /contratos/equipos/:ContratoEquipoID/instalar`
 
 **Descripción:** Marca el equipo como instalado. Actualiza la ubicación del equipo físico (ClienteID, SucursalID, ContratoID).
 
-**Payload:**
-```json
-{
-  "UsuarioID": 1
-}
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
 ```
 
-**Efectos:**
-- `contratos_equipos.Estatus` → `INSTALADO`
-- `contratos_equipos.FechaInstalacion` → fecha actual
-- `equipos.Estatus` → `Instalado`
-- `equipos.ClienteID` → del contrato
-- `equipos.SucursalID` → del contrato
-- `equipos.ContratoID` → del contrato
-
----
-
-### 17. Retirar Equipo
-
-**Endpoint:** `PATCH /contratos/equipos/:ContratoEquipoID/retirar`
-
-**Descripción:** Retira un equipo instalado del cliente.
-
-**Payload:**
-```json
-{
-  "UsuarioID": 1
-}
-```
-
-**Efectos:**
-- `contratos_equipos.Estatus` → `RETIRADO`
-- `contratos_equipos.FechaRetiro` → fecha actual
-- `equipos.Estatus` → `Desmontado`
-- `equipos.ClienteID` → `null`
-- `equipos.SucursalID` → `null`
-- `equipos.ContratoID` → `null`
-
----
-
-## Servicios
-
-### 18. Programar Servicio
-
-**Endpoint:** `POST /contratos/equipos/:ContratoEquipoID/servicios`
-
-**Descripción:** Programa un servicio para un equipo del contrato.
+**Parámetros de URL:**
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `ContratoEquipoID` | number | Sí | ID del equipo en el contrato |
 
 **Payload:**
 | Campo | Tipo | Requerido | Descripción |
 |-------|------|-----------|-------------|
-| `TipoServicio` | enum | Sí | Tipo de servicio |
-| `FechaProgramada` | string | Sí | Fecha programada (YYYY-MM-DD) |
-| `TecnicoID` | number | No | Técnico asignado |
-| `Costo` | number | No | Costo del servicio. Default: 0 |
-| `Observaciones` | string | No | Notas |
-| `UsuarioID` | number | No | Usuario que programa |
+| `UsuarioID` | number | Sí | ID del usuario |
 
-**Ejemplo:**
+**Ejemplo de Request:**
 ```json
 {
-  "TipoServicio": "MANTENIMIENTO_PREVENTIVO",
-  "FechaProgramada": "2025-03-15",
-  "TecnicoID": 2,
-  "Costo": 500.00,
-  "Observaciones": "Mantenimiento trimestral"
+  "UsuarioID": 1
 }
 ```
 
+**Response Exitoso (200):**
+```json
+{
+  "status": 200,
+  "message": "Contrato obtenido",
+  "error": false,
+  "data": { /* Contrato completo actualizado */ }
+}
+```
+
+**Efectos en la base de datos:**
+- `contratos_equipos.Estatus` → `INSTALADO`
+- `contratos_equipos.FechaInstalacion` → fecha actual
+- `equipos.Estatus` → `Instalado`
+- `equipos.FechaInstalacion` → fecha actual
+- `equipos.ClienteID` → del contrato
+- `equipos.SucursalID` → del contrato
+- `equipos.ContratoID` → del contrato
+
+**Errores Posibles:**
+
+| Código | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Equipo del contrato no encontrado | ContratoEquipoID no existe |
+| 300 | El equipo ya está instalado o retirado | Estatus no es PENDIENTE |
+| 300 | Solo se pueden instalar equipos de contratos activos | Contrato no está ACTIVO |
+
 ---
 
-### 19. Obtener Servicios del Contrato
+### 18. Retirar Equipo
 
-**Endpoint:** `GET /contratos/:ContratoID/servicios`
+**Endpoint:** `PATCH /contratos/equipos/:ContratoEquipoID/retirar`
 
-**Descripción:** Lista todos los servicios de un contrato.
+**Descripción:** Retira un equipo instalado del cliente. Limpia la ubicación del equipo físico.
+
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
+
+**Parámetros de URL:**
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `ContratoEquipoID` | number | Sí | ID del equipo en el contrato |
+
+**Payload:**
+| Campo | Tipo | Requerido | Descripción |
+|-------|------|-----------|-------------|
+| `UsuarioID` | number | Sí | ID del usuario |
+
+**Ejemplo de Request:**
+```json
+{
+  "UsuarioID": 1
+}
+```
+
+**Response Exitoso (200):**
+```json
+{
+  "status": 200,
+  "message": "Contrato obtenido",
+  "error": false,
+  "data": { /* Contrato completo actualizado */ }
+}
+```
+
+**Efectos en la base de datos:**
+- `contratos_equipos.Estatus` → `RETIRADO`
+- `contratos_equipos.FechaRetiro` → fecha actual
+- `equipos.Estatus` → `Desmontado`
+- `equipos.FechaDesmontaje` → fecha actual
+- `equipos.ClienteID` → `null`
+- `equipos.SucursalID` → `null`
+- `equipos.ContratoID` → `null`
+
+**Errores Posibles:**
+
+| Código | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Equipo del contrato no encontrado | ContratoEquipoID no existe |
+| 300 | Solo se pueden retirar equipos instalados | Estatus no es INSTALADO |
 
 ---
 
-### 20. Obtener Agenda de Servicios
+## SERVICIOS
+
+---
+
+### 19. Obtener Servicios Programados (Agenda Global)
 
 **Endpoint:** `GET /contratos/servicios/programados`
 
 **Descripción:** Lista servicios programados con filtros. Útil para agenda de técnicos.
 
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
 **Query Params:**
 | Parámetro | Tipo | Requerido | Descripción |
 |-----------|------|-----------|-------------|
 | `estatus` | enum | No | PROGRAMADO/EN_PROCESO/COMPLETADO/CANCELADO |
-| `tecnicoId` | number | No | Filtrar por técnico |
+| `tecnicoId` | number | No | Filtrar por técnico asignado |
 | `fechaDesde` | string | No | Desde fecha (YYYY-MM-DD) |
 | `fechaHasta` | string | No | Hasta fecha (YYYY-MM-DD) |
 
 **Ejemplo:** `GET /contratos/servicios/programados?estatus=PROGRAMADO&fechaDesde=2025-01-01&fechaHasta=2025-01-31`
 
-**Response:**
+**Response Exitoso (200):**
 ```json
 {
   "status": 200,
@@ -708,11 +1366,18 @@ Content-Type: application/json
   "data": [
     {
       "ServicioID": 1,
+      "ContratoEquipoID": 1,
       "TipoServicio": "MANTENIMIENTO_PREVENTIVO",
       "FechaProgramada": "2025-01-15T00:00:00.000Z",
-      "Estatus": "PROGRAMADO",
+      "FechaEjecucion": null,
+      "TecnicoID": 2,
       "Costo": 500.00,
+      "Estatus": "PROGRAMADO",
+      "Observaciones": "Mantenimiento trimestral",
+      "UsuarioID": 1,
+      "IsActive": 1,
       "contrato_equipo": {
+        "ContratoEquipoID": 1,
         "contrato": {
           "ContratoID": 1,
           "NumeroContrato": "CTR-25-0001",
@@ -746,36 +1411,292 @@ Content-Type: application/json
 
 ---
 
-### 21. Actualizar Servicio
+### 20. Obtener Servicios de un Contrato
 
-**Endpoint:** `PUT /contratos/servicios/:ServicioID`
+**Endpoint:** `GET /contratos/:ContratoID/servicios`
 
-**Descripción:** Modifica un servicio programado o en proceso.
+**Descripción:** Lista todos los servicios de un contrato específico.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Parámetros de URL:**
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `ContratoID` | number | Sí | ID del contrato |
+
+**Response Exitoso (200):**
+```json
+{
+  "status": 200,
+  "message": "Servicios obtenidos",
+  "error": false,
+  "data": [
+    {
+      "ServicioID": 1,
+      "ContratoEquipoID": 1,
+      "TipoServicio": "INSTALACION",
+      "FechaProgramada": "2025-01-05T10:00:00.000Z",
+      "FechaEjecucion": "2025-01-05T14:00:00.000Z",
+      "TecnicoID": 2,
+      "Costo": 500,
+      "Estatus": "COMPLETADO",
+      "Observaciones": "Instalación exitosa",
+      "UsuarioID": 1,
+      "IsActive": 1,
+      "contrato_equipo": {
+        "ContratoEquipoID": 1,
+        "equipo": {
+          "EquipoID": 5,
+          "NumeroSerie": "PUR-25-0005"
+        }
+      },
+      "tecnico": {
+        "TecnicoID": 2,
+        "Codigo": "TEC-002",
+        "usuario": {
+          "NombreCompleto": "Juan Pérez"
+        }
+      }
+    }
+  ]
+}
+```
+
+**Errores Posibles:**
+
+| Código | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Contrato no encontrado | ContratoID no existe |
 
 ---
 
-### 22. Completar Servicio
+### 21. Programar Servicio
+
+**Endpoint:** `POST /contratos/equipos/:ContratoEquipoID/servicios`
+
+**Descripción:** Programa un servicio para un equipo del contrato.
+
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
+
+**Parámetros de URL:**
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `ContratoEquipoID` | number | Sí | ID del equipo en el contrato |
+
+**Payload:**
+| Campo | Tipo | Requerido | Validaciones | Descripción |
+|-------|------|-----------|--------------|-------------|
+| `TipoServicio` | enum | Sí | Ver enums | Tipo de servicio |
+| `FechaProgramada` | string | Sí | Formato fecha/hora | Fecha programada |
+| `TecnicoID` | number | No | - | Técnico asignado |
+| `Costo` | number | No | min: 0 | Costo del servicio. Default: 0 |
+| `Observaciones` | string | No | max: 500 | Notas |
+| `UsuarioID` | number | No | - | Usuario que programa |
+
+**Ejemplo de Request:**
+```json
+{
+  "TipoServicio": "MANTENIMIENTO_PREVENTIVO",
+  "FechaProgramada": "2025-03-15T10:00:00",
+  "TecnicoID": 2,
+  "Costo": 500.00,
+  "Observaciones": "Mantenimiento trimestral programado",
+  "UsuarioID": 1
+}
+```
+
+**Response Exitoso (201):**
+```json
+{
+  "status": 201,
+  "message": "Servicio programado",
+  "error": false,
+  "data": {
+    "ServicioID": 5,
+    "ContratoEquipoID": 1,
+    "TipoServicio": "MANTENIMIENTO_PREVENTIVO",
+    "FechaProgramada": "2025-03-15T10:00:00.000Z",
+    "FechaEjecucion": null,
+    "TecnicoID": 2,
+    "Costo": 500.00,
+    "Estatus": "PROGRAMADO",
+    "Observaciones": "Mantenimiento trimestral programado",
+    "UsuarioID": 1,
+    "IsActive": 1
+  }
+}
+```
+
+**Errores Posibles:**
+
+| Código | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Equipo del contrato no encontrado | ContratoEquipoID no existe |
+| 404 | El técnico no existe o no está activo | TecnicoID inválido |
+| 300 | Solo se pueden programar servicios en contratos activos | Contrato no está ACTIVO |
+
+---
+
+### 22. Actualizar Servicio
+
+**Endpoint:** `PUT /contratos/servicios/:ServicioID`
+
+**Descripción:** Modifica un servicio programado o en proceso. No se pueden modificar servicios completados o cancelados.
+
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
+
+**Parámetros de URL:**
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `ServicioID` | number | Sí | ID del servicio |
+
+**Payload:**
+| Campo | Tipo | Requerido | Validaciones | Descripción |
+|-------|------|-----------|--------------|-------------|
+| `FechaProgramada` | string | No | Formato fecha | Nueva fecha |
+| `TecnicoID` | number | No | - | Nuevo técnico |
+| `Costo` | number | No | min: 0 | Nuevo costo |
+| `Observaciones` | string | No | max: 500 | Nuevas notas |
+| `Estatus` | enum | No | Ver enums | Nuevo estatus |
+
+**Ejemplo de Request:**
+```json
+{
+  "FechaProgramada": "2025-03-20T14:00:00",
+  "TecnicoID": 3,
+  "Observaciones": "Reprogramado por solicitud del cliente"
+}
+```
+
+**Response Exitoso (200):**
+```json
+{
+  "status": 200,
+  "message": "Servicio actualizado",
+  "error": false,
+  "data": {
+    "ServicioID": 5,
+    "FechaProgramada": "2025-03-20T14:00:00.000Z",
+    "TecnicoID": 3,
+    "Observaciones": "Reprogramado por solicitud del cliente"
+  }
+}
+```
+
+**Errores Posibles:**
+
+| Código | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Servicio no encontrado | ServicioID no existe |
+| 300 | No se puede modificar un servicio completado o cancelado | Estatus no permitido |
+
+---
+
+### 23. Completar Servicio
 
 **Endpoint:** `PATCH /contratos/servicios/:ServicioID/completar`
 
 **Descripción:** Marca un servicio como completado.
 
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
+
+**Parámetros de URL:**
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `ServicioID` | number | Sí | ID del servicio |
+
 **Payload:**
+| Campo | Tipo | Requerido | Validaciones | Descripción |
+|-------|------|-----------|--------------|-------------|
+| `FechaEjecucion` | string | No | Formato fecha | Fecha real de ejecución. Default: ahora |
+| `Observaciones` | string | No | max: 500 | Notas de finalización |
+| `Costo` | number | No | min: 0 | Costo final (si cambió) |
+
+**Ejemplo de Request:**
 ```json
 {
-  "FechaEjecucion": "2025-01-15",
-  "Observaciones": "Se realizó cambio de filtros",
+  "FechaEjecucion": "2025-03-15T16:30:00",
+  "Observaciones": "Se realizó cambio de filtros y limpieza general",
   "Costo": 550.00
 }
 ```
 
+**Response Exitoso (200):**
+```json
+{
+  "status": 200,
+  "message": "Servicio completado",
+  "error": false,
+  "data": {
+    "ServicioID": 5,
+    "Estatus": "COMPLETADO",
+    "FechaEjecucion": "2025-03-15T16:30:00.000Z",
+    "Observaciones": "Se realizó cambio de filtros y limpieza general",
+    "Costo": 550.00
+  }
+}
+```
+
+**Errores Posibles:**
+
+| Código | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Servicio no encontrado | ServicioID no existe |
+| 300 | El servicio ya está completado | Ya tiene estatus COMPLETADO |
+| 300 | No se puede completar un servicio cancelado | Estatus es CANCELADO |
+
 ---
 
-### 23. Cancelar Servicio
+### 24. Cancelar Servicio
 
 **Endpoint:** `PATCH /contratos/servicios/:ServicioID/cancelar`
 
 **Descripción:** Cancela un servicio programado.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Parámetros de URL:**
+| Parámetro | Tipo | Requerido | Descripción |
+|-----------|------|-----------|-------------|
+| `ServicioID` | number | Sí | ID del servicio |
+
+**Response Exitoso (200):**
+```json
+{
+  "status": 200,
+  "message": "Servicio cancelado",
+  "error": false,
+  "data": {
+    "ServicioID": 5,
+    "Estatus": "CANCELADO"
+  }
+}
+```
+
+**Errores Posibles:**
+
+| Código | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Servicio no encontrado | ServicioID no existe |
+| 300 | No se puede cancelar un servicio completado | Estatus es COMPLETADO |
 
 ---
 
@@ -802,8 +1723,7 @@ Content-Type: application/json
 | Observaciones | String(500) | Sí | Notas |
 | ContratoOrigenID | Int | Sí | FK para renovaciones |
 | UsuarioID | Int | No | Quien creó |
-| FechaCreacion | Date | No | Fecha de creación |
-| IsActive | Int | Sí | 1=activo, 0=baja |
+| IsActive | Int | No | 1=activo, 0=baja |
 
 ### contratos_equipos
 
@@ -812,11 +1732,9 @@ Content-Type: application/json
 | ContratoEquipoID | Int | No | PK, autoincrement |
 | ContratoID | Int | No | FK a contratos |
 | EquipoID | Int | Sí | FK a equipos (null = pendiente de asignar) |
-| ItemPendienteID | Int | Sí | Referencia al item pendiente que satisface |
 | Modalidad | Enum | No | VENTA/RENTA/COMODATO/MANTENIMIENTO |
 | PrecioUnitario | Float | No | Precio del equipo |
 | PeriodoMeses | Int | Sí | Meses (para renta) |
-| FechaAsignacion | Date | No | Fecha de asignación |
 | FechaInstalacion | Date | Sí | Fecha de instalación |
 | FechaRetiro | Date | Sí | Fecha de retiro |
 | Estatus | Enum | No | PENDIENTE/INSTALADO/RETIRADO |
@@ -827,7 +1745,7 @@ Content-Type: application/json
 | Descripcion | String(500) | Sí | Descripción del item |
 | CantidadRequerida | Int | No | Cantidad del presupuesto. Default: 1 |
 | CantidadAsignada | Int | No | Cantidad de equipos asignados. Default: 0 |
-| IsActive | Int | Sí | 1=activo, 0=baja |
+| IsActive | Int | No | 1=activo, 0=baja |
 
 ### contratos_servicios
 
@@ -843,7 +1761,7 @@ Content-Type: application/json
 | Costo | Float | No | Costo del servicio |
 | Observaciones | String(500) | Sí | Notas |
 | UsuarioID | Int | Sí | Quien programó |
-| IsActive | Int | Sí | 1=activo, 0=baja |
+| IsActive | Int | No | 1=activo, 0=baja |
 
 ### contratos_historial
 
@@ -851,7 +1769,7 @@ Content-Type: application/json
 |-------|------|----------|-------------|
 | HistorialID | Int | No | PK, autoincrement |
 | ContratoID | Int | No | FK a contratos |
-| TipoAccion | Enum | No | Tipo de acción |
+| TipoAccion | Enum | No | CREACION, ACTIVACION, MODIFICACION, AGREGAR_EQUIPO, RETIRAR_EQUIPO, ACTUALIZACION_MONTO, CANCELACION, RENOVACION |
 | Descripcion | String(500) | No | Descripción de la acción |
 | ValorAnterior | Text | Sí | JSON con valor anterior |
 | ValorNuevo | Text | Sí | JSON con valor nuevo |
@@ -868,28 +1786,70 @@ Content-Type: application/json
 
 3. **Equipos disponibles:** Solo se pueden agregar equipos en estado "Armado" o "Desmontado" que no estén asignados a otro contrato.
 
-4. **Activación requiere equipos:** Para activar un contrato debe tener al menos un equipo asignado.
+4. **Validación de plantilla:** Al asignar un equipo a un item pendiente, debe coincidir con la plantilla requerida.
 
-5. **Modificaciones en revisión:** La mayoría de cambios solo son posibles mientras el contrato está EN_REVISION.
+5. **Activación requiere equipos:** Para activar un contrato debe tener al menos un equipo asignado.
 
-6. **Actualización de ubicación:** Al instalar un equipo, se actualiza automáticamente su ubicación (ClienteID, SucursalID, ContratoID).
+6. **Modificaciones en revisión:** La mayoría de cambios solo son posibles mientras el contrato está EN_REVISION.
 
-7. **Renovación automática:** Al renovar, los equipos instalados se transfieren al nuevo contrato.
+7. **Actualización de ubicación:** Al instalar un equipo, se actualiza automáticamente su ubicación (ClienteID, SucursalID, ContratoID).
 
-8. **Cancelación limpia equipos:** Al cancelar un contrato, todos los equipos instalados se marcan como retirados y se limpia su ubicación.
+8. **Renovación automática:** Al renovar, los equipos instalados se transfieren al nuevo contrato con estatus INSTALADO.
 
-9. **Historial automático:** Todas las acciones importantes se registran en contratos_historial.
+9. **Cancelación limpia equipos:** Al cancelar un contrato, todos los equipos instalados se marcan como retirados y se limpia su ubicación.
 
-10. **Recálculo de monto:** El monto total se recalcula automáticamente al agregar/retirar equipos (para contratos activos).
+10. **Historial automático:** Todas las acciones importantes se registran en contratos_historial.
+
+11. **Recálculo de monto:** El monto total se recalcula automáticamente al activar, agregar o retirar equipos.
 
 ---
 
 ## Cálculo del Monto Total
 
 ```
-MontoTotal = SUM(
-  PrecioUnitario × (PeriodoMeses || 1)
-) para todos los equipos activos
+MontoTotal = SUM(PrecioUnitario × (PeriodoMeses || 1)) para todos los equipos activos
+```
+
+El monto se recalcula automáticamente en:
+- Activación del contrato
+- Agregar equipo (si contrato activo)
+- Retirar equipo (si contrato activo)
+- Modificar equipo (si contrato activo)
+
+---
+
+## Número de Contrato
+
+- **Formato:** `CTR-YY-XXXX`
+- **Ejemplo:** `CTR-25-0001`
+- Se genera automáticamente al crear el contrato
+- El consecutivo se reinicia cada año
+
+---
+
+## Flujo de Estados
+
+### Contrato
+```
+EN_REVISION ──→ ACTIVO ──→ VENCIDO
+     │            │           │
+     │            ▼           ▼
+     │       CANCELADO    RENOVADO
+     │
+     └──→ (baja/activar registro)
+```
+
+### Equipo del Contrato
+```
+PENDIENTE ──→ INSTALADO ──→ RETIRADO
+```
+
+### Servicio
+```
+PROGRAMADO ──→ EN_PROCESO ──→ COMPLETADO
+     │              │
+     ▼              ▼
+ CANCELADO      CANCELADO
 ```
 
 ---
@@ -922,7 +1882,6 @@ interface Contrato {
   Observaciones: string | null;
   ContratoOrigenID: number | null;
   UsuarioID: number;
-  FechaCreacion: string;
   IsActive: number;
 }
 
@@ -930,11 +1889,9 @@ interface ContratoEquipo {
   ContratoEquipoID: number;
   ContratoID: number;
   EquipoID: number | null; // null = pendiente de asignar
-  ItemPendienteID: number | null;
   Modalidad: ModalidadContrato;
   PrecioUnitario: number;
   PeriodoMeses: number | null;
-  FechaAsignacion: string;
   FechaInstalacion: string | null;
   FechaRetiro: string | null;
   Estatus: EstatusContratoEquipo;
@@ -963,6 +1920,7 @@ interface ContratoServicio {
   IsActive: number;
 }
 
+// DTOs para crear/actualizar
 interface CreateContrato {
   PresupuestoID: number;
   FechaInicio: string;
@@ -1009,6 +1967,7 @@ interface CreateServicio {
 // Los items del presupuesto se pre-cargan automáticamente como "pendientes de asignar"
 const contrato = await fetch('/contratos', {
   method: 'POST',
+  headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer token' },
   body: JSON.stringify({
     PresupuestoID: 1,
     FechaInicio: '2025-01-01',
@@ -1054,8 +2013,9 @@ await fetch(`/contratos/equipos/${contratoEquipoId}/servicios`, {
   method: 'POST',
   body: JSON.stringify({
     TipoServicio: 'MANTENIMIENTO_PREVENTIVO',
-    FechaProgramada: '2025-03-15',
-    TecnicoID: 2
+    FechaProgramada: '2025-03-15T10:00:00',
+    TecnicoID: 2,
+    Costo: 500
   })
 });
 
@@ -1063,7 +2023,7 @@ await fetch(`/contratos/equipos/${contratoEquipoId}/servicios`, {
 await fetch(`/contratos/servicios/${servicioId}/completar`, {
   method: 'PATCH',
   body: JSON.stringify({
-    FechaEjecucion: '2025-03-15',
+    FechaEjecucion: '2025-03-15T14:30:00',
     Observaciones: 'Mantenimiento completado sin novedades'
   })
 });
@@ -1081,4 +2041,4 @@ await fetch(`/contratos/${contratoId}/renovar`, {
 
 ---
 
-**Última actualización:** 2025-12-13
+**Última actualización:** 2025-12-15
