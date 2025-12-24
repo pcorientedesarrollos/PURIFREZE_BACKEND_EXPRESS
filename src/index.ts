@@ -7,6 +7,7 @@ import swaggerUi from 'swagger-ui-express';
 import { env } from './config/env';
 import { swaggerSpec } from './config/swagger';
 import { errorHandler } from './middlewares/errorHandler';
+import { authMiddleware } from './middlewares/authMiddleware';
 import prisma from './config/database';
 
 // Import routes
@@ -41,6 +42,8 @@ import { equiposRoutes } from './modules/equipos';
 import { presupuestosRoutes } from './modules/presupuestos';
 import { contratosRoutes } from './modules/contratos';
 import { serviciosRoutes } from './modules/servicios';
+import { clientesEquiposRoutes } from './modules/clientes-equipos';
+import { ventasRoutes } from './modules/ventas';
 
 const app = express();
 
@@ -57,8 +60,13 @@ app.get('/health', (_req, res) => {
 // Swagger documentation
 app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
-// Routes
+// Rutas públicas (sin autenticación)
 app.use('/auth', authRoutes);
+
+// Middleware de autenticación para rutas protegidas
+app.use(authMiddleware);
+
+// Rutas protegidas (requieren token válido)
 app.use('/bancos', bancosRoutes);
 app.use('/unidades', unidadesRoutes);
 app.use('/catalogo-unidades', unidadesRoutes);
@@ -96,6 +104,8 @@ app.use('/equipos', equiposRoutes);
 app.use('/presupuestos', presupuestosRoutes);
 app.use('/contratos', contratosRoutes);
 app.use('/servicios', serviciosRoutes);
+app.use('/clientes-equipos', clientesEquiposRoutes);
+app.use('/ventas', ventasRoutes);
 
 // Error handler (debe ir al final)
 app.use(errorHandler);

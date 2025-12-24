@@ -76,53 +76,39 @@ class ContratosController {
   }
 
   // =============================================
-  // EQUIPOS DEL CONTRATO
+  // EQUIPOS DEL CONTRATO (usando clientes_equipos)
   // =============================================
 
-  async addEquipo(req: Request, res: Response) {
-    const { ContratoID } = req.params as unknown as { ContratoID: number };
+  async asignarEquipo(req: Request, res: Response) {
+    const { ClienteEquipoID } = req.params as unknown as { ClienteEquipoID: number };
     const { UsuarioID, ...data } = req.body;
-    const result = await contratosService.addEquipo(ContratoID, data, UsuarioID);
+    const result = await contratosService.asignarEquipo(ClienteEquipoID, data, UsuarioID);
     return success(res, result.message, result.data);
   }
 
   async instalarEquipo(req: Request, res: Response) {
-    const { ContratoEquipoID } = req.params as unknown as { ContratoEquipoID: number };
+    const { ClienteEquipoID } = req.params as unknown as { ClienteEquipoID: number };
     const { UsuarioID } = req.body;
-    const result = await contratosService.instalarEquipo(ContratoEquipoID, UsuarioID);
+    const result = await contratosService.instalarEquipo(ClienteEquipoID, UsuarioID);
     return success(res, result.message, result.data);
   }
 
   async retirarEquipo(req: Request, res: Response) {
-    const { ContratoEquipoID } = req.params as unknown as { ContratoEquipoID: number };
-    const { UsuarioID } = req.body;
-    const result = await contratosService.retirarEquipo(ContratoEquipoID, UsuarioID);
-    return success(res, result.message, result.data);
-  }
-
-  async updateEquipo(req: Request, res: Response) {
-    const { ContratoEquipoID } = req.params as unknown as { ContratoEquipoID: number };
-    const { UsuarioID, ...data } = req.body;
-    const result = await contratosService.updateEquipo(ContratoEquipoID, data, UsuarioID);
-    return success(res, result.message, result.data);
-  }
-
-  async asignarEquipo(req: Request, res: Response) {
-    const { ContratoEquipoID } = req.params as unknown as { ContratoEquipoID: number };
-    const { UsuarioID, ...data } = req.body;
-    const result = await contratosService.asignarEquipo(ContratoEquipoID, data, UsuarioID);
+    const { ClienteEquipoID } = req.params as unknown as { ClienteEquipoID: number };
+    const { UsuarioID, MotivoRetiro } = req.body;
+    const result = await contratosService.retirarEquipo(ClienteEquipoID, UsuarioID, MotivoRetiro);
     return success(res, result.message, result.data);
   }
 
   async getEquiposDisponibles(req: Request, res: Response) {
-    const { ContratoEquipoID } = req.params as unknown as { ContratoEquipoID: number };
-    const result = await contratosService.getEquiposDisponibles(ContratoEquipoID);
+    const { ClienteEquipoID } = req.params as unknown as { ClienteEquipoID: number };
+    const result = await contratosService.getEquiposDisponibles(ClienteEquipoID);
     return success(res, result.message, result.data);
   }
 
-  async getItemsPendientes(req: Request, res: Response) {
+  async getEquiposPendientes(req: Request, res: Response) {
     const { ContratoID } = req.params as unknown as { ContratoID: number };
-    const result = await contratosService.getItemsPendientes(ContratoID);
+    const result = await contratosService.getEquiposPendientes(ContratoID);
     return success(res, result.message, result.data);
   }
 

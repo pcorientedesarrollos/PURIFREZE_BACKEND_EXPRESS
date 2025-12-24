@@ -38,31 +38,35 @@ model catalogo_clasificacion_refacciones {
 }
 
 model catalogo_clientes {
-  ClienteID      Int                        @id @default(autoincrement())
-  NombreComercio String?                    @db.VarChar(255)
-  Observaciones  String?                    @db.VarChar(255)
-  IsActive       Boolean?
-  sucursales     clientes_sucursales[]
-  presupuestos   presupuestos_encabezado[]
-  equipos        equipos[]
-  contratos      contratos[]
+  ClienteID         Int                        @id @default(autoincrement())
+  NombreComercio    String?                    @db.VarChar(255)
+  Observaciones     String?                    @db.VarChar(255)
+  IsActive          Boolean?
+  sucursales        clientes_sucursales[]
+  presupuestos      presupuestos_encabezado[]
+  equipos           equipos[]
+  contratos         contratos[]
+  clientes_equipos  clientes_equipos[]
+  ventas            ventas_encabezado[]
 }
 
 model clientes_sucursales {
-  SucursalID      Int                        @id @default(autoincrement())
-  ClienteID       Int
-  NombreSucursal  String                     @db.VarChar(255)
-  Direccion       String?                    @db.VarChar(255)
-  Ubicacion       String?                    @db.VarChar(255)
-  Telefono        String?                    @db.VarChar(50)
-  Contacto        String?                    @db.VarChar(255)
-  Observaciones   String?                    @db.VarChar(255)
-  IsActive        Boolean?                   @default(true)
+  SucursalID        Int                        @id @default(autoincrement())
+  ClienteID         Int
+  NombreSucursal    String                     @db.VarChar(255)
+  Direccion         String?                    @db.VarChar(255)
+  Ubicacion         String?                    @db.VarChar(255)
+  Telefono          String?                    @db.VarChar(50)
+  Contacto          String?                    @db.VarChar(255)
+  Observaciones     String?                    @db.VarChar(255)
+  IsActive          Boolean?                   @default(true)
 
-  cliente         catalogo_clientes          @relation(fields: [ClienteID], references: [ClienteID])
-  presupuestos    presupuestos_encabezado[]
-  equipos         equipos[]
-  contratos       contratos[]
+  cliente           catalogo_clientes          @relation(fields: [ClienteID], references: [ClienteID])
+  presupuestos      presupuestos_encabezado[]
+  equipos           equipos[]
+  contratos         contratos[]
+  clientes_equipos  clientes_equipos[]
+  ventas            ventas_encabezado[]
 }
 
 model catalogo_cuentasBancarias {
@@ -128,6 +132,7 @@ model catalogo_refacciones {
   servicios_equipos_refacciones      servicios_equipos_refacciones[] @relation("RefaccionOriginal")
   servicios_equipos_refacciones_nueva servicios_equipos_refacciones[] @relation("RefaccionNueva")
   servicios_insumos                  servicios_insumos[]
+  ventas_detalle                     ventas_detalle[]
 }
 
 model catalogo_unidades {
@@ -559,6 +564,8 @@ model plantillas_equipo {
   equipos               equipos[]
   presupuestos_detalle  presupuestos_detalle[]
   contratos_equipos     contratos_equipos[]
+  clientes_equipos      clientes_equipos[]
+  ventas_detalle        ventas_detalle[]
 
   @@unique([Codigo])
 }
@@ -605,6 +612,8 @@ model equipos {
   contrato_actual    contratos?          @relation("EquipoContratoActual", fields: [ContratoID], references: [ContratoID])
   contratos_equipos  contratos_equipos[]
   servicios_equipos  servicios_equipos[]
+  clientes_equipos   clientes_equipos[]
+  ventas_detalle     ventas_detalle[]
 }
 
 model equipos_detalle {
@@ -685,6 +694,7 @@ model presupuestos_encabezado {
   sucursal              clientes_sucursales?     @relation(fields: [SucursalID], references: [SucursalID])
   detalles              presupuestos_detalle[]
   contratos             contratos[]
+  ventas                ventas_encabezado[]
 }
 
 model presupuestos_detalle {
@@ -709,6 +719,8 @@ model presupuestos_detalle {
   presupuesto           presupuestos_encabezado  @relation(fields: [PresupuestoID], references: [PresupuestoID])
   plantilla             plantillas_equipo?       @relation(fields: [PlantillaEquipoID], references: [PlantillaEquipoID])
   refaccion             catalogo_refacciones?    @relation(fields: [RefaccionID], references: [RefaccionID])
+  clientes_equipos      clientes_equipos[]
+  ventas_detalle        ventas_detalle[]
 }
 
 enum EstatusPresupuesto {
@@ -767,6 +779,7 @@ model contratos {
   historial               contratos_historial[]
   servicios               servicios[]
   notificaciones          servicios_notificaciones[] @relation("NotificacionesContrato")
+  clientes_equipos        clientes_equipos[]
 }
 
 model contratos_equipos {
@@ -796,7 +809,6 @@ model contratos_equipos {
   equipo                  equipos?               @relation(fields: [EquipoID], references: [EquipoID])
   plantilla               plantillas_equipo?     @relation(fields: [PlantillaEquipoID], references: [PlantillaEquipoID])
   refaccion               catalogo_refacciones?  @relation(fields: [RefaccionID], references: [RefaccionID])
-  servicios_equipos       servicios_equipos[]
 
   // Nota: No usamos @@unique porque permitimos múltiples items con EquipoID=null (pendientes)
   // La unicidad de equipo asignado se valida en el servicio
@@ -810,7 +822,8 @@ model contratos_equipos {
 
 model servicios {
   ServicioID              Int                    @id @default(autoincrement())
-  ContratoID              Int
+  ContratoID              Int?                   // Opcional - solo para equipos en renta
+  ClienteEquipoID         Int?                   // Equipo del cliente al que se le da servicio
   TipoServicio            TipoServicio
 
   // Programación
@@ -853,7 +866,8 @@ model servicios {
   IsActive                Int?                   @db.TinyInt @default(1)
 
   // Relaciones
-  contrato                contratos              @relation(fields: [ContratoID], references: [ContratoID])
+  contrato                contratos?             @relation(fields: [ContratoID], references: [ContratoID])
+  cliente_equipo          clientes_equipos?      @relation(fields: [ClienteEquipoID], references: [ClienteEquipoID])
   tecnico                 catalogo_tecnicos?     @relation(fields: [TecnicoID], references: [TecnicoID])
   servicio_origen         servicios?             @relation("ServicioReagendado", fields: [ServicioOrigenID], references: [ServicioID])
   servicios_reagendados   servicios[]            @relation("ServicioReagendado")
@@ -864,6 +878,7 @@ model servicios {
   firmas                  servicios_firmas[]
 
   @@index([ContratoID])
+  @@index([ClienteEquipoID])
   @@index([TecnicoID])
   @@index([FechaProgramada])
   @@index([Estatus])
@@ -872,7 +887,7 @@ model servicios {
 model servicios_equipos {
   ServicioEquipoID        Int                    @id @default(autoincrement())
   ServicioID              Int
-  ContratoEquipoID        Int
+  ClienteEquipoID         Int?
   EquipoID                Int?
 
   // Para desinstalación
@@ -886,12 +901,13 @@ model servicios_equipos {
 
   // Relaciones
   servicio                servicios              @relation(fields: [ServicioID], references: [ServicioID])
-  contrato_equipo         contratos_equipos      @relation(fields: [ContratoEquipoID], references: [ContratoEquipoID])
+  cliente_equipo          clientes_equipos?      @relation(fields: [ClienteEquipoID], references: [ClienteEquipoID])
   equipo                  equipos?               @relation(fields: [EquipoID], references: [EquipoID])
   refacciones             servicios_equipos_refacciones[]
 
   @@index([ServicioID])
   @@index([EquipoID])
+  @@index([ClienteEquipoID])
 }
 
 model servicios_equipos_refacciones {
@@ -1153,4 +1169,207 @@ enum TipoAccionContrato {
   CANCELACION
   RENOVACION
   MODIFICACION
+}
+
+// =============================================
+// CLIENTES EQUIPOS (Equipos asignados a clientes)
+// =============================================
+
+model clientes_equipos {
+  ClienteEquipoID       Int                     @id @default(autoincrement())
+  ClienteID             Int
+  SucursalID            Int?
+
+  // Equipo físico (Purifreeze) o plantilla (externos)
+  EquipoID              Int?                    // FK equipos (para Purifreeze vendidos/rentados)
+  PlantillaEquipoID     Int?                    // FK plantillas (para externos o referencia)
+
+  // Clasificación
+  TipoPropiedad         TipoPropiedad
+
+  // Vínculos opcionales
+  ContratoID            Int?                    // Solo si es RENTA
+  PresupuestoDetalleID  Int?                    // Origen del presupuesto
+  VentaDetalleID        Int?                    // Si viene de una venta
+
+  // Datos del equipo externo (si aplica)
+  DescripcionEquipo     String?                 @db.VarChar(255)
+  NumeroSerieExterno    String?                 @db.VarChar(100)
+  MarcaEquipo           String?                 @db.VarChar(100)
+  ModeloEquipo          String?                 @db.VarChar(100)
+
+  // Datos de contrato (para RENTA)
+  Modalidad             ModalidadContrato?      // RENTA, VENTA, etc.
+  TipoItem              String?                 @db.VarChar(50) // EQUIPO_PURIFREEZE, EQUIPO_EXTERNO, REFACCION, SERVICIO
+  PrecioUnitario        Float?                  @db.Float
+  PeriodoMeses          Int?                    // Para rentas
+
+  // Control
+  FechaAsignacion       DateTime                @default(now()) @db.Date
+  FechaInstalacion      DateTime?               @db.Date
+  FechaRetiro           DateTime?               @db.Date
+  MotivoRetiro          String?                 @db.VarChar(255)
+  Estatus               EstatusClienteEquipo    @default(ACTIVO)
+  Observaciones         String?                 @db.VarChar(500)
+
+  // Auditoría
+  UsuarioAsignaID       Int?
+  IsActive              Int?                    @db.TinyInt @default(1)
+
+  // Relaciones
+  cliente               catalogo_clientes       @relation(fields: [ClienteID], references: [ClienteID])
+  sucursal              clientes_sucursales?    @relation(fields: [SucursalID], references: [SucursalID])
+  equipo                equipos?                @relation(fields: [EquipoID], references: [EquipoID])
+  plantilla             plantillas_equipo?      @relation(fields: [PlantillaEquipoID], references: [PlantillaEquipoID])
+  contrato              contratos?              @relation(fields: [ContratoID], references: [ContratoID])
+  presupuesto_detalle   presupuestos_detalle?   @relation(fields: [PresupuestoDetalleID], references: [DetalleID])
+  venta_detalle         ventas_detalle?         @relation(fields: [VentaDetalleID], references: [VentaDetalleID])
+  servicios             servicios[]             // Servicios directos a este equipo
+  servicios_equipos     servicios_equipos[]     // Equipos en servicios (por detalle)
+
+  @@index([ClienteID])
+  @@index([EquipoID])
+  @@index([Estatus])
+}
+
+enum TipoPropiedad {
+  RENTA
+  COMPRA
+  EXTERNO
+}
+
+enum EstatusClienteEquipo {
+  ACTIVO
+  PENDIENTE_INSTALACION  // Equipo asignado pero pendiente de instalar
+  INSTALADO              // Equipo instalado en cliente
+  RETIRADO
+  DEVUELTO               // Para rentas devueltas
+  VENDIDO                // Si se vendió posteriormente
+}
+
+// =============================================
+// VENTAS (Equipos y Refacciones)
+// =============================================
+
+model ventas_encabezado {
+  VentaID               Int                     @id @default(autoincrement())
+  NumeroVenta           String                  @unique @db.VarChar(20)
+  ClienteID             Int
+  SucursalID            Int?
+  PresupuestoID         Int?                    // Origen del presupuesto (si aplica)
+
+  // Fechas
+  FechaVenta            DateTime                @default(now()) @db.Date
+
+  // Totales
+  Subtotal              Float                   @default(0) @db.Float
+  DescuentoPorcentaje   Float?                  @db.Float
+  DescuentoEfectivo     Float?                  @db.Float
+  IVA                   Float                   @default(0) @db.Float
+  Total                 Float                   @default(0) @db.Float
+
+  // Estado
+  Estatus               EstatusVenta            @default(PENDIENTE)
+
+  // Observaciones
+  Observaciones         String?                 @db.VarChar(500)
+
+  // Auditoría
+  UsuarioID             Int
+  FechaCreacion         DateTime                @default(now())
+  IsActive              Int?                    @db.TinyInt @default(1)
+
+  // Relaciones
+  cliente               catalogo_clientes       @relation(fields: [ClienteID], references: [ClienteID])
+  sucursal              clientes_sucursales?    @relation(fields: [SucursalID], references: [SucursalID])
+  presupuesto           presupuestos_encabezado? @relation(fields: [PresupuestoID], references: [PresupuestoID])
+  detalles              ventas_detalle[]
+  pagos                 ventas_pagos[]
+
+  @@index([ClienteID])
+  @@index([FechaVenta])
+  @@index([Estatus])
+}
+
+model ventas_detalle {
+  VentaDetalleID        Int                     @id @default(autoincrement())
+  VentaID               Int
+
+  // Tipo de item vendido
+  TipoItem              TipoItemVenta
+
+  // Referencias (según el tipo)
+  EquipoID              Int?                    // Si es EQUIPO_PURIFREEZE
+  PlantillaEquipoID     Int?                    // Si es EQUIPO_EXTERNO (referencia)
+  RefaccionID           Int?                    // Si es REFACCION
+  PresupuestoDetalleID  Int?                    // Origen del presupuesto
+
+  // Descripción
+  Descripcion           String?                 @db.VarChar(500)
+
+  // Cantidades y precios
+  Cantidad              Int                     @default(1)
+  PrecioUnitario        Float                   @default(0) @db.Float
+  DescuentoPorcentaje   Float?                  @db.Float
+  DescuentoEfectivo     Float?                  @db.Float
+  Subtotal              Float                   @default(0) @db.Float
+
+  // Para equipos: número de serie
+  NumeroSerie           String?                 @db.VarChar(50)
+
+  // Garantía
+  MesesGarantia         Int?                    @default(12)
+  FechaFinGarantia      DateTime?               @db.Date
+
+  // Auditoría
+  IsActive              Int?                    @db.TinyInt @default(1)
+
+  // Relaciones
+  venta                 ventas_encabezado       @relation(fields: [VentaID], references: [VentaID])
+  equipo                equipos?                @relation(fields: [EquipoID], references: [EquipoID])
+  plantilla             plantillas_equipo?      @relation(fields: [PlantillaEquipoID], references: [PlantillaEquipoID])
+  refaccion             catalogo_refacciones?   @relation(fields: [RefaccionID], references: [RefaccionID])
+  presupuesto_detalle   presupuestos_detalle?   @relation(fields: [PresupuestoDetalleID], references: [DetalleID])
+  clientes_equipos      clientes_equipos[]      // Equipos asignados al cliente desde esta venta
+
+  @@index([VentaID])
+  @@index([EquipoID])
+}
+
+model ventas_pagos {
+  VentaPagoID           Int                     @id @default(autoincrement())
+  VentaID               Int
+
+  // Pago
+  MetodoPagoID          Int
+  Monto                 Float                   @db.Float
+  FechaPago             DateTime                @db.Date
+  Referencia            String?                 @db.VarChar(100)
+
+  // Observaciones
+  Observaciones         String?                 @db.VarChar(255)
+
+  // Auditoría
+  UsuarioID             Int
+  FechaRegistro         DateTime                @default(now())
+  IsActive              Int?                    @db.TinyInt @default(1)
+
+  // Relaciones
+  venta                 ventas_encabezado       @relation(fields: [VentaID], references: [VentaID])
+
+  @@index([VentaID])
+}
+
+enum TipoItemVenta {
+  EQUIPO_PURIFREEZE
+  EQUIPO_EXTERNO
+  REFACCION
+  SERVICIO
+}
+
+enum EstatusVenta {
+  PENDIENTE
+  PAGADA
+  PARCIAL
+  CANCELADA
 }

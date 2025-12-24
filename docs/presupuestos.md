@@ -6,58 +6,68 @@
 
 **Prefijo de ruta:** `/presupuestos`
 
-**Autenticación:** No requerida (verificar si se implementa middleware de auth)
+**Autenticación:** Bearer Token requerido
 
 ---
 
-## Descripción
+## Conceptos Importantes
 
-Este módulo permite crear y gestionar presupuestos para clientes. Un presupuesto puede contener:
-- **Equipos Purifreeze:** Para venta o renta (usa plantillas internas)
-- **Equipos Externos:** Para mantenimiento (usa plantillas externas)
-- **Refacciones:** Venta directa de piezas
-- **Servicios:** Descripción libre con precio manual
+### Tipos de Items (TipoItem)
 
-### Estructura
+| Valor | Descripción | Requiere |
+|-------|-------------|----------|
+| `EQUIPO_PURIFREEZE` | Equipo fabricado por Purifreeze | `PlantillaEquipoID` + `Modalidad` (VENTA o RENTA) |
+| `EQUIPO_EXTERNO` | Equipo del cliente (mantenimiento) | `PlantillaEquipoID` + `Modalidad` = MANTENIMIENTO |
+| `REFACCION` | Pieza/refaccion | `RefaccionID` |
+| `SERVICIO` | Servicio adicional | `Descripcion` + `PrecioUnitario` obligatorio |
+
+### Modalidades (Solo para Equipos)
+
+| Valor | Descripcion | Uso |
+|-------|-------------|-----|
+| `VENTA` | Venta del equipo | Solo EQUIPO_PURIFREEZE |
+| `RENTA` | Renta mensual | Solo EQUIPO_PURIFREEZE |
+| `MANTENIMIENTO` | Servicio de mantenimiento | EQUIPO_EXTERNO |
+
+### Estatus del Presupuesto
+
+| Valor | Descripcion | Editable |
+|-------|-------------|----------|
+| `Pendiente` | Recien creado, en edicion | Si |
+| `Enviado` | Enviado al cliente | No |
+| `Aprobado` | Cliente acepto | No |
+| `Rechazado` | Cliente rechazo | No |
+| `Vencido` | Paso fecha de vigencia | No |
+
+### Calculo de Precios
+
+#### Precio Automatico (si PrecioUnitario = 0)
+
+| TipoItem | Modalidad | Formula |
+|----------|-----------|---------|
+| EQUIPO_PURIFREEZE | VENTA | CostoTotal x (1 + PorcentajeVenta/100) |
+| EQUIPO_PURIFREEZE | RENTA | CostoTotal x (PorcentajeRenta/100) |
+| EQUIPO_EXTERNO | MANTENIMIENTO | CostoTotal x 0.20 |
+| REFACCION | - | PrecioVenta de la refaccion |
+| SERVICIO | - | **Obligatorio manual** |
+
+#### Calculo de Subtotales
 
 ```
-presupuestos_encabezado
-├── Cliente (catalogo_clientes)
-├── Sucursal (clientes_sucursales) [opcional]
-└── presupuestos_detalle[]
-    ├── Equipo Purifreeze (plantilla + VENTA/RENTA)
-    ├── Equipo Externo (plantilla + MANTENIMIENTO)
-    ├── Refacción (refacción + VENTA)
-    └── Servicio (descripción libre)
+Base = PrecioUnitario x Cantidad
+Si PeriodoRenta > 0:
+    Base = Base x PeriodoRenta
+Subtotal = Base - (Base x DescuentoPorcentaje/100) - DescuentoEfectivo
 ```
 
----
+#### Calculo de Totales
 
-## Enums
-
-### EstatusPresupuesto
-| Valor | Descripción |
-|-------|-------------|
-| `Pendiente` | En edición, se puede modificar |
-| `Enviado` | Enviado al cliente |
-| `Aprobado` | Cliente aceptó |
-| `Rechazado` | Cliente rechazó |
-| `Vencido` | Pasó la fecha de vigencia |
-
-### TipoItemPresupuesto
-| Valor | Descripción |
-|-------|-------------|
-| `EQUIPO_PURIFREEZE` | Equipo fabricado por Purifreeze |
-| `EQUIPO_EXTERNO` | Equipo de otra marca |
-| `REFACCION` | Pieza/refacción del catálogo |
-| `SERVICIO` | Servicio con descripción libre |
-
-### ModalidadPresupuesto
-| Valor | Descripción |
-|-------|-------------|
-| `VENTA` | Venta del equipo/refacción |
-| `RENTA` | Renta mensual del equipo |
-| `MANTENIMIENTO` | Servicio de mantenimiento |
+```
+SubtotalGeneral = Suma de Subtotales de detalles
+SubtotalConDescuentos = SubtotalGeneral - (SubtotalGeneral x DescuentoPorcentaje/100) - DescuentoEfectivo + GastosAdicionales
+IVA = SubtotalConDescuentos x 0.16
+Total = SubtotalConDescuentos + IVA
+```
 
 ---
 
@@ -67,55 +77,52 @@ presupuestos_encabezado
 
 **Endpoint:** `POST /presupuestos`
 
-**Descripción:** Crea un presupuesto completo con encabezado y detalles. Los precios se calculan automáticamente si no se proporcionan.
+**Descripcion:** Crea un nuevo presupuesto con sus items de detalle.
 
 **Headers:**
 ```
 Content-Type: application/json
+Authorization: Bearer {token}
 ```
 
 **Payload:**
-| Campo | Tipo | Requerido | Descripción |
-|-------|------|-----------|-------------|
-| `ClienteID` | number | Sí | ID del cliente |
-| `SucursalID` | number | No | ID de la sucursal (null = cliente directo) |
-| `FechaVigencia` | string | Sí | Fecha límite del presupuesto (YYYY-MM-DD) |
-| `Observaciones` | string | No | Notas generales (max 500) |
-| `UsuarioID` | number | Sí | ID del usuario que crea |
-| `DescuentoPorcentaje` | number | No | Descuento global en % (0-100) |
-| `DescuentoEfectivo` | number | No | Descuento global en $ |
-| `GastosAdicionales` | number | No | Gastos extra (envío, etc.) |
-| `detalles` | array | Sí | Array de items (mínimo 1) |
+
+| Campo | Tipo | Requerido | Validaciones | Descripcion |
+|-------|------|-----------|--------------|-------------|
+| `ClienteID` | number | Si | > 0 | ID del cliente |
+| `SucursalID` | number | No | > 0 | ID de sucursal (opcional) |
+| `FechaVigencia` | string | Si | YYYY-MM-DD | Fecha hasta cuando es valido |
+| `Observaciones` | string | No | max: 500 | Notas adicionales |
+| `UsuarioID` | number | Si | > 0 | Usuario que crea |
+| `DescuentoPorcentaje` | number | No | 0-100 | Descuento global % |
+| `DescuentoEfectivo` | number | No | >= 0 | Descuento global $ |
+| `GastosAdicionales` | number | No | >= 0 | Gastos extra $ |
+| `detalles` | array | Si | min: 1 | Items del presupuesto |
 
 **Estructura de cada detalle:**
-| Campo | Tipo | Requerido | Descripción |
-|-------|------|-----------|-------------|
-| `TipoItem` | enum | Sí | EQUIPO_PURIFREEZE, EQUIPO_EXTERNO, REFACCION, SERVICIO |
-| `Modalidad` | enum | No* | VENTA, RENTA, MANTENIMIENTO |
-| `PlantillaEquipoID` | number | No* | Para equipos |
-| `RefaccionID` | number | No* | Para refacciones |
-| `Descripcion` | string | No | Descripción adicional o para servicios |
-| `Cantidad` | number | Sí | Cantidad (default: 1) |
-| `PeriodoRenta` | number | No | Meses de renta (solo para RENTA) |
-| `PrecioUnitario` | number | No | Precio manual (0 = automático) |
-| `DescuentoPorcentaje` | number | No | Descuento del item en % |
-| `DescuentoEfectivo` | number | No | Descuento del item en $ |
 
-**Notas:**
-- `*` Requerido según TipoItem
-- Si `PrecioUnitario = 0`, se calcula automáticamente
-- IVA se calcula al 16% sobre el subtotal
+| Campo | Tipo | Requerido | Validaciones | Descripcion |
+|-------|------|-----------|--------------|-------------|
+| `TipoItem` | string | Si | enum | Tipo de item |
+| `Modalidad` | string | Condicional | enum | Requerido para equipos |
+| `PlantillaEquipoID` | number | Condicional | > 0 | Requerido para equipos |
+| `RefaccionID` | number | Condicional | > 0 | Requerido para refacciones |
+| `Descripcion` | string | Condicional | max: 500 | Requerido para SERVICIO |
+| `Cantidad` | number | No | min: 1 | Default: 1 |
+| `PeriodoRenta` | number | Condicional | min: 1 | Meses de renta (solo RENTA) |
+| `PrecioUnitario` | number | No | >= 0 | 0 = calcula automatico |
+| `DescuentoPorcentaje` | number | No | 0-100 | Descuento del item % |
+| `DescuentoEfectivo` | number | No | >= 0 | Descuento del item $ |
 
-**Ejemplo de Request:**
+**Ejemplo de Request (Presupuesto mixto):**
 ```json
 {
   "ClienteID": 1,
   "SucursalID": 2,
-  "FechaVigencia": "2025-01-15",
+  "FechaVigencia": "2025-01-31",
   "Observaciones": "Presupuesto para nueva sucursal",
   "UsuarioID": 1,
   "DescuentoPorcentaje": 5,
-  "GastosAdicionales": 500,
   "detalles": [
     {
       "TipoItem": "EQUIPO_PURIFREEZE",
@@ -123,18 +130,32 @@ Content-Type: application/json
       "PlantillaEquipoID": 1,
       "Cantidad": 2,
       "PeriodoRenta": 12,
+      "PrecioUnitario": 0,
+      "Descripcion": "Enfriador modelo estandar"
+    },
+    {
+      "TipoItem": "EQUIPO_PURIFREEZE",
+      "Modalidad": "VENTA",
+      "PlantillaEquipoID": 2,
+      "Cantidad": 1,
+      "PrecioUnitario": 15000
+    },
+    {
+      "TipoItem": "EQUIPO_EXTERNO",
+      "Modalidad": "MANTENIMIENTO",
+      "PlantillaEquipoID": 3,
+      "Cantidad": 1,
       "PrecioUnitario": 0
     },
     {
       "TipoItem": "REFACCION",
-      "Modalidad": "VENTA",
-      "RefaccionID": 5,
-      "Cantidad": 10,
+      "RefaccionID": 10,
+      "Cantidad": 5,
       "PrecioUnitario": 0
     },
     {
       "TipoItem": "SERVICIO",
-      "Descripcion": "Instalación y configuración inicial",
+      "Descripcion": "Instalacion y configuracion",
       "Cantidad": 1,
       "PrecioUnitario": 2500
     }
@@ -152,29 +173,29 @@ Content-Type: application/json
     "PresupuestoID": 1,
     "ClienteID": 1,
     "SucursalID": 2,
-    "FechaCreacion": "2024-12-11T00:00:00.000Z",
-    "FechaVigencia": "2025-01-15T00:00:00.000Z",
+    "FechaCreacion": "2025-12-23",
+    "FechaVigencia": "2025-01-31",
     "Estatus": "Pendiente",
     "Observaciones": "Presupuesto para nueva sucursal",
     "UsuarioID": 1,
-    "Subtotal": 15000.00,
+    "Subtotal": 45000.00,
     "DescuentoPorcentaje": 5,
     "DescuentoEfectivo": null,
-    "GastosAdicionales": 500,
-    "IVA": 2356.00,
-    "Total": 17106.00,
+    "GastosAdicionales": null,
+    "IVA": 6840.00,
+    "Total": 49590.00,
     "IsActive": 1,
     "cliente": {
       "ClienteID": 1,
-      "NombreComercio": "Tiendas XYZ",
+      "NombreComercio": "Empresa ABC",
       "Observaciones": null
     },
     "sucursal": {
       "SucursalID": 2,
-      "NombreSucursal": "Sucursal Norte",
-      "Direccion": "Blvd. Norte #456",
-      "Telefono": "844-987-6543",
-      "Contacto": "María García"
+      "NombreSucursal": "Sucursal Centro",
+      "Direccion": "Av. Principal 123",
+      "Telefono": "555-1234",
+      "Contacto": "Juan Perez"
     },
     "detalles": [
       {
@@ -184,18 +205,18 @@ Content-Type: application/json
         "Modalidad": "RENTA",
         "PlantillaEquipoID": 1,
         "RefaccionID": null,
-        "Descripcion": null,
+        "Descripcion": "Enfriador modelo estandar",
         "Cantidad": 2,
         "PeriodoRenta": 12,
-        "PrecioUnitario": 450.00,
+        "PrecioUnitario": 1500.00,
         "DescuentoPorcentaje": null,
         "DescuentoEfectivo": null,
-        "Subtotal": 10800.00,
+        "Subtotal": 36000.00,
         "IsActive": 1,
         "plantilla": {
           "PlantillaEquipoID": 1,
-          "Codigo": "PF-001",
-          "NombreEquipo": "Purificador Estándar",
+          "Codigo": "ENF-001",
+          "NombreEquipo": "Enfriador Estandar",
           "EsExterno": 0,
           "PorcentajeVenta": 35,
           "PorcentajeRenta": 15
@@ -209,16 +230,18 @@ Content-Type: application/json
 
 **Errores Posibles:**
 
-| Código | Mensaje | Causa |
+| Codigo | Mensaje | Causa |
 |--------|---------|-------|
-| 400 | Bad Request (detalles: Debe incluir al menos un item) | Sin detalles |
-| 404 | El cliente no existe | ClienteID inválido |
-| 300 | El cliente no está activo | Cliente dado de baja |
-| 404 | La sucursal no existe | SucursalID inválido |
+| 400 | Bad Request (campo: mensaje) | Validacion Zod fallida |
+| 404 | El cliente no existe | ClienteID no encontrado |
+| 300 | El cliente no esta activo | Cliente dado de baja |
+| 404 | La sucursal no existe | SucursalID no encontrado |
 | 300 | La sucursal no pertenece al cliente | Sucursal de otro cliente |
-| 404 | La refacción X no existe o no está activa | RefaccionID inválido |
-| 404 | La plantilla X no existe o no está activa | PlantillaEquipoID inválido |
-| 300 | La plantilla es de tipo externo, use EQUIPO_EXTERNO | Tipo incorrecto |
+| 300 | La sucursal no esta activa | Sucursal dada de baja |
+| 404 | La refaccion X no existe o no esta activa | RefaccionID invalido |
+| 404 | La plantilla X no existe o no esta activa | PlantillaEquipoID invalido |
+| 300 | La plantilla es de tipo externo, use EQUIPO_EXTERNO | Tipo de plantilla incorrecto |
+| 300 | La plantilla es de tipo Purifreeze, use EQUIPO_PURIFREEZE | Tipo de plantilla incorrecto |
 
 ---
 
@@ -226,7 +249,12 @@ Content-Type: application/json
 
 **Endpoint:** `GET /presupuestos`
 
-**Descripción:** Lista todos los presupuestos activos.
+**Descripcion:** Lista todos los presupuestos activos con informacion resumida.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
 
 **Response Exitoso (200):**
 ```json
@@ -236,28 +264,31 @@ Content-Type: application/json
   "error": false,
   "data": [
     {
-      "PresupuestoID": 2,
+      "PresupuestoID": 1,
       "ClienteID": 1,
-      "SucursalID": null,
-      "FechaCreacion": "2024-12-11T00:00:00.000Z",
-      "FechaVigencia": "2025-01-20T00:00:00.000Z",
-      "Estatus": "Enviado",
-      "Observaciones": null,
+      "SucursalID": 2,
+      "FechaCreacion": "2025-12-23",
+      "FechaVigencia": "2025-01-31",
+      "Estatus": "Pendiente",
+      "Observaciones": "Presupuesto para nueva sucursal",
       "UsuarioID": 1,
-      "Subtotal": 5000.00,
-      "DescuentoPorcentaje": null,
+      "Subtotal": 45000.00,
+      "DescuentoPorcentaje": 5,
       "DescuentoEfectivo": null,
       "GastosAdicionales": null,
-      "IVA": 800.00,
-      "Total": 5800.00,
+      "IVA": 6840.00,
+      "Total": 49590.00,
       "IsActive": 1,
       "cliente": {
         "ClienteID": 1,
-        "NombreComercio": "Tiendas XYZ"
+        "NombreComercio": "Empresa ABC"
       },
-      "sucursal": null,
+      "sucursal": {
+        "SucursalID": 2,
+        "NombreSucursal": "Sucursal Centro"
+      },
       "_count": {
-        "detalles": 3
+        "detalles": 5
       }
     }
   ]
@@ -270,16 +301,25 @@ Content-Type: application/json
 
 **Endpoint:** `GET /presupuestos/:PresupuestoID`
 
-**Descripción:** Obtiene un presupuesto con todos sus detalles.
+**Descripcion:** Obtiene un presupuesto con todos sus detalles completos.
 
-**Parámetros de URL:**
-| Parámetro | Tipo | Requerido | Descripción |
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Parametros de URL:**
+
+| Parametro | Tipo | Requerido | Descripcion |
 |-----------|------|-----------|-------------|
-| `PresupuestoID` | number | Sí | ID del presupuesto |
+| `PresupuestoID` | number | Si | ID del presupuesto |
 
-**Ejemplo:** `GET /presupuestos/1`
+**Errores Posibles:**
 
-**Response:** Ver ejemplo en "Crear Presupuesto"
+| Codigo | Mensaje | Causa |
+|--------|---------|-------|
+| 400 | Bad Request (PresupuestoID: ID debe ser un numero valido) | ID invalido |
+| 404 | Presupuesto no encontrado | No existe |
 
 ---
 
@@ -287,34 +327,58 @@ Content-Type: application/json
 
 **Endpoint:** `GET /presupuestos/cliente/:ClienteID`
 
-**Descripción:** Lista todos los presupuestos de un cliente.
+**Descripcion:** Lista todos los presupuestos de un cliente especifico.
 
-**Parámetros de URL:**
-| Parámetro | Tipo | Requerido | Descripción |
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Parametros de URL:**
+
+| Parametro | Tipo | Requerido | Descripcion |
 |-----------|------|-----------|-------------|
-| `ClienteID` | number | Sí | ID del cliente |
+| `ClienteID` | number | Si | ID del cliente |
 
-**Ejemplo:** `GET /presupuestos/cliente/1`
+**Response Exitoso (200):**
+```json
+{
+  "status": 200,
+  "message": "Presupuestos del cliente obtenidos",
+  "error": false,
+  "data": []
+}
+```
 
 ---
 
 ### 5. Obtener Precio de Plantilla
 
-**Endpoint:** `GET /presupuestos/precio-plantilla/:PlantillaEquipoID`
+**Endpoint:** `GET /presupuestos/precio-plantilla/:PlantillaEquipoID?modalidad={modalidad}`
 
-**Descripción:** Calcula el precio de un equipo según la modalidad. Útil para mostrar precios antes de agregar al presupuesto.
+**Descripcion:** Calcula el precio de un equipo segun la modalidad seleccionada. Util para mostrar precio antes de agregar al presupuesto.
 
-**Parámetros de URL:**
-| Parámetro | Tipo | Requerido | Descripción |
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Parametros de URL:**
+
+| Parametro | Tipo | Requerido | Descripcion |
 |-----------|------|-----------|-------------|
-| `PlantillaEquipoID` | number | Sí | ID de la plantilla |
+| `PlantillaEquipoID` | number | Si | ID de la plantilla |
 
 **Query Params:**
-| Parámetro | Tipo | Requerido | Descripción |
-|-----------|------|-----------|-------------|
-| `modalidad` | enum | Sí | VENTA, RENTA, MANTENIMIENTO |
 
-**Ejemplo:** `GET /presupuestos/precio-plantilla/1?modalidad=RENTA`
+| Parametro | Tipo | Requerido | Descripcion |
+|-----------|------|-----------|-------------|
+| `modalidad` | string | Si | VENTA, RENTA o MANTENIMIENTO |
+
+**Ejemplo de Request:**
+```
+GET /presupuestos/precio-plantilla/1?modalidad=RENTA
+```
 
 **Response Exitoso (200):**
 ```json
@@ -324,59 +388,194 @@ Content-Type: application/json
   "error": false,
   "data": {
     "PlantillaEquipoID": 1,
-    "NombreEquipo": "Purificador Estándar",
+    "NombreEquipo": "Enfriador Estandar",
     "EsExterno": 0,
-    "CostoTotal": 3000.00,
+    "CostoTotal": 10000.00,
     "Modalidad": "RENTA",
     "PorcentajeAplicado": 15,
-    "PrecioCalculado": 450.00
+    "PrecioCalculado": 1500.00
   }
 }
 ```
 
+**Errores Posibles:**
+
+| Codigo | Mensaje | Causa |
+|--------|---------|-------|
+| 400 | Bad Request (modalidad: Invalid enum value) | Modalidad invalida |
+| 404 | Plantilla no encontrada | PlantillaEquipoID no existe |
+
 ---
 
-### 6. Actualizar Presupuesto (Encabezado)
+### 6. Actualizar Encabezado del Presupuesto
 
 **Endpoint:** `PUT /presupuestos/:PresupuestoID`
 
-**Descripción:** Actualiza los datos del encabezado. Solo funciona si el estatus es "Pendiente".
+**Descripcion:** Actualiza los datos generales del presupuesto (solo en estado Pendiente).
 
-**Payload:**
-| Campo | Tipo | Requerido | Descripción |
-|-------|------|-----------|-------------|
-| `ClienteID` | number | No | Nuevo cliente |
-| `SucursalID` | number | No | Nueva sucursal (null para quitar) |
-| `FechaVigencia` | string | No | Nueva fecha (YYYY-MM-DD) |
-| `Observaciones` | string | No | Nuevas observaciones |
-| `DescuentoPorcentaje` | number | No | Nuevo descuento % |
-| `DescuentoEfectivo` | number | No | Nuevo descuento $ |
-| `GastosAdicionales` | number | No | Nuevos gastos |
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
 
-**Ejemplo:**
+**Parametros de URL:**
+
+| Parametro | Tipo | Requerido | Descripcion |
+|-----------|------|-----------|-------------|
+| `PresupuestoID` | number | Si | ID del presupuesto |
+
+**Payload (todos opcionales):**
+
+| Campo | Tipo | Validaciones | Descripcion |
+|-------|------|--------------|-------------|
+| `ClienteID` | number | > 0 | Cambiar cliente |
+| `SucursalID` | number/null | > 0 | Cambiar/quitar sucursal |
+| `FechaVigencia` | string | YYYY-MM-DD | Nueva fecha vigencia |
+| `Observaciones` | string/null | max: 500 | Actualizar notas |
+| `DescuentoPorcentaje` | number/null | 0-100 | Descuento global % |
+| `DescuentoEfectivo` | number/null | >= 0 | Descuento global $ |
+| `GastosAdicionales` | number/null | >= 0 | Gastos extra $ |
+
+**Ejemplo de Request:**
 ```json
 {
-  "FechaVigencia": "2025-02-01",
-  "DescuentoPorcentaje": 10
+  "FechaVigencia": "2025-02-28",
+  "DescuentoPorcentaje": 10,
+  "Observaciones": "Cliente frecuente - descuento especial"
 }
 ```
 
+**Errores Posibles:**
+
+| Codigo | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Presupuesto no encontrado | No existe |
+| 300 | Solo se pueden editar presupuestos en estado Pendiente | Estatus != Pendiente |
+| 404 | El cliente no existe o no esta activo | ClienteID invalido |
+| 404 | La sucursal no existe o no esta activa | SucursalID invalido |
+| 300 | La sucursal no pertenece al cliente | Sucursal de otro cliente |
+
 ---
 
-### 7. Cambiar Estatus
+### 7. Cambiar Estatus del Presupuesto
 
 **Endpoint:** `PATCH /presupuestos/:PresupuestoID/estatus`
 
-**Descripción:** Cambia el estatus del presupuesto.
+**Descripcion:** Cambia el estatus del presupuesto.
+
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
+
+**Parametros de URL:**
+
+| Parametro | Tipo | Requerido | Descripcion |
+|-----------|------|-----------|-------------|
+| `PresupuestoID` | number | Si | ID del presupuesto |
 
 **Payload:**
+
+| Campo | Tipo | Requerido | Validaciones | Descripcion |
+|-------|------|-----------|--------------|-------------|
+| `Estatus` | string | Si | enum | Nuevo estatus |
+
+**Valores validos para Estatus:**
+- `Pendiente`
+- `Enviado`
+- `Aprobado` **(PROCESAMIENTO AUTOMATICO)**
+- `Rechazado`
+- `Vencido`
+
+**Ejemplo de Request:**
 ```json
 {
   "Estatus": "Enviado"
 }
 ```
 
-**Valores válidos:** `Pendiente`, `Enviado`, `Aprobado`, `Rechazado`, `Vencido`
+**Response Exitoso (200) - Cambio a Enviado:**
+```json
+{
+  "status": 200,
+  "message": "Presupuesto actualizado a Enviado",
+  "error": false,
+  "data": {
+    "PresupuestoID": 1,
+    "Estatus": "Enviado"
+  }
+}
+```
+
+### Procesamiento Automatico al Aprobar
+
+Cuando se cambia el estatus a `Aprobado`, el sistema procesa automaticamente el presupuesto:
+
+1. **Items de VENTA (Equipos Purifreeze/Externos + Refacciones + Servicios):**
+   - Se crea una **venta** (`ventas_encabezado`) con todos los items
+   - Cada item genera un **detalle de venta** (`ventas_detalle`)
+
+2. **Items de RENTA (Solo Equipos Purifreeze):**
+   - Se crea un **contrato** (`contratos`) con duracion basada en PeriodoRenta
+   - El monto mensual es la suma de precios de los equipos en renta
+
+3. **Asignacion de Equipos:**
+   - Cada equipo se registra en `clientes_equipos` con:
+     - `TipoPropiedad: 'COMPRA'` para equipos vendidos
+     - `TipoPropiedad: 'RENTA'` para equipos rentados (vinculado al contrato)
+     - `TipoPropiedad: 'EXTERNO'` para equipos externos en mantenimiento
+
+**Response Exitoso (200) - Cambio a Aprobado:**
+```json
+{
+  "status": 200,
+  "message": "Presupuesto aprobado y procesado correctamente",
+  "error": false,
+  "data": {
+    "PresupuestoID": 1,
+    "Estatus": "Aprobado",
+    "Procesado": {
+      "VentasCreadas": true,
+      "ContratosCreados": true,
+      "EquiposAsignados": 5
+    }
+  }
+}
+```
+
+**Diagrama del Flujo de Aprobacion:**
+
+```
+Presupuesto Aprobado
+        |
+        v
++------------------+     +------------------+     +------------------+
+|  Equipos VENTA   |---->|    VENTAS       |---->| clientes_equipos |
+|  Refacciones     |     | (encabezado +   |     | TipoPropiedad:   |
+|  Servicios       |     |  detalles)      |     | COMPRA           |
++------------------+     +------------------+     +------------------+
+        |
++------------------+     +------------------+     +------------------+
+|  Equipos RENTA   |---->|    CONTRATOS    |---->| clientes_equipos |
+|                  |     | (monto mensual) |     | TipoPropiedad:   |
+|                  |     |                 |     | RENTA + ContratoID|
++------------------+     +------------------+     +------------------+
+        |
++------------------+                              +------------------+
+| Equipos EXTERNOS |----------------------------->| clientes_equipos |
+| (Mantenimiento)  |                              | TipoPropiedad:   |
++------------------+                              | EXTERNO          |
+                                                  +------------------+
+```
+
+**Errores Posibles:**
+
+| Codigo | Mensaje | Causa |
+|--------|---------|-------|
+| 400 | Bad Request (Estatus: Invalid enum value) | Estatus invalido |
+| 404 | Presupuesto no encontrado | No existe |
 
 ---
 
@@ -384,46 +583,124 @@ Content-Type: application/json
 
 **Endpoint:** `POST /presupuestos/:PresupuestoID/detalle`
 
-**Descripción:** Agrega un nuevo item. Solo funciona si el estatus es "Pendiente".
+**Descripcion:** Agrega un nuevo item al presupuesto (solo en estado Pendiente).
 
-**Payload:** Mismo formato que un detalle en la creación.
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
 
-**Ejemplo:**
+**Parametros de URL:**
+
+| Parametro | Tipo | Requerido | Descripcion |
+|-----------|------|-----------|-------------|
+| `PresupuestoID` | number | Si | ID del presupuesto |
+
+**Payload:** (Igual que el detalle en crear presupuesto)
+
+| Campo | Tipo | Requerido | Validaciones | Descripcion |
+|-------|------|-----------|--------------|-------------|
+| `TipoItem` | string | Si | enum | Tipo de item |
+| `Modalidad` | string | Condicional | enum | Requerido para equipos |
+| `PlantillaEquipoID` | number | Condicional | > 0 | Requerido para equipos |
+| `RefaccionID` | number | Condicional | > 0 | Requerido para refacciones |
+| `Descripcion` | string | Condicional | max: 500 | Requerido para SERVICIO |
+| `Cantidad` | number | No | min: 1 | Default: 1 |
+| `PeriodoRenta` | number | Condicional | min: 1 | Meses de renta |
+| `PrecioUnitario` | number | No | >= 0 | 0 = calcula automatico |
+| `DescuentoPorcentaje` | number | No | 0-100 | Descuento % |
+| `DescuentoEfectivo` | number | No | >= 0 | Descuento $ |
+
+**Ejemplo de Request:**
 ```json
 {
   "TipoItem": "REFACCION",
-  "Modalidad": "VENTA",
-  "RefaccionID": 10,
-  "Cantidad": 5,
-  "PrecioUnitario": 0
+  "RefaccionID": 15,
+  "Cantidad": 3,
+  "PrecioUnitario": 0,
+  "DescuentoPorcentaje": 10
 }
 ```
 
+**Errores Posibles:**
+
+| Codigo | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Presupuesto no encontrado | No existe |
+| 300 | Solo se pueden agregar items a presupuestos en estado Pendiente | Estatus != Pendiente |
+
 ---
 
-### 9. Actualizar Item
+### 9. Actualizar Item del Presupuesto
 
 **Endpoint:** `PUT /presupuestos/detalle/:DetalleID`
 
-**Descripción:** Actualiza un item existente. Solo funciona si el presupuesto está "Pendiente".
+**Descripcion:** Actualiza un item existente del presupuesto (solo en estado Pendiente).
 
-**Payload:**
-| Campo | Tipo | Requerido | Descripción |
-|-------|------|-----------|-------------|
-| `Cantidad` | number | No | Nueva cantidad |
-| `PeriodoRenta` | number | No | Nuevos meses de renta |
-| `PrecioUnitario` | number | No | Nuevo precio |
-| `DescuentoPorcentaje` | number | No | Nuevo descuento % |
-| `DescuentoEfectivo` | number | No | Nuevo descuento $ |
-| `Descripcion` | string | No | Nueva descripción |
+**Headers:**
+```
+Content-Type: application/json
+Authorization: Bearer {token}
+```
+
+**Parametros de URL:**
+
+| Parametro | Tipo | Requerido | Descripcion |
+|-----------|------|-----------|-------------|
+| `DetalleID` | number | Si | ID del detalle |
+
+**Payload (todos opcionales):**
+
+| Campo | Tipo | Validaciones | Descripcion |
+|-------|------|--------------|-------------|
+| `Cantidad` | number | min: 1 | Nueva cantidad |
+| `PeriodoRenta` | number/null | min: 1 | Meses de renta |
+| `PrecioUnitario` | number | >= 0 | Nuevo precio |
+| `DescuentoPorcentaje` | number/null | 0-100 | Descuento % |
+| `DescuentoEfectivo` | number/null | >= 0 | Descuento $ |
+| `Descripcion` | string/null | max: 500 | Descripcion |
+
+**Ejemplo de Request:**
+```json
+{
+  "Cantidad": 5,
+  "DescuentoPorcentaje": 15
+}
+```
+
+**Errores Posibles:**
+
+| Codigo | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Detalle no encontrado | DetalleID no existe |
+| 300 | Solo se pueden editar items de presupuestos en estado Pendiente | Estatus != Pendiente |
 
 ---
 
-### 10. Eliminar Item
+### 10. Eliminar Item del Presupuesto
 
 **Endpoint:** `DELETE /presupuestos/detalle/:DetalleID`
 
-**Descripción:** Elimina un item (soft delete). Solo funciona si el presupuesto está "Pendiente".
+**Descripcion:** Elimina (soft delete) un item del presupuesto (solo en estado Pendiente).
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Parametros de URL:**
+
+| Parametro | Tipo | Requerido | Descripcion |
+|-----------|------|-----------|-------------|
+| `DetalleID` | number | Si | ID del detalle |
+
+**Errores Posibles:**
+
+| Codigo | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Detalle no encontrado | DetalleID no existe |
+| 300 | Solo se pueden eliminar items de presupuestos en estado Pendiente | Estatus != Pendiente |
 
 ---
 
@@ -431,117 +708,217 @@ Content-Type: application/json
 
 **Endpoint:** `PATCH /presupuestos/baja/:PresupuestoID`
 
+**Descripcion:** Desactiva un presupuesto (soft delete).
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Parametros de URL:**
+
+| Parametro | Tipo | Requerido | Descripcion |
+|-----------|------|-----------|-------------|
+| `PresupuestoID` | number | Si | ID del presupuesto |
+
+**Response Exitoso (200):**
+```json
+{
+  "status": 200,
+  "message": "Presupuesto dado de baja",
+  "error": false,
+  "data": {
+    "PresupuestoID": 1,
+    "IsActive": 0
+  }
+}
+```
+
+**Errores Posibles:**
+
+| Codigo | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Presupuesto no encontrado | No existe |
+| 300 | El presupuesto ya esta dado de baja | IsActive = 0 |
+
 ---
 
 ### 12. Activar Presupuesto
 
 **Endpoint:** `PATCH /presupuestos/activar/:PresupuestoID`
 
+**Descripcion:** Reactiva un presupuesto dado de baja.
+
+**Headers:**
+```
+Authorization: Bearer {token}
+```
+
+**Parametros de URL:**
+
+| Parametro | Tipo | Requerido | Descripcion |
+|-----------|------|-----------|-------------|
+| `PresupuestoID` | number | Si | ID del presupuesto |
+
+**Response Exitoso (200):**
+```json
+{
+  "status": 200,
+  "message": "Presupuesto activado",
+  "error": false,
+  "data": {
+    "PresupuestoID": 1,
+    "IsActive": 1
+  }
+}
+```
+
+**Errores Posibles:**
+
+| Codigo | Mensaje | Causa |
+|--------|---------|-------|
+| 404 | Presupuesto no encontrado | No existe |
+| 300 | El presupuesto ya esta activo | IsActive = 1 |
+
 ---
 
-## Cálculo de Precios
-
-### Precio Automático por Tipo
-
-| TipoItem | Fuente del Precio |
-|----------|-------------------|
-| `EQUIPO_PURIFREEZE` (VENTA) | CostoTotal × (1 + PorcentajeVenta/100) |
-| `EQUIPO_PURIFREEZE` (RENTA) | CostoTotal × (PorcentajeRenta/100) |
-| `EQUIPO_EXTERNO` (MANTO) | CostoTotal × 0.20 |
-| `REFACCION` | PrecioVenta de la refacción |
-| `SERVICIO` | Manual (requerido) |
-
-**CostoTotal** = Suma de (CostoPromedio × Cantidad) de todas las refacciones de la plantilla.
-
-### Cálculo de Subtotal del Detalle
-
-```
-base = PrecioUnitario × Cantidad
-si PeriodoRenta > 0:
-    base = base × PeriodoRenta
-subtotal = base - (base × DescuentoPorcentaje/100) - DescuentoEfectivo
-```
-
-### Cálculo de Totales del Presupuesto
-
-```
-subtotalDetalles = Suma de Subtotal de todos los detalles
-subtotal = subtotalDetalles - (subtotalDetalles × DescuentoPorcentaje/100) - DescuentoEfectivo + GastosAdicionales
-IVA = subtotal × 0.16
-Total = subtotal + IVA
-```
-
----
-
-## Modelo de Datos
+## Modelos de Datos
 
 ### presupuestos_encabezado
 
-| Campo | Tipo | Nullable | Descripción |
+| Campo | Tipo | Nullable | Descripcion |
 |-------|------|----------|-------------|
 | PresupuestoID | Int | No | PK, autoincrement |
 | ClienteID | Int | No | FK a catalogo_clientes |
-| SucursalID | Int | Sí | FK a clientes_sucursales |
-| FechaCreacion | DateTime | No | Fecha de creación |
-| FechaVigencia | DateTime | No | Fecha límite |
-| Estatus | Enum | No | Estado del presupuesto |
-| Observaciones | String(500) | Sí | Notas |
-| UsuarioID | Int | No | Quien creó |
-| Subtotal | Float | No | Subtotal calculado |
-| DescuentoPorcentaje | Float | Sí | Descuento global % |
-| DescuentoEfectivo | Float | Sí | Descuento global $ |
-| GastosAdicionales | Float | Sí | Gastos extra |
-| IVA | Float | No | IVA calculado (16%) |
-| Total | Float | No | Total final |
-| IsActive | Int | Sí | 1=activo, 0=baja |
+| SucursalID | Int | Si | FK a clientes_sucursales |
+| FechaCreacion | Date | No | Fecha de creacion (automatica) |
+| FechaVigencia | Date | No | Hasta cuando es valido |
+| Estatus | Enum | No | Pendiente, Enviado, Aprobado, Rechazado, Vencido |
+| Observaciones | String(500) | Si | Notas adicionales |
+| UsuarioID | Int | No | Usuario que creo |
+| Subtotal | Float | No | Suma de subtotales - descuentos + gastos |
+| DescuentoPorcentaje | Float | Si | Descuento global % |
+| DescuentoEfectivo | Float | Si | Descuento global $ |
+| GastosAdicionales | Float | Si | Gastos extra $ |
+| IVA | Float | No | 16% del subtotal |
+| Total | Float | No | Subtotal + IVA |
+| IsActive | TinyInt | No | 1=activo, 0=baja |
 
 ### presupuestos_detalle
 
-| Campo | Tipo | Nullable | Descripción |
+| Campo | Tipo | Nullable | Descripcion |
 |-------|------|----------|-------------|
 | DetalleID | Int | No | PK, autoincrement |
-| PresupuestoID | Int | No | FK a encabezado |
-| TipoItem | Enum | No | Tipo de item |
-| Modalidad | Enum | Sí | VENTA/RENTA/MANTO |
-| PlantillaEquipoID | Int | Sí | FK a plantillas_equipo |
-| RefaccionID | Int | Sí | FK a catalogo_refacciones |
-| Descripcion | String(500) | Sí | Descripción libre |
-| Cantidad | Int | No | Cantidad |
-| PeriodoRenta | Int | Sí | Meses de renta |
+| PresupuestoID | Int | No | FK a presupuestos_encabezado |
+| TipoItem | Enum | No | EQUIPO_PURIFREEZE, EQUIPO_EXTERNO, REFACCION, SERVICIO |
+| Modalidad | Enum | Si | VENTA, RENTA, MANTENIMIENTO |
+| PlantillaEquipoID | Int | Si | FK a plantillas_equipo |
+| RefaccionID | Int | Si | FK a catalogo_refacciones |
+| Descripcion | String(500) | Si | Descripcion del item |
+| Cantidad | Int | No | Cantidad (default: 1) |
+| PeriodoRenta | Int | Si | Meses de renta |
 | PrecioUnitario | Float | No | Precio por unidad |
-| DescuentoPorcentaje | Float | Sí | Descuento % |
-| DescuentoEfectivo | Float | Sí | Descuento $ |
-| Subtotal | Float | No | Subtotal calculado |
-| IsActive | Int | Sí | 1=activo, 0=baja |
+| DescuentoPorcentaje | Float | Si | Descuento del item % |
+| DescuentoEfectivo | Float | Si | Descuento del item $ |
+| Subtotal | Float | No | Precio x Cantidad x Periodo - Descuentos |
+| IsActive | TinyInt | No | 1=activo, 0=eliminado |
 
 ---
 
-## Reglas de Negocio
-
-1. **Solo se editan presupuestos en Pendiente:** Cualquier modificación de detalles requiere estatus "Pendiente".
-
-2. **Mínimo un detalle:** No se puede crear un presupuesto sin al menos un item.
-
-3. **Validación de plantillas:**
-   - EQUIPO_PURIFREEZE requiere plantilla con EsExterno=0
-   - EQUIPO_EXTERNO requiere plantilla con EsExterno=1
-
-4. **Sucursal debe pertenecer al cliente:** Si se proporciona SucursalID, debe ser del mismo ClienteID.
-
-5. **Recálculo automático:** Al modificar detalles o descuentos, los totales se recalculan automáticamente.
-
-6. **Precio automático:** Si PrecioUnitario=0, se calcula según el tipo de item.
-
----
-
-## TypeScript Interfaces
+## Interfaces TypeScript
 
 ```typescript
-type EstatusPresupuesto = 'Pendiente' | 'Enviado' | 'Aprobado' | 'Rechazado' | 'Vencido';
+// Enums
 type TipoItemPresupuesto = 'EQUIPO_PURIFREEZE' | 'EQUIPO_EXTERNO' | 'REFACCION' | 'SERVICIO';
 type ModalidadPresupuesto = 'VENTA' | 'RENTA' | 'MANTENIMIENTO';
+type EstatusPresupuesto = 'Pendiente' | 'Enviado' | 'Aprobado' | 'Rechazado' | 'Vencido';
 
-interface PresupuestoDetalle {
+// Crear detalle
+interface CreateDetalleDto {
+  TipoItem: TipoItemPresupuesto;
+  Modalidad?: ModalidadPresupuesto | null;
+  PlantillaEquipoID?: number | null;
+  RefaccionID?: number | null;
+  Descripcion?: string | null;
+  Cantidad?: number; // default: 1
+  PeriodoRenta?: number | null;
+  PrecioUnitario?: number; // default: 0
+  DescuentoPorcentaje?: number | null;
+  DescuentoEfectivo?: number | null;
+}
+
+// Crear presupuesto
+interface CreatePresupuestoDto {
+  ClienteID: number;
+  SucursalID?: number | null;
+  FechaVigencia: string; // YYYY-MM-DD
+  Observaciones?: string | null;
+  UsuarioID: number;
+  DescuentoPorcentaje?: number | null;
+  DescuentoEfectivo?: number | null;
+  GastosAdicionales?: number | null;
+  detalles: CreateDetalleDto[];
+}
+
+// Actualizar presupuesto
+interface UpdatePresupuestoDto {
+  ClienteID?: number;
+  SucursalID?: number | null;
+  FechaVigencia?: string;
+  Observaciones?: string | null;
+  DescuentoPorcentaje?: number | null;
+  DescuentoEfectivo?: number | null;
+  GastosAdicionales?: number | null;
+}
+
+// Actualizar estatus
+interface UpdateEstatusDto {
+  Estatus: EstatusPresupuesto;
+}
+
+// Actualizar detalle
+interface UpdateDetalleDto {
+  Cantidad?: number;
+  PeriodoRenta?: number | null;
+  PrecioUnitario?: number;
+  DescuentoPorcentaje?: number | null;
+  DescuentoEfectivo?: number | null;
+  Descripcion?: string | null;
+}
+
+// Response de presupuesto
+interface PresupuestoResponse {
+  PresupuestoID: number;
+  ClienteID: number;
+  SucursalID: number | null;
+  FechaCreacion: string;
+  FechaVigencia: string;
+  Estatus: EstatusPresupuesto;
+  Observaciones: string | null;
+  UsuarioID: number;
+  Subtotal: number;
+  DescuentoPorcentaje: number | null;
+  DescuentoEfectivo: number | null;
+  GastosAdicionales: number | null;
+  IVA: number;
+  Total: number;
+  IsActive: number;
+  cliente: {
+    ClienteID: number;
+    NombreComercio: string;
+    Observaciones?: string | null;
+  };
+  sucursal: {
+    SucursalID: number;
+    NombreSucursal: string;
+    Direccion?: string;
+    Telefono?: string;
+    Contacto?: string;
+  } | null;
+  detalles: DetalleResponse[];
+}
+
+interface DetalleResponse {
   DetalleID: number;
   PresupuestoID: number;
   TipoItem: TipoItemPresupuesto;
@@ -566,110 +943,66 @@ interface PresupuestoDetalle {
   } | null;
   refaccion: {
     RefaccionID: number;
-    NombrePieza: string | null;
+    NombrePieza: string;
     NombreCorto: string | null;
     Codigo: string | null;
     PrecioVenta: number | null;
   } | null;
 }
-
-interface PresupuestoEncabezado {
-  PresupuestoID: number;
-  ClienteID: number;
-  SucursalID: number | null;
-  FechaCreacion: string;
-  FechaVigencia: string;
-  Estatus: EstatusPresupuesto;
-  Observaciones: string | null;
-  UsuarioID: number;
-  Subtotal: number;
-  DescuentoPorcentaje: number | null;
-  DescuentoEfectivo: number | null;
-  GastosAdicionales: number | null;
-  IVA: number;
-  Total: number;
-  IsActive: number;
-  cliente: {
-    ClienteID: number;
-    NombreComercio: string | null;
-    Observaciones: string | null;
-  };
-  sucursal: {
-    SucursalID: number;
-    NombreSucursal: string;
-    Direccion: string | null;
-    Telefono: string | null;
-    Contacto: string | null;
-  } | null;
-  detalles: PresupuestoDetalle[];
-}
-
-interface CreatePresupuestoDetalle {
-  TipoItem: TipoItemPresupuesto;
-  Modalidad?: ModalidadPresupuesto | null;
-  PlantillaEquipoID?: number | null;
-  RefaccionID?: number | null;
-  Descripcion?: string | null;
-  Cantidad: number;
-  PeriodoRenta?: number | null;
-  PrecioUnitario?: number;
-  DescuentoPorcentaje?: number | null;
-  DescuentoEfectivo?: number | null;
-}
-
-interface CreatePresupuesto {
-  ClienteID: number;
-  SucursalID?: number | null;
-  FechaVigencia: string;
-  Observaciones?: string | null;
-  UsuarioID: number;
-  DescuentoPorcentaje?: number | null;
-  DescuentoEfectivo?: number | null;
-  GastosAdicionales?: number | null;
-  detalles: CreatePresupuestoDetalle[];
-}
 ```
 
 ---
 
-## Flujo de Uso Típico
+## Flujo de Uso Tipico
 
-```javascript
-// 1. Consultar precio de un equipo antes de agregar
-const precio = await fetch('/presupuestos/precio-plantilla/1?modalidad=RENTA');
+### 1. Crear un Presupuesto
 
-// 2. Crear presupuesto
-const presupuesto = await fetch('/presupuestos', {
-  method: 'POST',
-  body: JSON.stringify({
-    ClienteID: 1,
-    FechaVigencia: '2025-01-15',
-    UsuarioID: 1,
-    detalles: [
-      { TipoItem: 'EQUIPO_PURIFREEZE', Modalidad: 'RENTA', PlantillaEquipoID: 1, Cantidad: 2, PeriodoRenta: 12 }
-    ]
-  })
-});
+```
+1. GET /clientes                           -> Seleccionar cliente
+2. GET /clientes-sucursales/cliente/{id}   -> Seleccionar sucursal (opcional)
+3. GET /plantillas-equipo                  -> Ver equipos disponibles
+4. GET /presupuestos/precio-plantilla/{id}?modalidad=RENTA -> Calcular precio
+5. GET /refacciones                        -> Ver refacciones disponibles
+6. POST /presupuestos                      -> Crear presupuesto con items
+```
 
-// 3. Agregar más items
-await fetch(`/presupuestos/${presupuestoId}/detalle`, {
-  method: 'POST',
-  body: JSON.stringify({ TipoItem: 'SERVICIO', Descripcion: 'Instalación', Cantidad: 1, PrecioUnitario: 1500 })
-});
+### 2. Editar un Presupuesto
 
-// 4. Enviar al cliente
-await fetch(`/presupuestos/${presupuestoId}/estatus`, {
-  method: 'PATCH',
-  body: JSON.stringify({ Estatus: 'Enviado' })
-});
+```
+1. GET /presupuestos/{id}                  -> Ver presupuesto actual
+2. PUT /presupuestos/{id}                  -> Actualizar encabezado
+3. POST /presupuestos/{id}/detalle         -> Agregar item
+4. PUT /presupuestos/detalle/{id}          -> Modificar item
+5. DELETE /presupuestos/detalle/{id}       -> Eliminar item
+```
 
-// 5. Cliente aprueba
-await fetch(`/presupuestos/${presupuestoId}/estatus`, {
-  method: 'PATCH',
-  body: JSON.stringify({ Estatus: 'Aprobado' })
-});
+### 3. Enviar y Aprobar
+
+```
+1. PATCH /presupuestos/{id}/estatus        -> { "Estatus": "Enviado" }
+2. (Cliente revisa)
+3. PATCH /presupuestos/{id}/estatus        -> { "Estatus": "Aprobado" }
 ```
 
 ---
 
-**Última actualización:** 2025-12-11
+## Notas Importantes
+
+1. **Solo se edita en Pendiente:** Una vez que el presupuesto cambia de estado, no se pueden modificar items ni encabezado.
+
+2. **Precio automatico:** Si envias `PrecioUnitario: 0`, el sistema calcula automaticamente basandose en:
+   - Equipos: Costo de plantilla x porcentaje segun modalidad
+   - Refacciones: PrecioVenta de la refaccion
+   - Servicios: **OBLIGATORIO** enviar precio manual
+
+3. **Recalculo automatico:** Cada vez que se modifica un detalle o el encabezado, los totales (Subtotal, IVA, Total) se recalculan automaticamente.
+
+4. **Soft Delete:** Los registros nunca se eliminan fisicamente, solo se marca `IsActive = 0`.
+
+5. **Validacion de plantillas:** El sistema valida que el tipo de plantilla (EsExterno) coincida con el TipoItem seleccionado.
+
+6. **PeriodoRenta:** Solo aplica para items con `Modalidad: "RENTA"`. Multiplica el precio por los meses.
+
+---
+
+**Ultima actualizacion:** 2025-12-23

@@ -26,19 +26,20 @@ class ServiciosService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async create(dto: CreateServicioDto, usuarioId?: number) {
+    // Validar que se proporcione ContratoID y EquiposIDs
+    if (!dto.ContratoID) {
+      throw new HttpError('ContratoID es requerido', 400);
+    }
+    if (!dto.EquiposIDs || dto.EquiposIDs.length === 0) {
+      throw new HttpError('Debe proporcionar al menos un equipo', 400);
+    }
+
     const servicioId = await prisma.$transaction(async (tx) => {
       // Validar que el contrato existe y está activo
       const contrato = await tx.contratos.findFirst({
-        where: { ContratoID: dto.ContratoID, IsActive: 1, Estatus: 'ACTIVO' },
+        where: { ContratoID: dto.ContratoID!, IsActive: 1, Estatus: 'ACTIVO' },
         include: {
           cliente: { select: { NombreComercio: true } },
-          equipos: {
-            where: { IsActive: 1 },
-            include: {
-              equipo: { select: { EquipoID: true, NumeroSerie: true, Estatus: true, EsExterno: true } },
-              plantilla: { select: { NombreEquipo: true } },
-            },
-          },
         },
       });
 
@@ -46,21 +47,34 @@ class ServiciosService {
         throw new HttpError('Contrato no encontrado o no está activo', 404);
       }
 
-      // Validar equipos seleccionados
-      const equiposContrato = contrato.equipos.filter(e => dto.EquiposIDs.includes(e.ContratoEquipoID));
-      if (equiposContrato.length !== dto.EquiposIDs.length) {
+      // Obtener equipos del cliente asociados al contrato desde clientes_equipos
+      const equiposCliente = await tx.clientes_equipos.findMany({
+        where: {
+          ContratoID: dto.ContratoID!,
+          IsActive: 1,
+          Estatus: { in: ['INSTALADO', 'PENDIENTE_INSTALACION', 'ACTIVO'] }
+        },
+        include: {
+          equipo: { select: { EquipoID: true, NumeroSerie: true, Estatus: true, EsExterno: true } },
+          plantilla: { select: { NombreEquipo: true } },
+        },
+      });
+
+      // Validar equipos seleccionados (ahora usando ClienteEquipoID)
+      const equiposContrato = equiposCliente.filter(e => dto.EquiposIDs!.includes(e.ClienteEquipoID));
+      if (equiposContrato.length !== dto.EquiposIDs!.length) {
         throw new HttpError('Algunos equipos seleccionados no pertenecen al contrato', 400);
       }
 
       // Validar reglas de negocio según tipo de servicio
-      for (const contratoEquipo of equiposContrato) {
-        const equipo = contratoEquipo.equipo;
-        const esExterno = equipo?.EsExterno === 1 || contratoEquipo.TipoItem === 'EQUIPO_EXTERNO';
+      for (const clienteEquipo of equiposContrato) {
+        const equipo = clienteEquipo.equipo;
+        const esExterno = equipo?.EsExterno === 1 || clienteEquipo.TipoItem === 'EQUIPO_EXTERNO';
 
         if (dto.TipoServicio === 'INSTALACION') {
           // Solo equipos Purifreeze pueden instalarse
           if (esExterno) {
-            throw new HttpError(`Equipos externos no requieren instalación: ${contratoEquipo.plantilla?.NombreEquipo || 'Equipo'}`, 400);
+            throw new HttpError(`Equipos externos no requieren instalación: ${clienteEquipo.plantilla?.NombreEquipo || 'Equipo'}`, 400);
           }
           // El equipo debe estar en estado Armado o Reacondicionado
           if (equipo && !['Armado', 'Reacondicionado'].includes(equipo.Estatus)) {
@@ -69,7 +83,7 @@ class ServiciosService {
         } else if (dto.TipoServicio === 'DESINSTALACION') {
           // Solo equipos Purifreeze pueden desinstalarse
           if (esExterno) {
-            throw new HttpError(`Equipos externos no pueden desinstalarse: ${contratoEquipo.plantilla?.NombreEquipo || 'Equipo'}`, 400);
+            throw new HttpError(`Equipos externos no pueden desinstalarse: ${clienteEquipo.plantilla?.NombreEquipo || 'Equipo'}`, 400);
           }
           // El equipo debe estar instalado
           if (equipo && equipo.Estatus !== 'Instalado') {
@@ -101,22 +115,22 @@ class ServiciosService {
       });
 
       // Crear servicios_equipos con sus refacciones
-      for (const contratoEquipoId of dto.EquiposIDs) {
-        const contratoEquipo = equiposContrato.find(e => e.ContratoEquipoID === contratoEquipoId)!;
+      for (const clienteEquipoId of dto.EquiposIDs!) {
+        const clienteEquipo = equiposContrato.find(e => e.ClienteEquipoID === clienteEquipoId)!;
 
         const servicioEquipo = await tx.servicios_equipos.create({
           data: {
             ServicioID: servicio.ServicioID,
-            ContratoEquipoID: contratoEquipoId,
-            EquipoID: contratoEquipo.EquipoID,
+            ClienteEquipoID: clienteEquipoId,
+            EquipoID: clienteEquipo.EquipoID,
             IsActive: 1,
           },
         });
 
         // Cargar refacciones del equipo si existe
-        if (contratoEquipo.EquipoID) {
+        if (clienteEquipo.EquipoID) {
           const equipoDetalles = await tx.equipos_detalle.findMany({
-            where: { EquipoID: contratoEquipo.EquipoID, IsActive: 1 },
+            where: { EquipoID: clienteEquipo.EquipoID, IsActive: 1 },
           });
 
           for (const detalle of equipoDetalles) {
@@ -139,7 +153,7 @@ class ServiciosService {
       // Registrar en historial
       await this.registrarHistorial(tx, servicio.ServicioID, 'CREACION', 'Servicio creado', null, JSON.stringify({
         TipoServicio: dto.TipoServicio,
-        Equipos: dto.EquiposIDs.length,
+        Equipos: dto.EquiposIDs!.length,
       }), usuarioId);
 
       return servicio.ServicioID;
@@ -260,9 +274,9 @@ class ServiciosService {
                 plantilla: { select: { NombreEquipo: true, Codigo: true } },
               },
             },
-            contrato_equipo: {
+            cliente_equipo: {
               select: {
-                ContratoEquipoID: true,
+                ClienteEquipoID: true,
                 Modalidad: true,
                 plantilla: { select: { NombreEquipo: true, Codigo: true } },
               },
@@ -377,10 +391,10 @@ class ServiciosService {
         FechaProgramada: moment(s.FechaProgramada).format('YYYY-MM-DD'),
         HoraProgramada: s.HoraProgramada ? moment(s.HoraProgramada).format('HH:mm') : null,
         Estatus: s.Estatus,
-        NumeroContrato: s.contrato.NumeroContrato,
-        NombreCliente: s.contrato.cliente.NombreComercio,
-        Sucursal: s.contrato.sucursal?.NombreSucursal || null,
-        Direccion: s.contrato.sucursal?.Direccion || null,
+        NumeroContrato: s.contrato?.NumeroContrato || null,
+        NombreCliente: s.contrato?.cliente?.NombreComercio || null,
+        Sucursal: s.contrato?.sucursal?.NombreSucursal || null,
+        Direccion: s.contrato?.sucursal?.Direccion || null,
         Tecnico: s.tecnico ? {
           TecnicoID: s.tecnico.TecnicoID,
           Codigo: s.tecnico.Codigo,
@@ -507,7 +521,7 @@ class ServiciosService {
       // Crear nuevo servicio con los mismos equipos
       const equiposOriginales = await tx.servicios_equipos.findMany({
         where: { ServicioID: id, IsActive: 1 },
-        select: { ContratoEquipoID: true },
+        select: { ClienteEquipoID: true },
       });
 
       const nuevoServicio = await tx.servicios.create({
@@ -528,30 +542,32 @@ class ServiciosService {
 
       // Copiar equipos al nuevo servicio
       for (const equipo of equiposOriginales) {
+        if (!equipo.ClienteEquipoID) continue;
+
         const nuevoServicioEquipo = await tx.servicios_equipos.create({
           data: {
             ServicioID: nuevoServicio.ServicioID,
-            ContratoEquipoID: equipo.ContratoEquipoID,
+            ClienteEquipoID: equipo.ClienteEquipoID,
             EquipoID: null, // Se cargará con las refacciones actuales
             IsActive: 1,
           },
         });
 
-        // Obtener el equipo del contrato
-        const contratoEquipo = await tx.contratos_equipos.findUnique({
-          where: { ContratoEquipoID: equipo.ContratoEquipoID },
+        // Obtener el equipo del cliente
+        const clienteEquipo = await tx.clientes_equipos.findUnique({
+          where: { ClienteEquipoID: equipo.ClienteEquipoID },
           select: { EquipoID: true },
         });
 
-        if (contratoEquipo?.EquipoID) {
+        if (clienteEquipo?.EquipoID) {
           await tx.servicios_equipos.update({
             where: { ServicioEquipoID: nuevoServicioEquipo.ServicioEquipoID },
-            data: { EquipoID: contratoEquipo.EquipoID },
+            data: { EquipoID: clienteEquipo.EquipoID },
           });
 
           // Cargar refacciones actuales del equipo
           const equipoDetalles = await tx.equipos_detalle.findMany({
-            where: { EquipoID: contratoEquipo.EquipoID, IsActive: 1 },
+            where: { EquipoID: clienteEquipo.EquipoID, IsActive: 1 },
           });
 
           for (const detalle of equipoDetalles) {
@@ -944,9 +960,9 @@ class ServiciosService {
               },
             });
 
-            // Actualizar contratos_equipos
-            await tx.contratos_equipos.update({
-              where: { ContratoEquipoID: servicioEquipo.ContratoEquipoID },
+            // Actualizar clientes_equipos
+            await tx.clientes_equipos.update({
+              where: { ClienteEquipoID: servicioEquipo.ClienteEquipoID! },
               data: {
                 Estatus: 'INSTALADO',
                 FechaInstalacion: new Date(),
@@ -966,9 +982,9 @@ class ServiciosService {
               },
             });
 
-            // Actualizar contratos_equipos
-            await tx.contratos_equipos.update({
-              where: { ContratoEquipoID: servicioEquipo.ContratoEquipoID },
+            // Actualizar clientes_equipos
+            await tx.clientes_equipos.update({
+              where: { ClienteEquipoID: servicioEquipo.ClienteEquipoID! },
               data: {
                 Estatus: 'RETIRADO',
                 FechaRetiro: new Date(),
@@ -1373,7 +1389,7 @@ class ServiciosService {
       } : null,
       Equipos: servicio.equipos.map((se: any) => ({
         ServicioEquipoID: se.ServicioEquipoID,
-        ContratoEquipoID: se.ContratoEquipoID,
+        ClienteEquipoID: se.ClienteEquipoID,
         AccionDesinstalacion: se.AccionDesinstalacion,
         Observaciones: se.Observaciones,
         Equipo: se.equipo ? {
@@ -1384,9 +1400,9 @@ class ServiciosService {
           NombreEquipo: se.equipo.plantilla?.NombreEquipo,
           Codigo: se.equipo.plantilla?.Codigo,
         } : {
-          NombreEquipo: se.contrato_equipo.plantilla?.NombreEquipo,
-          Codigo: se.contrato_equipo.plantilla?.Codigo,
-          Modalidad: se.contrato_equipo.Modalidad,
+          NombreEquipo: se.cliente_equipo?.plantilla?.NombreEquipo,
+          Codigo: se.cliente_equipo?.plantilla?.Codigo,
+          Modalidad: se.cliente_equipo?.Modalidad,
         },
         Refacciones: se.refacciones.map((ref: any) => ({
           ServicioEquipoRefaccionID: ref.ServicioEquipoRefaccionID,

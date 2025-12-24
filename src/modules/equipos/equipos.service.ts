@@ -25,83 +25,89 @@ class EquiposService {
    * - Genera números de serie automáticos
    */
   async createFromPlantilla(dto: CreateEquiposFromPlantillaDto, usuarioId?: number) {
-    const result = await prisma.$transaction(async (tx) => {
-      // Obtener plantilla con detalles
-      const plantilla = await tx.plantillas_equipo.findFirst({
-        where: { PlantillaEquipoID: dto.PlantillaEquipoID, IsActive: 1 },
-        include: {
-          detalles: {
-            where: { IsActive: 1 },
-            include: { refaccion: true },
-          },
-        },
-      });
-
-      if (!plantilla) {
-        throw new HttpError('Plantilla no encontrada', 404);
-      }
-
-      const esInterno = plantilla.EsExterno === 0;
-
-      // Validar stock si es equipo interno
-      if (esInterno) {
-        await this.validarStockParaEquipos(tx, plantilla.detalles, dto.Cantidad);
-      }
-
-      // Generar números de serie
-      const numerosSerie = await this.generarNumerosSerie(tx, plantilla.NombreEquipo, dto.Cantidad);
-
-      const equiposCreados: number[] = [];
-
-      // Crear cada equipo
-      for (let i = 0; i < dto.Cantidad; i++) {
-        const equipo = await tx.equipos.create({
-          data: {
-            PlantillaEquipoID: plantilla.PlantillaEquipoID,
-            NumeroSerie: numerosSerie[i],
-            EsExterno: plantilla.EsExterno,
-            Estatus: 'Armado',
-            Observaciones: dto.Observaciones || null,
-            FechaCreacion: new Date(),
-            UsuarioCreadorID: usuarioId || null,
-            IsActive: 1,
+    const result = await prisma.$transaction(
+      async (tx) => {
+        // Obtener plantilla con detalles
+        const plantilla = await tx.plantillas_equipo.findFirst({
+          where: { PlantillaEquipoID: dto.PlantillaEquipoID, IsActive: 1 },
+          include: {
+            detalles: {
+              where: { IsActive: 1 },
+              include: { refaccion: true },
+            },
           },
         });
 
-        // Crear detalles del equipo
-        for (const detalle of plantilla.detalles) {
-          await tx.equipos_detalle.create({
+        if (!plantilla) {
+          throw new HttpError('Plantilla no encontrada', 404);
+        }
+
+        const esInterno = plantilla.EsExterno === 0;
+
+        // Validar stock si es equipo interno
+        if (esInterno) {
+          await this.validarStockParaEquipos(tx, plantilla.detalles, dto.Cantidad);
+        }
+
+        // Generar números de serie
+        const numerosSerie = await this.generarNumerosSerie(tx, plantilla.NombreEquipo, dto.Cantidad);
+
+        const equiposCreados: number[] = [];
+
+        // Crear cada equipo
+        for (let i = 0; i < dto.Cantidad; i++) {
+          const equipo = await tx.equipos.create({
             data: {
-              EquipoID: equipo.EquipoID,
-              RefaccionID: detalle.RefaccionID,
-              Cantidad: detalle.Cantidad,
+              PlantillaEquipoID: plantilla.PlantillaEquipoID,
+              NumeroSerie: numerosSerie[i],
+              EsExterno: plantilla.EsExterno,
+              Estatus: 'Armado',
+              Observaciones: dto.Observaciones || null,
+              FechaCreacion: new Date(),
+              UsuarioCreadorID: usuarioId || null,
               IsActive: 1,
             },
           });
 
-          // Descontar del inventario si es interno
-          if (esInterno) {
-            await this.descontarInventario(tx, detalle.RefaccionID, detalle.Cantidad, usuarioId);
+          // Crear detalles del equipo
+          for (const detalle of plantilla.detalles) {
+            await tx.equipos_detalle.create({
+              data: {
+                EquipoID: equipo.EquipoID,
+                RefaccionID: detalle.RefaccionID,
+                Cantidad: detalle.Cantidad,
+                IsActive: 1,
+              },
+            });
+
+            // Descontar del inventario si es interno
+            if (esInterno) {
+              await this.descontarInventario(tx, detalle.RefaccionID, detalle.Cantidad, usuarioId);
+            }
           }
+
+          // Registrar historial de creación
+          await this.registrarHistorial(
+            tx,
+            equipo.EquipoID,
+            'CREACION',
+            null,
+            'Armado',
+            `Equipo creado desde plantilla ${plantilla.NombreEquipo}`,
+            { PlantillaID: plantilla.PlantillaEquipoID, NumeroSerie: numerosSerie[i] },
+            usuarioId
+          );
+
+          equiposCreados.push(equipo.EquipoID);
         }
 
-        // Registrar historial de creación
-        await this.registrarHistorial(
-          tx,
-          equipo.EquipoID,
-          'CREACION',
-          null,
-          'Armado',
-          `Equipo creado desde plantilla ${plantilla.NombreEquipo}`,
-          { PlantillaID: plantilla.PlantillaEquipoID, NumeroSerie: numerosSerie[i] },
-          usuarioId
-        );
-
-        equiposCreados.push(equipo.EquipoID);
+        return equiposCreados;
+      },
+      {
+        maxWait: 10000, // Tiempo máximo de espera para adquirir conexión (10s)
+        timeout: 30000, // Tiempo máximo de ejecución de la transacción (30s)
       }
-
-      return equiposCreados;
-    });
+    );
 
     // Obtener equipos creados con detalles
     const equipos = await this.findByIds(result);

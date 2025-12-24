@@ -88,6 +88,10 @@ export const contratoEquipoIdParamSchema = z.object({
   ContratoEquipoID: z.string().regex(/^\d+$/, 'ID debe ser un número válido').transform(Number),
 });
 
+export const clienteEquipoIdParamSchema = z.object({
+  ClienteEquipoID: z.string().regex(/^\d+$/, 'ID debe ser un número válido').transform(Number),
+});
+
 export const clienteIdParamSchema = z.object({
   ClienteID: z.string().regex(/^\d+$/, 'ID debe ser un número válido').transform(Number),
 });

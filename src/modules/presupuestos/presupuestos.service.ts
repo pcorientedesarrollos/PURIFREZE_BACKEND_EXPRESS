@@ -390,10 +390,18 @@ class PresupuestosService {
   async updateEstatus(PresupuestoID: number, data: UpdateEstatusDto) {
     const presupuesto = await prisma.presupuestos_encabezado.findUnique({
       where: { PresupuestoID },
+      include: {
+        detalles: { where: { IsActive: 1 } },
+      },
     });
 
     if (!presupuesto) {
       throw new HttpError('Presupuesto no encontrado', 404);
+    }
+
+    // Si se aprueba el presupuesto, procesar automáticamente
+    if (data.Estatus === 'Aprobado' && presupuesto.Estatus !== 'Aprobado') {
+      return this.aprobarPresupuesto(presupuesto);
     }
 
     const updated = await prisma.presupuestos_encabezado.update({
@@ -402,6 +410,246 @@ class PresupuestosService {
     });
 
     return { message: `Presupuesto actualizado a ${data.Estatus}`, data: updated };
+  }
+
+  // Procesar aprobación del presupuesto
+  private async aprobarPresupuesto(presupuesto: any) {
+    const detalles = presupuesto.detalles;
+
+    // Separar detalles por tipo
+    const equiposVenta = detalles.filter(
+      (d: any) => (d.TipoItem === 'EQUIPO_PURIFREEZE' || d.TipoItem === 'EQUIPO_EXTERNO') && d.Modalidad === 'VENTA'
+    );
+    const equiposRenta = detalles.filter(
+      (d: any) => d.TipoItem === 'EQUIPO_PURIFREEZE' && d.Modalidad === 'RENTA'
+    );
+    const equiposExternosMantenimiento = detalles.filter(
+      (d: any) => d.TipoItem === 'EQUIPO_EXTERNO' && d.Modalidad === 'MANTENIMIENTO'
+    );
+    const refacciones = detalles.filter((d: any) => d.TipoItem === 'REFACCION');
+    const servicios = detalles.filter((d: any) => d.TipoItem === 'SERVICIO');
+
+    // Items para venta (equipos venta + refacciones + servicios)
+    const itemsVenta = [...equiposVenta, ...refacciones, ...servicios];
+
+    await prisma.$transaction(async (tx) => {
+      // 1. Crear venta si hay items de venta
+      let ventaID: number | null = null;
+      if (itemsVenta.length > 0) {
+        const numeroVenta = await this.generarNumeroVenta(tx);
+
+        const venta = await tx.ventas_encabezado.create({
+          data: {
+            NumeroVenta: numeroVenta,
+            ClienteID: presupuesto.ClienteID,
+            SucursalID: presupuesto.SucursalID,
+            PresupuestoID: presupuesto.PresupuestoID,
+            FechaVenta: new Date(),
+            Subtotal: 0,
+            IVA: 0,
+            Total: 0,
+            Estatus: 'PENDIENTE',
+            UsuarioID: presupuesto.UsuarioID,
+            IsActive: 1,
+          },
+        });
+        ventaID = venta.VentaID;
+
+        // Crear detalles de venta
+        let subtotalVenta = 0;
+        for (const item of itemsVenta) {
+          const subtotalItem = item.Subtotal || 0;
+          subtotalVenta += subtotalItem;
+
+          await tx.ventas_detalle.create({
+            data: {
+              VentaID: venta.VentaID,
+              TipoItem: item.TipoItem,
+              PlantillaEquipoID: item.PlantillaEquipoID,
+              RefaccionID: item.RefaccionID,
+              PresupuestoDetalleID: item.DetalleID,
+              Descripcion: item.Descripcion,
+              Cantidad: item.Cantidad,
+              PrecioUnitario: item.PrecioUnitario,
+              DescuentoPorcentaje: item.DescuentoPorcentaje,
+              DescuentoEfectivo: item.DescuentoEfectivo,
+              Subtotal: subtotalItem,
+              MesesGarantia: 12,
+              IsActive: 1,
+            },
+          });
+        }
+
+        // Actualizar totales de venta
+        const ivaVenta = subtotalVenta * 0.16;
+        await tx.ventas_encabezado.update({
+          where: { VentaID: venta.VentaID },
+          data: {
+            Subtotal: subtotalVenta,
+            IVA: ivaVenta,
+            Total: subtotalVenta + ivaVenta,
+          },
+        });
+      }
+
+      // 2. Crear contrato si hay equipos en renta
+      let contratoID: number | null = null;
+      if (equiposRenta.length > 0) {
+        const numeroContrato = await this.generarNumeroContrato(tx);
+
+        // Calcular fecha fin (usar el mayor PeriodoRenta)
+        const maxPeriodo = Math.max(...equiposRenta.map((e: any) => e.PeriodoRenta || 12));
+        const fechaFin = new Date();
+        fechaFin.setMonth(fechaFin.getMonth() + maxPeriodo);
+
+        // Calcular monto total (precio mensual * meses * cantidad)
+        let montoTotal = 0;
+        for (const equipo of equiposRenta) {
+          const periodoMeses = equipo.PeriodoRenta || 12;
+          montoTotal += equipo.PrecioUnitario * equipo.Cantidad * periodoMeses;
+        }
+
+        const contrato = await tx.contratos.create({
+          data: {
+            NumeroContrato: numeroContrato,
+            PresupuestoID: presupuesto.PresupuestoID,
+            ClienteID: presupuesto.ClienteID,
+            SucursalID: presupuesto.SucursalID,
+            FechaInicio: new Date(),
+            FechaFin: fechaFin,
+            MontoTotal: montoTotal,
+            Estatus: 'ACTIVO',
+            Observaciones: `Generado automáticamente desde presupuesto ${presupuesto.NumeroPresupuesto}`,
+            UsuarioID: presupuesto.UsuarioID,
+            IsActive: 1,
+          },
+        });
+        contratoID = contrato.ContratoID;
+      }
+
+      // 3. Crear registros en clientes_equipos
+      // 3.1 Equipos en VENTA (COMPRA para el cliente)
+      for (const equipo of equiposVenta) {
+        if (equipo.PlantillaEquipoID) {
+          for (let i = 0; i < equipo.Cantidad; i++) {
+            await tx.clientes_equipos.create({
+              data: {
+                ClienteID: presupuesto.ClienteID,
+                SucursalID: presupuesto.SucursalID,
+                PlantillaEquipoID: equipo.PlantillaEquipoID,
+                TipoPropiedad: 'COMPRA',
+                PresupuestoDetalleID: equipo.DetalleID,
+                FechaAsignacion: new Date(),
+                Estatus: 'ACTIVO',
+                Observaciones: `Compra desde presupuesto ${presupuesto.NumeroPresupuesto}`,
+                IsActive: 1,
+              },
+            });
+          }
+        }
+      }
+
+      // 3.2 Equipos en RENTA
+      for (const equipo of equiposRenta) {
+        if (equipo.PlantillaEquipoID) {
+          for (let i = 0; i < equipo.Cantidad; i++) {
+            await tx.clientes_equipos.create({
+              data: {
+                ClienteID: presupuesto.ClienteID,
+                SucursalID: presupuesto.SucursalID,
+                PlantillaEquipoID: equipo.PlantillaEquipoID,
+                TipoPropiedad: 'RENTA',
+                ContratoID: contratoID,
+                PresupuestoDetalleID: equipo.DetalleID,
+                FechaAsignacion: new Date(),
+                Estatus: 'ACTIVO',
+                Observaciones: `Renta desde presupuesto ${presupuesto.NumeroPresupuesto}`,
+                IsActive: 1,
+              },
+            });
+          }
+        }
+      }
+
+      // 3.3 Equipos EXTERNOS (mantenimiento)
+      for (const equipo of equiposExternosMantenimiento) {
+        if (equipo.PlantillaEquipoID) {
+          for (let i = 0; i < equipo.Cantidad; i++) {
+            await tx.clientes_equipos.create({
+              data: {
+                ClienteID: presupuesto.ClienteID,
+                SucursalID: presupuesto.SucursalID,
+                PlantillaEquipoID: equipo.PlantillaEquipoID,
+                TipoPropiedad: 'EXTERNO',
+                PresupuestoDetalleID: equipo.DetalleID,
+                DescripcionEquipo: equipo.Descripcion,
+                FechaAsignacion: new Date(),
+                Estatus: 'ACTIVO',
+                Observaciones: `Equipo externo para mantenimiento desde presupuesto ${presupuesto.NumeroPresupuesto}`,
+                IsActive: 1,
+              },
+            });
+          }
+        }
+      }
+
+      // 4. Actualizar estatus del presupuesto
+      await tx.presupuestos_encabezado.update({
+        where: { PresupuestoID: presupuesto.PresupuestoID },
+        data: { Estatus: 'Aprobado' },
+      });
+    });
+
+    return {
+      message: 'Presupuesto aprobado y procesado correctamente',
+      data: {
+        PresupuestoID: presupuesto.PresupuestoID,
+        Estatus: 'Aprobado',
+        Procesado: {
+          VentasCreadas: [...equiposVenta, ...refacciones, ...servicios].length > 0,
+          ContratosCreados: equiposRenta.length > 0,
+          EquiposAsignados: equiposVenta.length + equiposRenta.length + equiposExternosMantenimiento.length,
+        },
+      },
+    };
+  }
+
+  // Generar número de venta
+  private async generarNumeroVenta(tx: any): Promise<string> {
+    const year = new Date().getFullYear();
+    const prefix = `V-${year}-`;
+
+    const ultimaVenta = await tx.ventas_encabezado.findFirst({
+      where: { NumeroVenta: { startsWith: prefix } },
+      orderBy: { VentaID: 'desc' },
+    });
+
+    let siguiente = 1;
+    if (ultimaVenta) {
+      const partes = ultimaVenta.NumeroVenta.split('-');
+      siguiente = parseInt(partes[2]) + 1;
+    }
+
+    return `${prefix}${siguiente.toString().padStart(4, '0')}`;
+  }
+
+  // Generar número de contrato
+  private async generarNumeroContrato(tx: any): Promise<string> {
+    const year = new Date().getFullYear();
+    const prefix = `C-${year}-`;
+
+    const ultimoContrato = await tx.contratos.findFirst({
+      where: { NumeroContrato: { startsWith: prefix } },
+      orderBy: { ContratoID: 'desc' },
+    });
+
+    let siguiente = 1;
+    if (ultimoContrato) {
+      const partes = ultimoContrato.NumeroContrato.split('-');
+      siguiente = parseInt(partes[2]) + 1;
+    }
+
+    return `${prefix}${siguiente.toString().padStart(4, '0')}`;
   }
 
   async addDetalle(PresupuestoID: number, data: AddDetalleDto) {

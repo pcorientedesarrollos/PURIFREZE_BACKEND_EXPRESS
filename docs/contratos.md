@@ -904,15 +904,26 @@ Authorization: Bearer {token}
 
 ---
 
-## EQUIPOS DEL CONTRATO
+## EQUIPOS DEL CONTRATO (usando clientes_equipos)
+
+**NOTA IMPORTANTE:** A partir de la versión 2.0, los equipos del contrato se gestionan a través de la tabla `clientes_equipos` como fuente única de verdad. Las rutas usan `ClienteEquipoID` en lugar de `ContratoEquipoID`.
+
+### Estatus de Equipos del Cliente
+
+| Valor | Descripción |
+|-------|-------------|
+| `ACTIVO` | Equipo activo sin instalar |
+| `PENDIENTE_INSTALACION` | Equipo asignado, pendiente de instalar |
+| `INSTALADO` | Equipo instalado en el cliente |
+| `RETIRADO` | Equipo retirado del cliente |
 
 ---
 
-### 12. Obtener Items Pendientes de Asignar
+### 12. Obtener Equipos Pendientes de Instalación
 
-**Endpoint:** `GET /contratos/:ContratoID/items-pendientes`
+**Endpoint:** `GET /contratos/:ContratoID/equipos-pendientes`
 
-**Descripción:** Lista los items pre-cargados del presupuesto que aún no tienen un equipo físico asignado (EquipoID = null).
+**Descripción:** Lista los equipos del cliente asociados al contrato que están pendientes de instalación (Estatus: PENDIENTE_INSTALACION, ACTIVO).
 
 **Headers:**
 ```
@@ -932,30 +943,31 @@ Authorization: Bearer {token}
   "error": false,
   "data": [
     {
-      "ContratoEquipoID": 1,
+      "ClienteEquipoID": 1,
+      "ClienteID": 1,
       "ContratoID": 1,
-      "EquipoID": null,
+      "EquipoID": 5,
+      "PlantillaEquipoID": 1,
       "Modalidad": "RENTA",
+      "TipoItem": "EQUIPO_PURIFREEZE",
       "PrecioUnitario": 450.00,
       "PeriodoMeses": 12,
       "FechaInstalacion": null,
-      "FechaRetiro": null,
-      "Estatus": "PENDIENTE",
+      "Estatus": "PENDIENTE_INSTALACION",
       "Observaciones": null,
       "IsActive": 1,
-      "PlantillaEquipoID": 1,
-      "RefaccionID": null,
-      "TipoItem": "EQUIPO_PURIFREEZE",
-      "Descripcion": "[PF-001] Enfriador Industrial 5000",
-      "CantidadRequerida": 2,
-      "CantidadAsignada": 0,
+      "equipo": {
+        "EquipoID": 5,
+        "NumeroSerie": "PUR-25-0005",
+        "Estatus": "Armado",
+        "EsExterno": false
+      },
       "plantilla": {
         "PlantillaEquipoID": 1,
         "NombreEquipo": "Enfriador Industrial 5000",
         "Codigo": "PF-001",
         "EsExterno": false
-      },
-      "refaccion": null
+      }
     }
   ]
 }
@@ -971,7 +983,7 @@ Authorization: Bearer {token}
 
 ### 13. Obtener Equipos Disponibles para un Item
 
-**Endpoint:** `GET /contratos/equipos/:ContratoEquipoID/disponibles`
+**Endpoint:** `GET /contratos/equipos/:ClienteEquipoID/disponibles`
 
 **Descripción:** Lista los equipos físicos disponibles que pueden asignarse a un item pendiente. Filtra automáticamente por la plantilla requerida.
 
@@ -983,7 +995,7 @@ Authorization: Bearer {token}
 **Parámetros de URL:**
 | Parámetro | Tipo | Requerido | Descripción |
 |-----------|------|-----------|-------------|
-| `ContratoEquipoID` | number | Sí | ID del item del contrato |
+| `ClienteEquipoID` | number | Sí | ID del equipo del cliente |
 
 **Response Exitoso (200):**
 ```json
@@ -993,8 +1005,7 @@ Authorization: Bearer {token}
   "error": false,
   "data": {
     "item": {
-      "ContratoEquipoID": 1,
-      "Descripcion": "[PF-001] Enfriador Industrial 5000",
+      "ClienteEquipoID": 1,
       "TipoItem": "EQUIPO_PURIFREEZE",
       "PlantillaEquipoID": 1,
       "plantilla": {
@@ -1031,21 +1042,21 @@ Authorization: Bearer {token}
 }
 ```
 
-**Nota:** Solo muestra equipos en estado "Armado" o "Desmontado" que coincidan con la plantilla del item y que no estén ya asignados a otro item de este contrato.
+**Nota:** Solo muestra equipos en estado "Armado" o "Desmontado" que coincidan con la plantilla del item y que no estén ya asignados a otro contrato.
 
 **Errores Posibles:**
 
 | Código | Mensaje | Causa |
 |--------|---------|-------|
-| 404 | Item del contrato no encontrado | ContratoEquipoID no existe |
+| 404 | Item del contrato no encontrado | ClienteEquipoID no existe |
 
 ---
 
 ### 14. Asignar Equipo Físico a Item Pendiente
 
-**Endpoint:** `PATCH /contratos/equipos/:ContratoEquipoID/asignar`
+**Endpoint:** `PATCH /contratos/equipos/:ClienteEquipoID/asignar`
 
-**Descripción:** Asigna un equipo físico (con número de serie) a un item pendiente del contrato. Valida que el equipo corresponda a la plantilla requerida.
+**Descripción:** Asigna un equipo físico (con número de serie) a un registro de equipo del cliente. Valida que el equipo corresponda a la plantilla requerida.
 
 **Headers:**
 ```
@@ -1056,7 +1067,7 @@ Authorization: Bearer {token}
 **Parámetros de URL:**
 | Parámetro | Tipo | Requerido | Descripción |
 |-----------|------|-----------|-------------|
-| `ContratoEquipoID` | number | Sí | ID del item del contrato |
+| `ClienteEquipoID` | number | Sí | ID del equipo del cliente |
 
 **Payload:**
 | Campo | Tipo | Requerido | Validaciones | Descripción |
@@ -1088,14 +1099,13 @@ Authorization: Bearer {token}
 
 | Código | Mensaje | Causa |
 |--------|---------|-------|
-| 404 | Item del contrato no encontrado | ContratoEquipoID inválido |
+| 404 | Item del contrato no encontrado | ClienteEquipoID inválido |
 | 404 | El equipo no existe | EquipoID inválido |
 | 300 | Este item ya tiene un equipo físico asignado | Ya asignado |
 | 300 | Solo se pueden asignar equipos a contratos en revisión o activos | Estatus no permitido |
 | 300 | El equipo no está activo | Equipo dado de baja |
 | 300 | El equipo debe estar en estado Armado o Desmontado | Estado incorrecto |
 | 300 | El equipo ya está asignado a otro contrato | Ocupado |
-| 300 | El equipo ya está asignado a otro item de este contrato | Duplicado |
 | 300 | El equipo es de plantilla "X" pero se requiere plantilla "Y" | Plantilla incorrecta |
 
 ---
@@ -1165,9 +1175,9 @@ Authorization: Bearer {token}
 
 ### 16. Actualizar Equipo del Contrato
 
-**Endpoint:** `PUT /contratos/equipos/:ContratoEquipoID`
+**Endpoint:** `PUT /contratos/equipos/:ClienteEquipoID`
 
-**Descripción:** Modifica precio, período u observaciones de un equipo asignado.
+**Descripción:** Modifica precio, período u observaciones de un equipo asignado al cliente.
 
 **Headers:**
 ```
@@ -1178,7 +1188,7 @@ Authorization: Bearer {token}
 **Parámetros de URL:**
 | Parámetro | Tipo | Requerido | Descripción |
 |-----------|------|-----------|-------------|
-| `ContratoEquipoID` | number | Sí | ID del equipo en el contrato |
+| `ClienteEquipoID` | number | Sí | ID del equipo del cliente |
 
 **Payload:**
 | Campo | Tipo | Requerido | Validaciones | Descripción |
@@ -1212,16 +1222,16 @@ Authorization: Bearer {token}
 
 | Código | Mensaje | Causa |
 |--------|---------|-------|
-| 404 | Equipo del contrato no encontrado | ContratoEquipoID no existe |
+| 404 | Equipo del contrato no encontrado | ClienteEquipoID no existe |
 | 300 | Solo se pueden modificar equipos de contratos en revisión o activos | Estatus no permitido |
 
 ---
 
 ### 17. Instalar Equipo
 
-**Endpoint:** `PATCH /contratos/equipos/:ContratoEquipoID/instalar`
+**Endpoint:** `PATCH /contratos/equipos/:ClienteEquipoID/instalar`
 
-**Descripción:** Marca el equipo como instalado. Actualiza la ubicación del equipo físico (ClienteID, SucursalID, ContratoID).
+**Descripción:** Marca el equipo como instalado. Actualiza el estatus del equipo del cliente y del equipo físico.
 
 **Headers:**
 ```
@@ -1232,7 +1242,7 @@ Authorization: Bearer {token}
 **Parámetros de URL:**
 | Parámetro | Tipo | Requerido | Descripción |
 |-----------|------|-----------|-------------|
-| `ContratoEquipoID` | number | Sí | ID del equipo en el contrato |
+| `ClienteEquipoID` | number | Sí | ID del equipo del cliente |
 
 **Payload:**
 | Campo | Tipo | Requerido | Descripción |
@@ -1257,8 +1267,8 @@ Authorization: Bearer {token}
 ```
 
 **Efectos en la base de datos:**
-- `contratos_equipos.Estatus` → `INSTALADO`
-- `contratos_equipos.FechaInstalacion` → fecha actual
+- `clientes_equipos.Estatus` → `INSTALADO`
+- `clientes_equipos.FechaInstalacion` → fecha actual
 - `equipos.Estatus` → `Instalado`
 - `equipos.FechaInstalacion` → fecha actual
 - `equipos.ClienteID` → del contrato
@@ -1269,17 +1279,17 @@ Authorization: Bearer {token}
 
 | Código | Mensaje | Causa |
 |--------|---------|-------|
-| 404 | Equipo del contrato no encontrado | ContratoEquipoID no existe |
-| 300 | El equipo ya está instalado o retirado | Estatus no es PENDIENTE |
+| 404 | Equipo del contrato no encontrado | ClienteEquipoID no existe |
+| 300 | El equipo ya está instalado o retirado | Estatus no es PENDIENTE_INSTALACION |
 | 300 | Solo se pueden instalar equipos de contratos activos | Contrato no está ACTIVO |
 
 ---
 
 ### 18. Retirar Equipo
 
-**Endpoint:** `PATCH /contratos/equipos/:ContratoEquipoID/retirar`
+**Endpoint:** `PATCH /contratos/equipos/:ClienteEquipoID/retirar`
 
-**Descripción:** Retira un equipo instalado del cliente. Limpia la ubicación del equipo físico.
+**Descripción:** Retira un equipo instalado del cliente. Actualiza el estatus y limpia la ubicación del equipo físico.
 
 **Headers:**
 ```
@@ -1290,7 +1300,7 @@ Authorization: Bearer {token}
 **Parámetros de URL:**
 | Parámetro | Tipo | Requerido | Descripción |
 |-----------|------|-----------|-------------|
-| `ContratoEquipoID` | number | Sí | ID del equipo en el contrato |
+| `ClienteEquipoID` | number | Sí | ID del equipo del cliente |
 
 **Payload:**
 | Campo | Tipo | Requerido | Descripción |
@@ -1315,8 +1325,8 @@ Authorization: Bearer {token}
 ```
 
 **Efectos en la base de datos:**
-- `contratos_equipos.Estatus` → `RETIRADO`
-- `contratos_equipos.FechaRetiro` → fecha actual
+- `clientes_equipos.Estatus` → `RETIRADO`
+- `clientes_equipos.FechaRetiro` → fecha actual
 - `equipos.Estatus` → `Desmontado`
 - `equipos.FechaDesmontaje` → fecha actual
 - `equipos.ClienteID` → `null`
@@ -1327,7 +1337,7 @@ Authorization: Bearer {token}
 
 | Código | Mensaje | Causa |
 |--------|---------|-------|
-| 404 | Equipo del contrato no encontrado | ContratoEquipoID no existe |
+| 404 | Equipo del contrato no encontrado | ClienteEquipoID no existe |
 | 300 | Solo se pueden retirar equipos instalados | Estatus no es INSTALADO |
 
 ---
@@ -1366,7 +1376,7 @@ Authorization: Bearer {token}
   "data": [
     {
       "ServicioID": 1,
-      "ContratoEquipoID": 1,
+      "ContratoID": 1,
       "TipoServicio": "MANTENIMIENTO_PREVENTIVO",
       "FechaProgramada": "2025-01-15T00:00:00.000Z",
       "FechaEjecucion": null,
@@ -1376,26 +1386,32 @@ Authorization: Bearer {token}
       "Observaciones": "Mantenimiento trimestral",
       "UsuarioID": 1,
       "IsActive": 1,
-      "contrato_equipo": {
-        "ContratoEquipoID": 1,
-        "contrato": {
-          "ContratoID": 1,
-          "NumeroContrato": "CTR-25-0001",
-          "cliente": {
-            "ClienteID": 1,
-            "NombreComercio": "Tiendas XYZ"
-          },
-          "sucursal": {
-            "SucursalID": 2,
-            "NombreSucursal": "Sucursal Norte",
-            "Direccion": "Blvd. Norte #456"
-          }
+      "contrato": {
+        "ContratoID": 1,
+        "NumeroContrato": "CTR-25-0001",
+        "cliente": {
+          "ClienteID": 1,
+          "NombreComercio": "Tiendas XYZ"
         },
-        "equipo": {
-          "EquipoID": 5,
-          "NumeroSerie": "PUR-25-0005"
+        "sucursal": {
+          "SucursalID": 2,
+          "NombreSucursal": "Sucursal Norte",
+          "Direccion": "Blvd. Norte #456"
         }
       },
+      "equipos": [
+        {
+          "ServicioEquipoID": 1,
+          "ClienteEquipoID": 1,
+          "cliente_equipo": {
+            "ClienteEquipoID": 1,
+            "equipo": {
+              "EquipoID": 5,
+              "NumeroSerie": "PUR-25-0005"
+            }
+          }
+        }
+      ],
       "tecnico": {
         "TecnicoID": 2,
         "Codigo": "TEC-002",
@@ -1436,7 +1452,7 @@ Authorization: Bearer {token}
   "data": [
     {
       "ServicioID": 1,
-      "ContratoEquipoID": 1,
+      "ContratoID": 1,
       "TipoServicio": "INSTALACION",
       "FechaProgramada": "2025-01-05T10:00:00.000Z",
       "FechaEjecucion": "2025-01-05T14:00:00.000Z",
@@ -1446,13 +1462,19 @@ Authorization: Bearer {token}
       "Observaciones": "Instalación exitosa",
       "UsuarioID": 1,
       "IsActive": 1,
-      "contrato_equipo": {
-        "ContratoEquipoID": 1,
-        "equipo": {
-          "EquipoID": 5,
-          "NumeroSerie": "PUR-25-0005"
+      "equipos": [
+        {
+          "ServicioEquipoID": 1,
+          "ClienteEquipoID": 1,
+          "cliente_equipo": {
+            "ClienteEquipoID": 1,
+            "equipo": {
+              "EquipoID": 5,
+              "NumeroSerie": "PUR-25-0005"
+            }
+          }
         }
-      },
+      ],
       "tecnico": {
         "TecnicoID": 2,
         "Codigo": "TEC-002",
@@ -1475,9 +1497,9 @@ Authorization: Bearer {token}
 
 ### 21. Programar Servicio
 
-**Endpoint:** `POST /contratos/equipos/:ContratoEquipoID/servicios`
+**Endpoint:** `POST /contratos/:ContratoID/servicios`
 
-**Descripción:** Programa un servicio para un equipo del contrato.
+**Descripción:** Programa un servicio para uno o más equipos del contrato.
 
 **Headers:**
 ```
@@ -1488,13 +1510,14 @@ Authorization: Bearer {token}
 **Parámetros de URL:**
 | Parámetro | Tipo | Requerido | Descripción |
 |-----------|------|-----------|-------------|
-| `ContratoEquipoID` | number | Sí | ID del equipo en el contrato |
+| `ContratoID` | number | Sí | ID del contrato |
 
 **Payload:**
 | Campo | Tipo | Requerido | Validaciones | Descripción |
 |-------|------|-----------|--------------|-------------|
 | `TipoServicio` | enum | Sí | Ver enums | Tipo de servicio |
 | `FechaProgramada` | string | Sí | Formato fecha/hora | Fecha programada |
+| `EquiposIDs` | number[] | Sí | min: 1 | IDs de clientes_equipos |
 | `TecnicoID` | number | No | - | Técnico asignado |
 | `Costo` | number | No | min: 0 | Costo del servicio. Default: 0 |
 | `Observaciones` | string | No | max: 500 | Notas |
@@ -1505,6 +1528,7 @@ Authorization: Bearer {token}
 {
   "TipoServicio": "MANTENIMIENTO_PREVENTIVO",
   "FechaProgramada": "2025-03-15T10:00:00",
+  "EquiposIDs": [1, 2, 3],
   "TecnicoID": 2,
   "Costo": 500.00,
   "Observaciones": "Mantenimiento trimestral programado",
@@ -1520,7 +1544,7 @@ Authorization: Bearer {token}
   "error": false,
   "data": {
     "ServicioID": 5,
-    "ContratoEquipoID": 1,
+    "ContratoID": 1,
     "TipoServicio": "MANTENIMIENTO_PREVENTIVO",
     "FechaProgramada": "2025-03-15T10:00:00.000Z",
     "FechaEjecucion": null,
@@ -1529,7 +1553,12 @@ Authorization: Bearer {token}
     "Estatus": "PROGRAMADO",
     "Observaciones": "Mantenimiento trimestral programado",
     "UsuarioID": 1,
-    "IsActive": 1
+    "IsActive": 1,
+    "equipos": [
+      { "ServicioEquipoID": 1, "ClienteEquipoID": 1 },
+      { "ServicioEquipoID": 2, "ClienteEquipoID": 2 },
+      { "ServicioEquipoID": 3, "ClienteEquipoID": 3 }
+    ]
   }
 }
 ```
@@ -1538,9 +1567,12 @@ Authorization: Bearer {token}
 
 | Código | Mensaje | Causa |
 |--------|---------|-------|
-| 404 | Equipo del contrato no encontrado | ContratoEquipoID no existe |
+| 400 | ContratoID es requerido | Falta el ID del contrato |
+| 400 | Debe proporcionar al menos un equipo | EquiposIDs vacío |
+| 404 | Contrato no encontrado | ContratoID no existe |
 | 404 | El técnico no existe o no está activo | TecnicoID inválido |
 | 300 | Solo se pueden programar servicios en contratos activos | Contrato no está ACTIVO |
+| 300 | Los siguientes equipos no pertenecen al contrato: X, Y | Equipos inválidos |
 
 ---
 
@@ -1725,34 +1757,32 @@ Authorization: Bearer {token}
 | UsuarioID | Int | No | Quien creó |
 | IsActive | Int | No | 1=activo, 0=baja |
 
-### contratos_equipos
+### clientes_equipos (Fuente única de verdad para equipos)
 
 | Campo | Tipo | Nullable | Descripción |
 |-------|------|----------|-------------|
-| ContratoEquipoID | Int | No | PK, autoincrement |
-| ContratoID | Int | No | FK a contratos |
+| ClienteEquipoID | Int | No | PK, autoincrement |
+| ClienteID | Int | No | FK a catalogo_clientes |
+| ContratoID | Int | Sí | FK a contratos |
 | EquipoID | Int | Sí | FK a equipos (null = pendiente de asignar) |
-| Modalidad | Enum | No | VENTA/RENTA/COMODATO/MANTENIMIENTO |
-| PrecioUnitario | Float | No | Precio del equipo |
+| PlantillaEquipoID | Int | Sí | FK a plantillas_equipo |
+| SucursalID | Int | Sí | FK a clientes_sucursales |
+| Modalidad | Enum | Sí | VENTA/RENTA/COMODATO/MANTENIMIENTO |
+| TipoItem | String(50) | Sí | EQUIPO_PURIFREEZE/EQUIPO_EXTERNO/REFACCION/SERVICIO |
+| PrecioUnitario | Float | Sí | Precio del equipo |
 | PeriodoMeses | Int | Sí | Meses (para renta) |
 | FechaInstalacion | Date | Sí | Fecha de instalación |
 | FechaRetiro | Date | Sí | Fecha de retiro |
-| Estatus | Enum | No | PENDIENTE/INSTALADO/RETIRADO |
+| Estatus | Enum | No | ACTIVO/PENDIENTE_INSTALACION/INSTALADO/RETIRADO |
 | Observaciones | String(500) | Sí | Notas |
-| PlantillaEquipoID | Int | Sí | FK a plantillas_equipo (referencia del presupuesto) |
-| RefaccionID | Int | Sí | FK a catalogo_refacciones |
-| TipoItem | String(50) | Sí | EQUIPO_PURIFREEZE/EQUIPO_EXTERNO/REFACCION/SERVICIO |
-| Descripcion | String(500) | Sí | Descripción del item |
-| CantidadRequerida | Int | No | Cantidad del presupuesto. Default: 1 |
-| CantidadAsignada | Int | No | Cantidad de equipos asignados. Default: 0 |
 | IsActive | Int | No | 1=activo, 0=baja |
 
-### contratos_servicios
+### servicios
 
 | Campo | Tipo | Nullable | Descripción |
 |-------|------|----------|-------------|
 | ServicioID | Int | No | PK, autoincrement |
-| ContratoEquipoID | Int | No | FK a contratos_equipos |
+| ContratoID | Int | No | FK a contratos |
 | TipoServicio | Enum | No | Tipo de servicio |
 | FechaProgramada | Date | No | Fecha programada |
 | FechaEjecucion | Date | Sí | Fecha real de ejecución |
@@ -1761,6 +1791,18 @@ Authorization: Bearer {token}
 | Costo | Float | No | Costo del servicio |
 | Observaciones | String(500) | Sí | Notas |
 | UsuarioID | Int | Sí | Quien programó |
+| IsActive | Int | No | 1=activo, 0=baja |
+
+### servicios_equipos
+
+| Campo | Tipo | Nullable | Descripción |
+|-------|------|----------|-------------|
+| ServicioEquipoID | Int | No | PK, autoincrement |
+| ServicioID | Int | No | FK a servicios |
+| ClienteEquipoID | Int | Sí | FK a clientes_equipos |
+| EquipoID | Int | Sí | FK a equipos |
+| AccionDesinstalacion | Enum | Sí | DEVOLUCION/REPARACION/REASIGNACION |
+| Observaciones | String(500) | Sí | Notas |
 | IsActive | Int | No | 1=activo, 0=baja |
 
 ### contratos_historial
@@ -1839,9 +1881,9 @@ EN_REVISION ──→ ACTIVO ──→ VENCIDO
      └──→ (baja/activar registro)
 ```
 
-### Equipo del Contrato
+### Equipo del Cliente (clientes_equipos)
 ```
-PENDIENTE ──→ INSTALADO ──→ RETIRADO
+ACTIVO ──→ PENDIENTE_INSTALACION ──→ INSTALADO ──→ RETIRADO
 ```
 
 ### Servicio
@@ -1860,7 +1902,7 @@ PROGRAMADO ──→ EN_PROCESO ──→ COMPLETADO
 type EstatusContrato = 'EN_REVISION' | 'ACTIVO' | 'VENCIDO' | 'CANCELADO' | 'RENOVADO';
 type CondicionesPago = 'MENSUAL' | 'TRIMESTRAL' | 'SEMESTRAL' | 'ANUAL';
 type ModalidadContrato = 'VENTA' | 'RENTA' | 'COMODATO' | 'MANTENIMIENTO';
-type EstatusContratoEquipo = 'PENDIENTE' | 'INSTALADO' | 'RETIRADO';
+type EstatusClienteEquipo = 'ACTIVO' | 'PENDIENTE_INSTALACION' | 'INSTALADO' | 'RETIRADO';
 type TipoServicioContrato = 'INSTALACION' | 'MANTENIMIENTO_PREVENTIVO' | 'MANTENIMIENTO_CORRECTIVO' | 'REPARACION' | 'DESMONTAJE';
 type EstatusServicio = 'PROGRAMADO' | 'EN_PROCESO' | 'COMPLETADO' | 'CANCELADO';
 
@@ -1885,30 +1927,28 @@ interface Contrato {
   IsActive: number;
 }
 
-interface ContratoEquipo {
-  ContratoEquipoID: number;
-  ContratoID: number;
-  EquipoID: number | null; // null = pendiente de asignar
-  Modalidad: ModalidadContrato;
-  PrecioUnitario: number;
+// Fuente única de verdad para equipos asignados a clientes
+interface ClienteEquipo {
+  ClienteEquipoID: number;
+  ClienteID: number;
+  ContratoID: number | null;
+  EquipoID: number | null;
+  PlantillaEquipoID: number | null;
+  SucursalID: number | null;
+  Modalidad: ModalidadContrato | null;
+  TipoItem: string | null;
+  PrecioUnitario: number | null;
   PeriodoMeses: number | null;
   FechaInstalacion: string | null;
   FechaRetiro: string | null;
-  Estatus: EstatusContratoEquipo;
+  Estatus: EstatusClienteEquipo;
   Observaciones: string | null;
-  // Datos del presupuesto
-  PlantillaEquipoID: number | null;
-  RefaccionID: number | null;
-  TipoItem: string | null;
-  Descripcion: string | null;
-  CantidadRequerida: number;
-  CantidadAsignada: number;
   IsActive: number;
 }
 
-interface ContratoServicio {
+interface Servicio {
   ServicioID: number;
-  ContratoEquipoID: number;
+  ContratoID: number;
   TipoServicio: TipoServicioContrato;
   FechaProgramada: string;
   FechaEjecucion: string | null;
@@ -1917,6 +1957,16 @@ interface ContratoServicio {
   Costo: number;
   Observaciones: string | null;
   UsuarioID: number | null;
+  IsActive: number;
+}
+
+interface ServicioEquipo {
+  ServicioEquipoID: number;
+  ServicioID: number;
+  ClienteEquipoID: number | null;
+  EquipoID: number | null;
+  AccionDesinstalacion: string | null;
+  Observaciones: string | null;
   IsActive: number;
 }
 
@@ -1949,8 +1999,10 @@ interface AsignarEquipo {
 }
 
 interface CreateServicio {
+  ContratoID: number;
   TipoServicio: TipoServicioContrato;
   FechaProgramada: string;
+  EquiposIDs: number[]; // IDs de clientes_equipos
   TecnicoID?: number | null;
   Costo?: number;
   Observaciones?: string | null;
@@ -1964,7 +2016,7 @@ interface CreateServicio {
 
 ```javascript
 // 1. Crear contrato desde presupuesto aprobado
-// Los items del presupuesto se pre-cargan automáticamente como "pendientes de asignar"
+// Los items del presupuesto se crean en clientes_equipos automáticamente
 const contrato = await fetch('/contratos', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer token' },
@@ -1978,17 +2030,18 @@ const contrato = await fetch('/contratos', {
   })
 });
 
-// 2. Ver items pendientes de asignar equipo
-const itemsPendientes = await fetch(`/contratos/${contratoId}/items-pendientes`);
-// Retorna items con EquipoID: null que necesitan un equipo físico
+// 2. Ver equipos pendientes de instalación (usando clientes_equipos)
+const equiposPendientes = await fetch(`/contratos/${contratoId}/equipos-pendientes`);
+// Retorna registros de clientes_equipos con Estatus: PENDIENTE_INSTALACION o ACTIVO
 
 // 3. Ver equipos disponibles para un item específico
-const equiposDisponibles = await fetch(`/contratos/equipos/${contratoEquipoId}/disponibles`);
-// Retorna equipos que coinciden con la plantilla del item
+const equiposDisponibles = await fetch(`/contratos/equipos/${clienteEquipoId}/disponibles`);
+// Retorna equipos físicos que coinciden con la plantilla del item
 
-// 4. Asignar equipo físico a cada item pendiente
-await fetch(`/contratos/equipos/${contratoEquipoId}/asignar`, {
+// 4. Asignar equipo físico a cada registro de cliente_equipo
+await fetch(`/contratos/equipos/${clienteEquipoId}/asignar`, {
   method: 'PATCH',
+  headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer token' },
   body: JSON.stringify({
     EquipoID: 5, // Equipo con número de serie real
     Observaciones: 'Equipo nuevo de almacén',
@@ -1999,29 +2052,35 @@ await fetch(`/contratos/equipos/${contratoEquipoId}/asignar`, {
 // 5. Activar el contrato (requiere al menos un equipo asignado)
 await fetch(`/contratos/${contratoId}/activar-contrato`, {
   method: 'PATCH',
+  headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer token' },
   body: JSON.stringify({ UsuarioID: 1 })
 });
 
 // 6. Instalar equipo en el cliente
-await fetch(`/contratos/equipos/${contratoEquipoId}/instalar`, {
+await fetch(`/contratos/equipos/${clienteEquipoId}/instalar`, {
   method: 'PATCH',
+  headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer token' },
   body: JSON.stringify({ UsuarioID: 1 })
 });
 
-// 7. Programar mantenimiento
-await fetch(`/contratos/equipos/${contratoEquipoId}/servicios`, {
+// 7. Programar mantenimiento (usando ContratoID y EquiposIDs)
+await fetch(`/contratos/${contratoId}/servicios`, {
   method: 'POST',
+  headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer token' },
   body: JSON.stringify({
     TipoServicio: 'MANTENIMIENTO_PREVENTIVO',
     FechaProgramada: '2025-03-15T10:00:00',
+    EquiposIDs: [1, 2, 3], // IDs de clientes_equipos
     TecnicoID: 2,
-    Costo: 500
+    Costo: 500,
+    UsuarioID: 1
   })
 });
 
 // 8. Completar servicio
 await fetch(`/contratos/servicios/${servicioId}/completar`, {
   method: 'PATCH',
+  headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer token' },
   body: JSON.stringify({
     FechaEjecucion: '2025-03-15T14:30:00',
     Observaciones: 'Mantenimiento completado sin novedades'
@@ -2031,6 +2090,7 @@ await fetch(`/contratos/servicios/${servicioId}/completar`, {
 // 9. Al vencer, renovar contrato
 await fetch(`/contratos/${contratoId}/renovar`, {
   method: 'POST',
+  headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer token' },
   body: JSON.stringify({
     FechaInicio: '2026-01-01',
     FechaFin: '2026-12-31',
@@ -2041,4 +2101,4 @@ await fetch(`/contratos/${contratoId}/renovar`, {
 
 ---
 
-**Última actualización:** 2025-12-15
+**Última actualización:** 2025-12-23

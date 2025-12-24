@@ -16,7 +16,8 @@ export const MotivoDanoEnum = z.enum(['Defecto_Fabrica', 'Mal_Uso', 'Desgaste_No
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const createServicioSchema = z.object({
-  ContratoID: z.number({ required_error: 'ContratoID es requerido' }),
+  ContratoID: z.number().optional().nullable(),
+  ClienteEquipoID: z.number().optional().nullable(),
   TipoServicio: TipoServicioEnum,
   FechaProgramada: z.string({ required_error: 'FechaProgramada es requerida' }),
   HoraProgramada: z.string().optional(),
@@ -24,9 +25,12 @@ export const createServicioSchema = z.object({
   OrigenInventario: OrigenInventarioEnum.optional().default('TECNICO'),
   ObservacionesGenerales: z.string().max(1000, 'Observaciones máximo 1000 caracteres').optional(),
 
-  // Equipos a incluir en el servicio (IDs de contratos_equipos)
-  EquiposIDs: z.array(z.number()).min(1, 'Debe incluir al menos un equipo'),
-});
+  // Equipos a incluir en el servicio (IDs de contratos_equipos O clientes_equipos)
+  EquiposIDs: z.array(z.number()).optional(),
+}).refine(
+  (data) => data.ContratoID || data.ClienteEquipoID || (data.EquiposIDs && data.EquiposIDs.length > 0),
+  { message: 'Debe proporcionar ContratoID, ClienteEquipoID o al menos un equipo en EquiposIDs' }
+);
 
 // ═══════════════════════════════════════════════════════════════════════════
 // SCHEMAS PARA ACTUALIZAR SERVICIO
@@ -176,6 +180,10 @@ export const contratoIdParamSchema = z.object({
   ContratoID: z.string().regex(/^\d+$/, 'ID debe ser un número válido').transform(Number),
 });
 
+export const clienteEquipoIdParamSchema = z.object({
+  ClienteEquipoID: z.string().regex(/^\d+$/, 'ID debe ser un número válido').transform(Number),
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // SCHEMAS PARA QUERY PARAMS
 // ═══════════════════════════════════════════════════════════════════════════
@@ -187,6 +195,7 @@ export const searchServiciosQuerySchema = z.object({
   tecnicoId: z.string().regex(/^\d+$/, 'tecnicoId debe ser un número válido').transform(Number).optional(),
   contratoId: z.string().regex(/^\d+$/, 'contratoId debe ser un número válido').transform(Number).optional(),
   clienteId: z.string().regex(/^\d+$/, 'clienteId debe ser un número válido').transform(Number).optional(),
+  clienteEquipoId: z.string().regex(/^\d+$/, 'clienteEquipoId debe ser un número válido').transform(Number).optional(),
   fechaDesde: z.string().optional(),
   fechaHasta: z.string().optional(),
 });
