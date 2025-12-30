@@ -4,6 +4,9 @@ import { validateBody, validateParams, validateQuery } from '../../middlewares/v
 import {
   createContratoSchema,
   updateContratoSchema,
+  updateContratoActivoSchema,
+  addEquipoSchema,
+  eliminarEquipoSchema,
   asignarEquipoSchema,
   cancelarContratoSchema,
   renovarContratoSchema,
@@ -59,6 +62,12 @@ router.post('/:ContratoID/renovar', validateParams(contratoIdParamSchema), valid
 /** Actualizar monto del contrato */
 router.patch('/:ContratoID/monto', validateParams(contratoIdParamSchema), validateBody(actualizarMontoSchema), (req, res) => contratosController.actualizarMonto(req, res));
 
+/** Actualizar contrato activo (solo fechas y observaciones) */
+router.patch('/:ContratoID/editar', validateParams(contratoIdParamSchema), validateBody(updateContratoActivoSchema), (req, res) => contratosController.updateContratoActivo(req, res));
+
+/** Agregar equipo(s) a un contrato existente */
+router.post('/:ContratoID/equipos', validateParams(contratoIdParamSchema), validateBody(addEquipoSchema), (req, res) => contratosController.addEquipo(req, res));
+
 /** Dar de baja contrato (soft delete) */
 router.patch('/baja/:ContratoID', validateParams(contratoIdParamSchema), (req, res) => contratosController.baja(req, res));
 
@@ -81,8 +90,11 @@ router.patch('/cliente-equipo/:ClienteEquipoID/asignar', validateParams(clienteE
 /** Instalar equipo (marcar como instalado) */
 router.patch('/cliente-equipo/:ClienteEquipoID/instalar', validateParams(clienteEquipoIdParamSchema), validateBody(usuarioIdSchema), (req, res) => contratosController.instalarEquipo(req, res));
 
-/** Retirar equipo del contrato */
+/** Retirar equipo del contrato (marca como desmontado) */
 router.patch('/cliente-equipo/:ClienteEquipoID/retirar', validateParams(clienteEquipoIdParamSchema), validateBody(retirarEquipoSchema), (req, res) => contratosController.retirarEquipo(req, res));
+
+/** Eliminar equipo del contrato (solo si NO está instalado, devuelve al inventario) */
+router.delete('/cliente-equipo/:ClienteEquipoID', validateParams(clienteEquipoIdParamSchema), validateBody(eliminarEquipoSchema), (req, res) => contratosController.eliminarEquipo(req, res));
 
 // NOTA: Los servicios ahora se manejan en el módulo /servicios
 

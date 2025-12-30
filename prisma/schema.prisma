@@ -780,6 +780,8 @@ model contratos {
   servicios               servicios[]
   notificaciones          servicios_notificaciones[] @relation("NotificacionesContrato")
   clientes_equipos        clientes_equipos[]
+  cobros                  cobros[]
+  cobros_configuracion    cobros_configuracion?
 }
 
 model contratos_equipos {
@@ -1226,6 +1228,7 @@ model clientes_equipos {
   venta_detalle         ventas_detalle?         @relation(fields: [VentaDetalleID], references: [VentaDetalleID])
   servicios             servicios[]             // Servicios directos a este equipo
   servicios_equipos     servicios_equipos[]     // Equipos en servicios (por detalle)
+  cobros                cobros[]                // Cobros asociados a este equipo
 
   @@index([ClienteID])
   @@index([EquipoID])
@@ -1372,4 +1375,166 @@ enum EstatusVenta {
   PAGADA
   PARCIAL
   CANCELADA
+}
+
+// =============================================
+// COBROS (Sistema de Cobranza para Rentas)
+// =============================================
+
+model cobros {
+  CobroID               Int                     @id @default(autoincrement())
+  ContratoID            Int
+  ClienteEquipoID       Int?                    // Equipo específico (opcional)
+
+  // Identificador único del cobro
+  NumeroCobro           String                  @unique @db.VarChar(20)
+  NumeroPeriodo         Int                     // Periodo 1, 2, 3... del contrato
+
+  // Fechas
+  FechaVencimiento      DateTime                @db.Date
+  FechaPago             DateTime?               @db.Date
+
+  // Montos
+  MontoOriginal         Float                   @db.Float  // Monto original del cobro
+  MontoDescuento        Float?                  @db.Float  // Descuento aplicado
+  MontoPromocion        Float?                  @db.Float  // Promoción aplicada
+  MontoFinal            Float                   @db.Float  // Monto final a pagar
+  MontoPagado           Float?                  @db.Float  // Monto efectivamente pagado
+
+  // Estado del cobro
+  Estatus               EstatusCobro            @default(PENDIENTE)
+
+  // Si es regalo/promoción
+  MotivoEspecial        MotivoCobroEspecial?    // REGALO, PROMOCION, DESCUENTO
+  DescripcionMotivo     String?                 @db.VarChar(255)
+
+  // Pago
+  MetodoPagoID          Int?
+  Referencia            String?                 @db.VarChar(100)
+
+  // Motivo cancelación
+  MotivoCancelacion     String?                 @db.VarChar(255)
+
+  // Observaciones
+  Observaciones         String?                 @db.VarChar(500)
+
+  // Auditoría
+  UsuarioCreadorID      Int?
+  UsuarioPagoID         Int?                    // Usuario que registró el pago
+  FechaCreacion         DateTime                @default(now())
+  FechaModificacion     DateTime?               @updatedAt
+  IsActive              Int?                    @db.TinyInt @default(1)
+
+  // Relaciones
+  contrato              contratos               @relation(fields: [ContratoID], references: [ContratoID])
+  cliente_equipo        clientes_equipos?       @relation(fields: [ClienteEquipoID], references: [ClienteEquipoID])
+  historial             cobros_historial[]
+
+  @@index([ContratoID])
+  @@index([FechaVencimiento])
+  @@index([Estatus])
+}
+
+model cobros_historial {
+  HistorialID           Int                     @id @default(autoincrement())
+  CobroID               Int
+
+  TipoAccion            TipoAccionCobro
+
+  Descripcion           String                  @db.VarChar(500)
+  ValorAnterior         String?                 @db.Text
+  ValorNuevo            String?                 @db.Text
+
+  UsuarioID             Int
+  FechaAccion           DateTime                @default(now())
+
+  // Relaciones
+  cobro                 cobros                  @relation(fields: [CobroID], references: [CobroID])
+
+  @@index([CobroID])
+  @@index([FechaAccion])
+}
+
+// Configuración de generación de cobros por contrato
+model cobros_configuracion {
+  ConfiguracionID       Int                     @id @default(autoincrement())
+  ContratoID            Int                     @unique
+
+  // Fechas de generación
+  FechaInicialCobros    DateTime                @db.Date
+
+  // Monto por cobro
+  MontoCobro            Float                   @db.Float
+
+  // Configuración de tiempo
+  TipoTiempoContrato    TipoTiempo              // ANIOS, MESES
+  TiempoContrato        Int                     // 1 año, 2 años, etc.
+
+  // Frecuencia de cobro
+  FrecuenciaCobro       FrecuenciaCobro         // MENSUAL, BIMESTRAL, TRIMESTRAL, SEMESTRAL, ANUAL
+  TiempoFrecuencia      Int                     @default(1) // Cada cuántos periodos
+
+  // Cálculo: Total de cobros
+  TotalCobros           Int                     // Número total de cobros a generar
+  CobrosGenerados       Int                     @default(0) // Cobros ya generados
+
+  // Observaciones
+  Observaciones         String?                 @db.VarChar(500)
+
+  // Auditoría
+  UsuarioID             Int
+  FechaCreacion         DateTime                @default(now())
+  IsActive              Int?                    @db.TinyInt @default(1)
+
+  // Relaciones
+  contrato              contratos               @relation(fields: [ContratoID], references: [ContratoID])
+
+  @@index([ContratoID])
+}
+
+enum EstatusCobro {
+  PENDIENTE
+  PAGADO
+  PARCIAL
+  VENCIDO
+  REGALADO
+  PROMOCION
+  CANCELADO
+}
+
+enum MotivoCobroEspecial {
+  REGALO
+  PROMOCION
+  DESCUENTO
+  BONIFICACION
+  CORTESIA
+}
+
+enum TipoAccionCobro {
+  CREACION
+  PAGO
+  PAGO_PARCIAL
+  REGALO
+  PROMOCION
+  DESCUENTO
+  CANCELACION
+  MODIFICACION
+  VENCIMIENTO
+}
+
+enum TipoTiempo {
+  ANIOS
+  MESES
+  SEMANAS
+  DIAS
+}
+
+enum FrecuenciaCobro {
+  SEMANAL
+  QUINCENAL
+  MENSUAL
+  BIMESTRAL
+  TRIMESTRAL
+  SEMESTRAL
+  ANUAL
 }

@@ -44,6 +44,7 @@ import { contratosRoutes } from './modules/contratos';
 import { serviciosRoutes } from './modules/servicios';
 import { clientesEquiposRoutes } from './modules/clientes-equipos';
 import { ventasRoutes } from './modules/ventas';
+import { cobrosRoutes } from './modules/cobros';
 
 const app = express();
 
@@ -106,6 +107,7 @@ app.use('/contratos', contratosRoutes);
 app.use('/servicios', serviciosRoutes);
 app.use('/clientes-equipos', clientesEquiposRoutes);
 app.use('/ventas', ventasRoutes);
+app.use('/cobros', cobrosRoutes);
 
 // Error handler (debe ir al final)
 app.use(errorHandler);

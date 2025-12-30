@@ -33,11 +33,27 @@ export const updateContratoSchema = z.object({
 
 // Schema para agregar equipo al contrato (nuevo, no viene del presupuesto)
 export const addEquipoSchema = z.object({
-  EquipoID: z.number({ required_error: 'El EquipoID es requerido' }),
-  Modalidad: ModalidadContrato,
+  PlantillaEquipoID: z.number({ required_error: 'El PlantillaEquipoID es requerido' }),
+  EquipoID: z.number().optional().nullable(), // Opcional: asignar equipo físico directamente
+  Cantidad: z.number().min(1).default(1),
   PrecioUnitario: z.number().min(0).default(0),
-  PeriodoMeses: z.number().min(1).optional().nullable(),
+  PeriodoRenta: z.number().min(1).optional().nullable(),
   Observaciones: z.string().max(500).optional().nullable(),
+  UsuarioID: z.number({ required_error: 'El UsuarioID es requerido' }),
+});
+
+// Schema para editar contrato activo (solo fechas y observaciones)
+export const updateContratoActivoSchema = z.object({
+  FechaInicio: z.string().optional(),
+  FechaFin: z.string().optional(),
+  Observaciones: z.string().max(500).optional().nullable(),
+  UsuarioID: z.number({ required_error: 'El UsuarioID es requerido' }),
+});
+
+// Schema para eliminar equipo del contrato
+export const eliminarEquipoSchema = z.object({
+  MotivoEliminacion: z.string().max(500).optional().nullable(),
+  UsuarioID: z.number({ required_error: 'El UsuarioID es requerido' }),
 });
 
 // Schema para asignar equipo físico a un item pendiente del contrato
@@ -107,7 +123,9 @@ export const contratosQuerySchema = z.object({
 // Types
 export type CreateContratoDto = z.infer<typeof createContratoSchema>;
 export type UpdateContratoDto = z.infer<typeof updateContratoSchema>;
+export type UpdateContratoActivoDto = z.infer<typeof updateContratoActivoSchema>;
 export type AddEquipoDto = z.infer<typeof addEquipoSchema>;
+export type EliminarEquipoDto = z.infer<typeof eliminarEquipoSchema>;
 export type AsignarEquipoDto = z.infer<typeof asignarEquipoSchema>;
 export type UpdateEquipoContratoDto = z.infer<typeof updateEquipoContratoSchema>;
 export type CancelarContratoDto = z.infer<typeof cancelarContratoSchema>;

@@ -112,6 +112,24 @@ class ContratosController {
     return success(res, result.message, result.data);
   }
 
+  async addEquipo(req: Request, res: Response) {
+    const { ContratoID } = req.params as unknown as { ContratoID: number };
+    const result = await contratosService.addEquipo(ContratoID, req.body);
+    return success(res, result.message, result.data, 201);
+  }
+
+  async eliminarEquipo(req: Request, res: Response) {
+    const { ClienteEquipoID } = req.params as unknown as { ClienteEquipoID: number };
+    const result = await contratosService.eliminarEquipo(ClienteEquipoID, req.body);
+    return success(res, result.message, result.data);
+  }
+
+  async updateContratoActivo(req: Request, res: Response) {
+    const { ContratoID } = req.params as unknown as { ContratoID: number };
+    const result = await contratosService.updateContratoActivo(ContratoID, req.body);
+    return success(res, result.message, result.data);
+  }
+
   // NOTA: Los servicios ahora se manejan en el módulo /servicios
 }
 

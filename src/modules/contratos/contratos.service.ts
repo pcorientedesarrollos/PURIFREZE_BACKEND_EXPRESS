@@ -3,12 +3,16 @@ import { HttpError } from '../../utils/response';
 import {
   CreateContratoDto,
   UpdateContratoDto,
+  UpdateContratoActivoDto,
+  AddEquipoDto,
+  EliminarEquipoDto,
   AsignarEquipoDto,
   CancelarContratoDto,
   RenovarContratoDto,
   ActualizarMontoDto,
   ContratosQueryDto,
 } from './contratos.schema';
+import { cobrosService } from '../cobros/cobros.service';
 
 class ContratosService {
   // Generar número de contrato: CTR-YY-XXXX
@@ -329,6 +333,7 @@ class ContratosService {
         clientes_equipos: {
           where: { IsActive: 1 },
         },
+        cobros_configuracion: true,
       },
     });
 
@@ -358,7 +363,25 @@ class ContratosService {
       UsuarioID
     );
 
-    return { message: 'Contrato activado', data: updated };
+    // Generar cobros automáticamente si hay configuración
+    let cobrosGenerados = null;
+    if (contrato.cobros_configuracion) {
+      try {
+        const resultadoCobros = await cobrosService.generarCobros(ContratoID, UsuarioID);
+        cobrosGenerados = resultadoCobros.data;
+      } catch (error) {
+        // Si falla la generación de cobros, solo lo registramos pero no falla la activación
+        console.error('Error al generar cobros automáticos:', error);
+      }
+    }
+
+    return {
+      message: 'Contrato activado' + (cobrosGenerados ? ` con ${cobrosGenerados.cobrosGenerados} cobros generados` : ''),
+      data: {
+        contrato: updated,
+        cobros: cobrosGenerados,
+      },
+    };
   }
 
   async cancelar(ContratoID: number, data: CancelarContratoDto) {
@@ -548,6 +571,231 @@ class ContratosService {
     );
 
     return { message: 'Monto actualizado', data: updated };
+  }
+
+  /**
+   * Actualizar contrato activo (solo fechas y observaciones)
+   */
+  async updateContratoActivo(ContratoID: number, data: UpdateContratoActivoDto) {
+    const contrato = await prisma.contratos.findUnique({
+      where: { ContratoID },
+    });
+
+    if (!contrato) {
+      throw new HttpError('Contrato no encontrado', 404);
+    }
+
+    if (contrato.Estatus !== 'ACTIVO') {
+      throw new HttpError('Este endpoint es solo para contratos activos. Use PUT /contratos/:id para contratos en revisión', 300);
+    }
+
+    const valoresAnteriores = {
+      FechaInicio: contrato.FechaInicio,
+      FechaFin: contrato.FechaFin,
+      Observaciones: contrato.Observaciones,
+    };
+
+    const updated = await prisma.contratos.update({
+      where: { ContratoID },
+      data: {
+        FechaInicio: data.FechaInicio ? new Date(data.FechaInicio) : undefined,
+        FechaFin: data.FechaFin ? new Date(data.FechaFin) : undefined,
+        Observaciones: data.Observaciones !== undefined ? data.Observaciones : undefined,
+      },
+    });
+
+    await this.registrarHistorial(
+      ContratoID,
+      'MODIFICACION',
+      'Contrato activo actualizado (fechas/observaciones)',
+      data.UsuarioID,
+      valoresAnteriores,
+      {
+        FechaInicio: updated.FechaInicio,
+        FechaFin: updated.FechaFin,
+        Observaciones: updated.Observaciones,
+      }
+    );
+
+    return this.findOne(ContratoID);
+  }
+
+  /**
+   * Agregar equipo(s) a un contrato existente
+   */
+  async addEquipo(ContratoID: number, data: AddEquipoDto) {
+    const contrato = await prisma.contratos.findUnique({
+      where: { ContratoID },
+      include: { cliente: true, sucursal: true },
+    });
+
+    if (!contrato) {
+      throw new HttpError('Contrato no encontrado', 404);
+    }
+
+    if (contrato.Estatus !== 'EN_REVISION' && contrato.Estatus !== 'ACTIVO') {
+      throw new HttpError('Solo se pueden agregar equipos a contratos en revisión o activos', 300);
+    }
+
+    // Validar plantilla
+    const plantilla = await prisma.plantillas_equipo.findUnique({
+      where: { PlantillaEquipoID: data.PlantillaEquipoID },
+    });
+
+    if (!plantilla || plantilla.IsActive !== 1) {
+      throw new HttpError('La plantilla de equipo no existe o no está activa', 404);
+    }
+
+    // Si se proporciona EquipoID, validar que solo sea cantidad 1
+    if (data.EquipoID && data.Cantidad > 1) {
+      throw new HttpError('Cuando se asigna un equipo físico directamente, la cantidad debe ser 1', 300);
+    }
+
+    // Validar equipo físico si se proporciona
+    let equipo = null;
+    if (data.EquipoID) {
+      equipo = await prisma.equipos.findUnique({
+        where: { EquipoID: data.EquipoID },
+      });
+
+      if (!equipo || equipo.IsActive !== 1) {
+        throw new HttpError('El equipo no existe o no está activo', 404);
+      }
+
+      if (equipo.Estatus !== 'Armado' && equipo.Estatus !== 'Reacondicionado' && equipo.Estatus !== 'Desmontado') {
+        throw new HttpError(`El equipo debe estar en estado Armado, Reacondicionado o Desmontado. Estado actual: ${equipo.Estatus}`, 300);
+      }
+
+      if (equipo.PlantillaEquipoID !== data.PlantillaEquipoID) {
+        throw new HttpError('El equipo no corresponde a la plantilla seleccionada', 300);
+      }
+
+      // Verificar que no esté asignado a otro cliente
+      const equipoAsignado = await prisma.clientes_equipos.findFirst({
+        where: {
+          EquipoID: data.EquipoID,
+          IsActive: 1,
+          Estatus: { in: ['ACTIVO', 'INSTALADO', 'PENDIENTE_INSTALACION'] },
+        },
+      });
+
+      if (equipoAsignado) {
+        throw new HttpError('El equipo ya está asignado a otro cliente/contrato', 300);
+      }
+    }
+
+    const equiposCreados = await prisma.$transaction(async (tx) => {
+      const creados = [];
+
+      for (let i = 0; i < data.Cantidad; i++) {
+        const clienteEquipo = await tx.clientes_equipos.create({
+          data: {
+            ClienteID: contrato.ClienteID,
+            SucursalID: contrato.SucursalID,
+            PlantillaEquipoID: data.PlantillaEquipoID,
+            EquipoID: i === 0 && data.EquipoID ? data.EquipoID : null, // Solo el primero si se proporciona
+            TipoPropiedad: 'RENTA',
+            ContratoID: ContratoID,
+            FechaAsignacion: new Date(),
+            Estatus: 'PENDIENTE_INSTALACION',
+            Observaciones: data.Observaciones || `Equipo agregado manualmente al contrato ${contrato.NumeroContrato}`,
+            IsActive: 1,
+          },
+        });
+        creados.push(clienteEquipo);
+      }
+
+      // Recalcular monto si se proporciona precio
+      if (data.PrecioUnitario && data.PrecioUnitario > 0) {
+        const periodoMeses = data.PeriodoRenta || 12;
+        const montoAdicional = data.PrecioUnitario * data.Cantidad * periodoMeses;
+        const nuevoMonto = (contrato.MontoTotal || 0) + montoAdicional;
+
+        await tx.contratos.update({
+          where: { ContratoID },
+          data: { MontoTotal: nuevoMonto },
+        });
+      }
+
+      return creados;
+    });
+
+    await this.registrarHistorial(
+      ContratoID,
+      'AGREGAR_EQUIPO',
+      `${data.Cantidad} equipo(s) agregado(s) al contrato: ${plantilla.NombreEquipo}`,
+      data.UsuarioID,
+      null,
+      { cantidad: data.Cantidad, plantilla: plantilla.NombreEquipo, equiposCreados: equiposCreados.length }
+    );
+
+    return this.findOne(ContratoID);
+  }
+
+  /**
+   * Eliminar equipo del contrato (solo si NO está instalado)
+   * Si tiene equipo físico asignado, lo devuelve al inventario como estaba
+   */
+  async eliminarEquipo(ClienteEquipoID: number, data: EliminarEquipoDto) {
+    const clienteEquipo = await prisma.clientes_equipos.findUnique({
+      where: { ClienteEquipoID },
+      include: {
+        contrato: true,
+        equipo: true,
+        plantilla: true,
+      },
+    });
+
+    if (!clienteEquipo) {
+      throw new HttpError('Equipo del cliente no encontrado', 404);
+    }
+
+    if (!clienteEquipo.ContratoID || !clienteEquipo.contrato) {
+      throw new HttpError('Este equipo no está asociado a un contrato', 300);
+    }
+
+    if (clienteEquipo.contrato.Estatus !== 'EN_REVISION' && clienteEquipo.contrato.Estatus !== 'ACTIVO') {
+      throw new HttpError('Solo se pueden eliminar equipos de contratos en revisión o activos', 300);
+    }
+
+    // Validar que NO esté instalado
+    if (clienteEquipo.Estatus === 'INSTALADO') {
+      throw new HttpError('No se puede eliminar un equipo instalado. Debe desinstalarlo primero mediante un servicio', 300);
+    }
+
+    const equipoInfo = clienteEquipo.equipo?.NumeroSerie || clienteEquipo.plantilla?.NombreEquipo || 'Sin identificar';
+    const contratoID = clienteEquipo.ContratoID;
+
+    await prisma.$transaction(async (tx) => {
+      // Si tiene equipo físico asignado, devolverlo al inventario
+      if (clienteEquipo.EquipoID && clienteEquipo.equipo) {
+        // Determinar estado a restaurar: si estaba Desmontado lo dejamos así,
+        // si no, lo dejamos como estaba antes de asignar (Armado o Reacondicionado)
+        // Por simplicidad, lo dejamos en el estado actual del equipo (no cambiamos nada)
+        // ya que aún no fue instalado, solo asignado
+      }
+
+      // Eliminar el registro de cliente_equipo (soft delete)
+      await tx.clientes_equipos.update({
+        where: { ClienteEquipoID },
+        data: {
+          IsActive: 0,
+          Estatus: 'RETIRADO',
+          FechaRetiro: new Date(),
+          MotivoRetiro: data.MotivoEliminacion || 'Eliminado del contrato antes de instalación',
+          EquipoID: null, // Liberar el equipo físico
+        },
+      });
+    });
+
+    await this.registrarHistorial(
+      contratoID,
+      'RETIRAR_EQUIPO',
+      `Equipo eliminado del contrato (no instalado): ${equipoInfo}. ${data.MotivoEliminacion || ''}`,
+      data.UsuarioID
+    );
+
+    return this.findOne(contratoID);
   }
 
   async baja(ContratoID: number) {

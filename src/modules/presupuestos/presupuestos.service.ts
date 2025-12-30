@@ -518,7 +518,7 @@ class PresupuestosService {
             FechaInicio: new Date(),
             FechaFin: fechaFin,
             MontoTotal: montoTotal,
-            Estatus: 'ACTIVO',
+            Estatus: 'EN_REVISION', // Se activa manualmente después de configurar cobros
             Observaciones: `Generado automáticamente desde presupuesto ${presupuesto.NumeroPresupuesto}`,
             UsuarioID: presupuesto.UsuarioID,
             IsActive: 1,
@@ -562,7 +562,7 @@ class PresupuestosService {
                 ContratoID: contratoID,
                 PresupuestoDetalleID: equipo.DetalleID,
                 FechaAsignacion: new Date(),
-                Estatus: 'ACTIVO',
+                Estatus: 'PENDIENTE_INSTALACION', // Pendiente hasta que se active el contrato
                 Observaciones: `Renta desde presupuesto ${presupuesto.NumeroPresupuesto}`,
                 IsActive: 1,
               },
