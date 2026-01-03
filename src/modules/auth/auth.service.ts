@@ -45,6 +45,8 @@ export class AuthService {
         return {
           message: 'Este usuario ya contaba con una sesión activa',
           Usuario: usuario.Usuario,
+          UsuarioID: usuario.UsuarioID,
+          SessionID: existingSession.SessionID,
           Token,
         };
       }
@@ -78,6 +80,8 @@ export class AuthService {
 
     return {
       Usuario: usuario.Usuario,
+      UsuarioID: usuario.UsuarioID,
+      SessionID,
       Token,
     };
   }
@@ -230,6 +234,8 @@ export class AuthService {
 
     return {
       Usuario: usuario.Usuario,
+      UsuarioID: usuario.UsuarioID,
+      SessionID,
       Token,
     };
   }

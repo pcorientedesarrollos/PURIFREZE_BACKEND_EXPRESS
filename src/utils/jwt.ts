@@ -10,7 +10,7 @@ export interface TokenPayload {
 }
 
 // Tiempos de expiración
-export const TOKEN_EXPIRY = '15m';       // 15 minutos
+export const TOKEN_EXPIRY = '7h';        // 7 horas
 export const REFRESH_TOKEN_EXPIRY = '7d'; // 7 días
 
 /**
