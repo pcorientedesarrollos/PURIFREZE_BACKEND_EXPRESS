@@ -2,6 +2,8 @@
 
 Esta guía define cómo Claude debe generar documentación de APIs para el equipo de frontend.
 
+
+
 ## Objetivo
 
 Generar documentación completa y clara de las APIs del backend para que el equipo de frontend pueda consumirlas sin necesidad de revisar el código fuente.
