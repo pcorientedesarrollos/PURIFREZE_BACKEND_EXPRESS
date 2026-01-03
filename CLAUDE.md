@@ -1,4 +1,4 @@
-# Guía para Documentación de APIs - Purifreeze Backend (Express + Prisma)
+# Guía para Documentación de APIs - Purifreeze Backend (Express + Prisma) - 2026 New sistema
 
 Esta guía define cómo Claude debe generar documentación de APIs para el equipo de frontend.
 
