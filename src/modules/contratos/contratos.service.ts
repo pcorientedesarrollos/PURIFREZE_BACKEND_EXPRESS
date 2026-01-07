@@ -389,7 +389,7 @@ class ContratosService {
       where: { ContratoID },
       include: {
         clientes_equipos: {
-          where: { IsActive: 1, Estatus: 'INSTALADO' },
+          where: { IsActive: 1 },
           include: { equipo: true },
         },
       },
@@ -403,29 +403,28 @@ class ContratosService {
       throw new HttpError('El contrato ya está cancelado o renovado', 300);
     }
 
-    // Marcar equipos como retirados
     await prisma.$transaction(async (tx) => {
       for (const ce of contrato.clientes_equipos) {
-        // Actualizar cliente_equipo
-        await tx.clientes_equipos.update({
-          where: { ClienteEquipoID: ce.ClienteEquipoID },
-          data: {
-            Estatus: 'RETIRADO',
-            FechaRetiro: new Date(),
-            MotivoRetiro: data.MotivosCancelacion,
-          },
-        });
-
-        // Actualizar equipo físico si existe
-        if (ce.EquipoID) {
-          await tx.equipos.update({
-            where: { EquipoID: ce.EquipoID },
+        if (ce.Estatus === 'INSTALADO') {
+          // Equipo INSTALADO: Solo marcar como retirado, el servicio de desinstalación
+          // se encargará de cambiar el estado del equipo físico después
+          await tx.clientes_equipos.update({
+            where: { ClienteEquipoID: ce.ClienteEquipoID },
             data: {
-              Estatus: 'Desmontado',
-              FechaDesmontaje: new Date(),
-              ClienteID: null,
-              SucursalID: null,
-              ContratoID: null,
+              Estatus: 'RETIRADO',
+              FechaRetiro: new Date(),
+              MotivoRetiro: data.MotivosCancelacion,
+            },
+          });
+        } else if (ce.Estatus === 'PENDIENTE_INSTALACION') {
+          // Equipo NO instalado: Liberar el equipo físico para que pueda usarse en otro contrato
+          await tx.clientes_equipos.update({
+            where: { ClienteEquipoID: ce.ClienteEquipoID },
+            data: {
+              Estatus: 'RETIRADO',
+              EquipoID: null, // Liberar el equipo físico
+              FechaRetiro: new Date(),
+              MotivoRetiro: data.MotivosCancelacion,
             },
           });
         }
@@ -887,8 +886,8 @@ class ContratosService {
       throw new HttpError('El equipo no está activo', 300);
     }
 
-    if (equipo.Estatus !== 'Armado' && equipo.Estatus !== 'Reacondicionado' && equipo.Estatus !== 'Desmontado') {
-      throw new HttpError(`El equipo debe estar en estado Armado, Reacondicionado o Desmontado para asignarlo. Estado actual: ${equipo.Estatus}`, 300);
+    if (equipo.Estatus !== 'Armado' && equipo.Estatus !== 'Reacondicionado') {
+      throw new HttpError(`El equipo debe estar en estado Armado o Reacondicionado para asignarlo. Estado actual: ${equipo.Estatus}`, 300);
     }
 
     // Verificar que no esté asignado a otro cliente/contrato
@@ -1078,9 +1077,10 @@ class ContratosService {
     }
 
     // Buscar equipos disponibles que coincidan con la plantilla
+    // Solo Armado y Reacondicionado (Desmontado = desarmado, piezas en inventario)
     const where: any = {
       IsActive: 1,
-      Estatus: { in: ['Armado', 'Reacondicionado', 'Desmontado'] },
+      Estatus: { in: ['Armado', 'Reacondicionado'] },
     };
 
     // Si tiene una plantilla específica, filtrar por ella
