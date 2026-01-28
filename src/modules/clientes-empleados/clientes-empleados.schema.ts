@@ -1,8 +1,8 @@
 import { z } from 'zod';
 
-// Schema para crear empleado (ya no incluye PuestoTrabajoID directo)
+// Schema para crear empleado (vinculado a una sucursal)
 export const createClienteEmpleadoSchema = z.object({
-  ClienteID: z.number({ required_error: 'El ClienteID es requerido' }),
+  SucursalID: z.number({ required_error: 'El SucursalID es requerido' }),
   NombreEmpleado: z.string().min(1, 'El nombre del empleado es requerido'),
   Observaciones: z.string().optional(),
   PuestosTrabajoIDs: z.array(z.number()).min(1, 'Debe asignar al menos un puesto de trabajo'),
@@ -38,6 +38,11 @@ export const empleadosIdParamSchema = z.object({
 export const empleadoPuestoParamSchema = z.object({
   EmpleadoID: z.string().regex(/^\d+$/, 'EmpleadoID debe ser un número válido').transform(Number),
   PuestoTrabajoID: z.string().regex(/^\d+$/, 'PuestoTrabajoID debe ser un número válido').transform(Number),
+});
+
+// Schema para parámetro de sucursal
+export const sucursalIdParamSchema = z.object({
+  SucursalID: z.string().regex(/^\d+$/, 'SucursalID debe ser un número válido').transform(Number),
 });
 
 // Types inferidos

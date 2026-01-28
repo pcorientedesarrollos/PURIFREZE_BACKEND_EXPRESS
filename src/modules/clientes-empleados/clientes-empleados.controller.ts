@@ -26,6 +26,13 @@ class ClientesEmpleadosController {
     return success(res, result.message, result.data);
   }
 
+  // Obtener empleados por sucursal
+  async findBySucursal(req: Request, res: Response) {
+    const { SucursalID } = req.params as unknown as { SucursalID: number };
+    const result = await clientesEmpleadosService.findBySucursal(SucursalID);
+    return success(res, result.message, result.data);
+  }
+
   async update(req: Request, res: Response) {
     const { EmpleadoID } = req.params as unknown as { EmpleadoID: number };
     const result = await clientesEmpleadosService.update(EmpleadoID, req.body);

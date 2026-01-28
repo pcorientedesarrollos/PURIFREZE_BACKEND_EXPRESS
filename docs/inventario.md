@@ -1,4 +1,4 @@
-# API de Inventario y Kardex - Purifreeze Backend
+# API de Inventario General y Kardex - Purifreeze Backend
 
 ## Información General
 
@@ -6,7 +6,20 @@
 
 **Prefijo de ruta:** `/inventario`
 
-**Autenticación:** Bearer Token (JWT)
+**Autenticación:** Requiere Bearer Token (JWT)
+
+---
+
+## Descripción del Módulo
+
+Este módulo permite consultar el **inventario general de bodega** y el **kardex de movimientos**. Es un módulo de **solo lectura** - las actualizaciones de inventario se realizan automáticamente desde otros módulos (recepciones de compra, traspasos, órdenes de servicio, etc.).
+
+### Características Principales
+- Consulta de stock actual en bodega
+- Resumen por ubicación
+- Historial de movimientos (kardex)
+- Filtros por fecha y tipo de movimiento
+- Solo lectura (las actualizaciones son automáticas)
 
 ---
 
@@ -16,7 +29,7 @@
 
 **Endpoint:** `GET /inventario`
 
-**Descripción:** Obtiene el listado completo del inventario con información de refacciones y ubicaciones.
+**Descripción:** Obtiene el listado completo del inventario de bodega con información de refacciones y ubicaciones.
 
 **Headers:**
 ```
@@ -35,25 +48,59 @@ Authorization: Bearer {token}
       "RefaccionID": 5,
       "UbicacionID": 1,
       "StockActual": 25,
-      "FechaUltimoMovimiento": "2025-11-28",
+      "FechaUltimoMovimiento": "2026-01-15",
       "IsActive": 1,
-      "catalogo_refacciones": {
+      "refaccion": {
         "RefaccionID": 5,
         "NombrePieza": "Filtro de carbón activado",
         "NombreCorto": "FILTRO-CA",
         "CostoPromedio": 150.50,
         "PrecioVenta": 250.00
       },
-      "ubicaciones_inventario": {
+      "ubicacion": {
         "UbicacionID": 1,
         "Tipo": "Bodega",
         "Observaciones": "Bodega General",
-        "Fecha": "2025-01-01T00:00:00.000Z"
+        "Fecha": "2026-01-01T00:00:00.000Z"
+      }
+    },
+    {
+      "InventarioID": 2,
+      "RefaccionID": 10,
+      "UbicacionID": 1,
+      "StockActual": 15,
+      "FechaUltimoMovimiento": "2026-01-14",
+      "IsActive": 1,
+      "refaccion": {
+        "RefaccionID": 10,
+        "NombrePieza": "Compresor 1HP",
+        "NombreCorto": "COMP-1HP",
+        "CostoPromedio": 1500.00,
+        "PrecioVenta": 2500.00
+      },
+      "ubicacion": {
+        "UbicacionID": 1,
+        "Tipo": "Bodega",
+        "Observaciones": "Bodega General",
+        "Fecha": "2026-01-01T00:00:00.000Z"
       }
     }
   ]
 }
 ```
+
+**Campos del Inventario:**
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `InventarioID` | number | ID único del registro |
+| `RefaccionID` | number | ID de la refacción |
+| `UbicacionID` | number | ID de la ubicación |
+| `StockActual` | number | Cantidad actual en stock |
+| `FechaUltimoMovimiento` | string | Fecha del último movimiento (YYYY-MM-DD) |
+| `IsActive` | number | 1=Activo, 0=Inactivo |
+| `refaccion` | object | Información de la refacción |
+| `ubicacion` | object | Información de la ubicación |
 
 ---
 
@@ -78,27 +125,33 @@ Authorization: Bearer {token}
     "resumenPorUbicacion": [
       {
         "ubicacion": "Bodega",
-        "totalItems": 15,
-        "totalStock": 250,
-        "valorTotal": 37625.00
+        "totalItems": 45,
+        "totalStock": 350,
+        "valorTotal": 52875.00
       },
       {
         "ubicacion": "Tecnico",
-        "totalItems": 5,
-        "totalStock": 30,
-        "valorTotal": 4515.00
+        "totalItems": 12,
+        "totalStock": 45,
+        "valorTotal": 6750.00
+      },
+      {
+        "ubicacion": "Equipo",
+        "totalItems": 8,
+        "totalStock": 20,
+        "valorTotal": 3000.00
       }
     ],
     "totales": {
-      "totalItems": 20,
-      "totalStock": 280,
-      "valorTotal": 42140.00
+      "totalItems": 65,
+      "totalStock": 415,
+      "valorTotal": 62625.00
     }
   }
 }
 ```
 
-**Campos del resumen:**
+**Campos del Resumen:**
 
 | Campo | Tipo | Descripción |
 |-------|------|-------------|
@@ -126,6 +179,11 @@ Authorization: Bearer {token}
 |-----------|------|-----------|-------------|
 | `RefaccionID` | number | Sí | ID de la refacción |
 
+**Ejemplo de Request:**
+```
+GET /inventario/refaccion/5
+```
+
 **Response Exitoso (200):**
 ```json
 {
@@ -138,20 +196,20 @@ Authorization: Bearer {token}
       "RefaccionID": 5,
       "UbicacionID": 1,
       "StockActual": 25,
-      "FechaUltimoMovimiento": "2025-11-28",
+      "FechaUltimoMovimiento": "2026-01-15",
       "IsActive": 1,
-      "catalogo_refacciones": {
+      "refaccion": {
         "RefaccionID": 5,
         "NombrePieza": "Filtro de carbón activado",
         "NombreCorto": "FILTRO-CA",
         "CostoPromedio": 150.50,
         "PrecioVenta": 250.00
       },
-      "ubicaciones_inventario": {
+      "ubicacion": {
         "UbicacionID": 1,
         "Tipo": "Bodega",
         "Observaciones": "Bodega General",
-        "Fecha": "2025-01-01T00:00:00.000Z"
+        "Fecha": "2026-01-01T00:00:00.000Z"
       }
     }
   ]
@@ -163,7 +221,7 @@ Authorization: Bearer {token}
 | Código | Mensaje | Causa |
 |--------|---------|-------|
 | 400 | Bad Request (RefaccionID: ID debe ser un número válido) | Parámetro no numérico |
-| 404 | No se encontró inventario para esta refacción | RefaccionID sin stock |
+| 404 | No se encontró inventario para esta refacción | RefaccionID sin stock registrado |
 
 ---
 
@@ -188,13 +246,13 @@ Authorization: Bearer {token}
 | `fechaFin` | string | YYYY-MM-DD | Filtrar hasta esta fecha |
 | `tipoMovimiento` | string | - | Filtrar por tipo de movimiento |
 
-**Ejemplos de uso:**
+**Ejemplos de Request:**
 ```
 GET /inventario/kardex
-GET /inventario/kardex?fechaInicio=2025-11-01
-GET /inventario/kardex?fechaInicio=2025-11-01&fechaFin=2025-11-30
+GET /inventario/kardex?fechaInicio=2026-01-01
+GET /inventario/kardex?fechaInicio=2026-01-01&fechaFin=2026-01-31
 GET /inventario/kardex?tipoMovimiento=Entrada_Compra
-GET /inventario/kardex?fechaInicio=2025-11-01&tipoMovimiento=Entrada_Compra
+GET /inventario/kardex?fechaInicio=2026-01-01&tipoMovimiento=Entrada_Compra
 ```
 
 **Response Exitoso (200):**
@@ -207,21 +265,50 @@ GET /inventario/kardex?fechaInicio=2025-11-01&tipoMovimiento=Entrada_Compra
     {
       "KardexInventarioID": 15,
       "RefaccionID": 5,
-      "FechaMovimiento": "2025-11-28",
+      "FechaMovimiento": "2026-01-15",
       "TipoMovimiento": "Entrada_Compra",
       "Cantidad": 10,
       "CostoPromedioMovimiento": 150.50,
       "UsuarioID": 1,
       "Observaciones": "Entrada por recepción de compra #14",
-      "catalogo_refacciones": {
+      "refaccion": {
         "RefaccionID": 5,
         "NombrePieza": "Filtro de carbón activado",
         "NombreCorto": "FILTRO-CA"
+      }
+    },
+    {
+      "KardexInventarioID": 14,
+      "RefaccionID": 10,
+      "FechaMovimiento": "2026-01-14",
+      "TipoMovimiento": "Traspaso_Bodega_Tecnico",
+      "Cantidad": -5,
+      "CostoPromedioMovimiento": 1500.00,
+      "UsuarioID": 1,
+      "Observaciones": "Salida de bodega → Técnico T-001 (Juan Pérez)",
+      "refaccion": {
+        "RefaccionID": 10,
+        "NombrePieza": "Compresor 1HP",
+        "NombreCorto": "COMP-1HP"
       }
     }
   ]
 }
 ```
+
+**Campos del Kardex:**
+
+| Campo | Tipo | Descripción |
+|-------|------|-------------|
+| `KardexInventarioID` | number | ID único del movimiento |
+| `RefaccionID` | number | ID de la refacción |
+| `FechaMovimiento` | string | Fecha del movimiento (YYYY-MM-DD) |
+| `TipoMovimiento` | string | Tipo de movimiento (ver tabla abajo) |
+| `Cantidad` | number | Cantidad movida (positiva=entrada, negativa=salida) |
+| `CostoPromedioMovimiento` | number | Costo promedio al momento del movimiento |
+| `UsuarioID` | number | ID del usuario que realizó el movimiento |
+| `Observaciones` | string | Descripción del movimiento |
+| `refaccion` | object | Información de la refacción |
 
 ---
 
@@ -253,16 +340,16 @@ Authorization: Bearer {token}
 }
 ```
 
-**Descripción de tipos:**
+**Descripción de Tipos de Movimiento:**
 
 | Tipo | Descripción |
 |------|-------------|
 | `Entrada_Compra` | Entrada de refacciones por recepción de compra |
-| `Traspaso_Tecnico` | Movimiento hacia ubicación Técnico |
-| `Traspaso_Bodega_Tecnico` | Movimiento de Bodega a Técnico |
-| `Traspaso_Bodega_Equipo` | Movimiento de Bodega a Equipo |
-| `Traspaso_Tecnico_Equipo` | Movimiento de Técnico a Equipo |
-| `Traspaso_Equipo` | Movimiento dentro de Equipo |
+| `Traspaso_Tecnico` | Movimiento de/hacia técnico (ajustes, devoluciones) |
+| `Traspaso_Bodega_Tecnico` | Movimiento de bodega hacia técnico |
+| `Traspaso_Bodega_Equipo` | Movimiento de bodega hacia equipo instalado |
+| `Traspaso_Tecnico_Equipo` | Movimiento de técnico hacia equipo (instalación) |
+| `Traspaso_Equipo` | Movimiento dentro de equipos |
 
 ---
 
@@ -291,10 +378,11 @@ Authorization: Bearer {token}
 | `fechaFin` | string | YYYY-MM-DD | Filtrar hasta esta fecha |
 | `tipoMovimiento` | string | - | Filtrar por tipo de movimiento |
 
-**Ejemplo de uso:**
+**Ejemplos de Request:**
 ```
 GET /inventario/kardex/refaccion/5
-GET /inventario/kardex/refaccion/5?fechaInicio=2025-11-01&fechaFin=2025-11-30
+GET /inventario/kardex/refaccion/5?fechaInicio=2026-01-01&fechaFin=2026-01-31
+GET /inventario/kardex/refaccion/5?tipoMovimiento=Entrada_Compra
 ```
 
 **Response Exitoso (200):**
@@ -307,13 +395,13 @@ GET /inventario/kardex/refaccion/5?fechaInicio=2025-11-01&fechaFin=2025-11-30
     {
       "KardexInventarioID": 15,
       "RefaccionID": 5,
-      "FechaMovimiento": "2025-11-28",
+      "FechaMovimiento": "2026-01-15",
       "TipoMovimiento": "Entrada_Compra",
       "Cantidad": 10,
       "CostoPromedioMovimiento": 150.50,
       "UsuarioID": 1,
       "Observaciones": "Entrada por recepción de compra #14",
-      "catalogo_refacciones": {
+      "refaccion": {
         "RefaccionID": 5,
         "NombrePieza": "Filtro de carbón activado",
         "NombreCorto": "FILTRO-CA"
@@ -322,13 +410,13 @@ GET /inventario/kardex/refaccion/5?fechaInicio=2025-11-01&fechaFin=2025-11-30
     {
       "KardexInventarioID": 10,
       "RefaccionID": 5,
-      "FechaMovimiento": "2025-11-25",
+      "FechaMovimiento": "2026-01-10",
       "TipoMovimiento": "Entrada_Compra",
       "Cantidad": 5,
       "CostoPromedioMovimiento": 145.00,
       "UsuarioID": 1,
       "Observaciones": "Entrada por recepción de compra #10",
-      "catalogo_refacciones": {
+      "refaccion": {
         "RefaccionID": 5,
         "NombrePieza": "Filtro de carbón activado",
         "NombreCorto": "FILTRO-CA"
@@ -346,40 +434,53 @@ GET /inventario/kardex/refaccion/5?fechaInicio=2025-11-01&fechaFin=2025-11-30
 
 ---
 
+## Resumen de Endpoints
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| GET | `/inventario` | Obtener todo el inventario |
+| GET | `/inventario/resumen` | Resumen por ubicación con totales |
+| GET | `/inventario/refaccion/:RefaccionID` | Inventario de una refacción |
+| GET | `/inventario/kardex` | Historial de movimientos |
+| GET | `/inventario/kardex/tipos-movimiento` | Tipos de movimiento disponibles |
+| GET | `/inventario/kardex/refaccion/:RefaccionID` | Kardex de una refacción |
+
+---
+
 ## Modelo de Datos
 
 ### inventario
 
 | Campo | Tipo | Nullable | Descripción |
 |-------|------|----------|-------------|
-| `InventarioID` | Int | No | Clave primaria (autoincrement) |
-| `RefaccionID` | Int | Sí | FK a `catalogo_refacciones` |
-| `UbicacionID` | Int | Sí | FK a `ubicaciones_inventario` |
-| `StockActual` | Int | Sí | Cantidad actual en stock |
-| `FechaUltimoMovimiento` | DateTime | Sí | Fecha del último movimiento |
-| `IsActive` | TinyInt | Sí | 1=Activo, 0=Inactivo |
+| InventarioID | Int | No | Clave primaria (autoincrement) |
+| RefaccionID | Int | Sí | FK a catalogo_refacciones |
+| UbicacionID | Int | Sí | FK a ubicaciones_inventario |
+| StockActual | Int | Sí | Cantidad actual en stock |
+| FechaUltimoMovimiento | DateTime | Sí | Fecha del último movimiento |
+| IsActive | TinyInt | Sí | 1=Activo, 0=Inactivo |
 
 ### kardex_inventario
 
 | Campo | Tipo | Nullable | Descripción |
 |-------|------|----------|-------------|
-| `KardexInventarioID` | Int | No | Clave primaria (autoincrement) |
-| `RefaccionID` | Int | Sí | FK a `catalogo_refacciones` |
-| `FechaMovimiento` | DateTime | Sí | Fecha del movimiento |
-| `TipoMovimiento` | Enum | Sí | Tipo de movimiento |
-| `Cantidad` | Float | Sí | Cantidad movida |
-| `CostoPromedioMovimiento` | Float | Sí | Costo promedio al momento |
-| `UsuarioID` | Int | Sí | Usuario que registró |
-| `Observaciones` | String(255) | Sí | Notas del movimiento |
+| KardexInventarioID | Int | No | Clave primaria (autoincrement) |
+| RefaccionID | Int | Sí | FK a catalogo_refacciones |
+| FechaMovimiento | DateTime | Sí | Fecha del movimiento |
+| TipoMovimiento | Enum | Sí | Tipo de movimiento |
+| Cantidad | Float | Sí | Cantidad movida (+ entrada, - salida) |
+| CostoPromedioMovimiento | Float | Sí | Costo promedio al momento |
+| UsuarioID | Int | Sí | Usuario que registró el movimiento |
+| Observaciones | String(255) | Sí | Notas del movimiento |
 
 ### ubicaciones_inventario
 
 | Campo | Tipo | Nullable | Descripción |
 |-------|------|----------|-------------|
-| `UbicacionID` | Int | No | Clave primaria (autoincrement) |
-| `Tipo` | Enum | Sí | Bodega, Tecnico, Equipo |
-| `Observaciones` | String(255) | Sí | Descripción de la ubicación |
-| `Fecha` | DateTime | Sí | Fecha de creación |
+| UbicacionID | Int | No | Clave primaria (autoincrement) |
+| Tipo | Enum | Sí | Bodega, Tecnico, Equipo |
+| Observaciones | String(255) | Sí | Descripción de la ubicación |
+| Fecha | DateTime | Sí | Fecha de creación |
 
 ---
 
@@ -411,9 +512,9 @@ catalogo_refacciones (1) ◄──── (N) kardex_inventario
 
 ## Flujo de Actualización de Inventario
 
-El inventario se actualiza automáticamente en los siguientes casos:
+El inventario se actualiza **automáticamente** en los siguientes casos:
 
-### 1. Recepción de Compra (POST /compras-recepciones)
+### 1. Recepción de Compra (`POST /compras-recepciones`)
 ```
 Recepción creada
     ├─ Actualiza inventario (suma cantidad a Bodega General)
@@ -421,24 +522,46 @@ Recepción creada
     └─ Actualiza costo promedio de la refacción
 ```
 
-### 2. Compra Finalizada Directa (POST /compras con Estatus="Finalizado")
+### 2. Traspaso a Técnico (`POST /inventario-tecnico`)
 ```
-Compra finalizada
-    ├─ Crea recepción automática
-    ├─ Actualiza inventario
-    ├─ Crea registro en Kardex
-    └─ Actualiza costo promedio
+Traspaso creado
+    ├─ Descuenta de inventario bodega
+    ├─ Crea salida en Kardex (tipo: Traspaso_Bodega_Tecnico)
+    └─ Actualiza inventario_tecnico
+```
+
+### 3. Ajuste de Inventario Autorizado (`POST /ajustes-inventario/:id/autorizar`)
+```
+Ajuste autorizado
+    ├─ Actualiza inventario_tecnico
+    └─ Crea registro en Kardex (tipo: Traspaso_Tecnico)
+```
+
+### 4. Orden de Servicio (consumo de refacciones)
+```
+Servicio completado
+    ├─ Descuenta de inventario técnico
+    ├─ Crea salida en Kardex (tipo: Traspaso_Tecnico_Equipo)
+    └─ Registra refacción en equipo
 ```
 
 ---
 
 ## Notas Importantes
 
-- **Solo lectura:** Este módulo solo permite consultar inventario y kardex. Las actualizaciones se realizan automáticamente desde el módulo de recepciones.
-- **Ubicación por defecto:** Todas las recepciones de compra ingresan a Bodega General (UbicacionID=1).
-- **Costo promedio:** Se calcula usando promedio ponderado y se guarda en `catalogo_refacciones.CostoPromedio`.
-- **Fechas formateadas:** Todas las fechas se devuelven en formato `YYYY-MM-DD`.
-- **Ordenamiento:** Los resultados se ordenan por ID descendente (más recientes primero).
+1. **Solo Lectura:** Este módulo solo permite consultar inventario y kardex. Las actualizaciones se realizan automáticamente desde otros módulos.
+
+2. **Ubicación por Defecto:** Todas las recepciones de compra ingresan a Bodega General (UbicacionID=1).
+
+3. **Costo Promedio:** Se calcula usando promedio ponderado y se guarda en `catalogo_refacciones.CostoPromedio`.
+
+4. **Fechas Formateadas:** Todas las fechas se devuelven en formato `YYYY-MM-DD`.
+
+5. **Ordenamiento:** Los resultados se ordenan por ID descendente (más recientes primero).
+
+6. **Cantidad en Kardex:**
+   - Positiva (+) = Entrada de stock
+   - Negativa (-) = Salida de stock
 
 ---
 
@@ -454,16 +577,31 @@ GET /inventario
 GET /inventario/resumen
 ```
 
-### Ver historial de una refacción específica
+### Ver dónde está una refacción específica
+```
+GET /inventario/refaccion/5
+```
+
+### Ver historial completo de movimientos
+```
+GET /inventario/kardex
+```
+
+### Ver movimientos de una refacción específica
 ```
 GET /inventario/kardex/refaccion/5
 ```
 
 ### Ver entradas de compras del mes
 ```
-GET /inventario/kardex?fechaInicio=2025-11-01&fechaFin=2025-11-30&tipoMovimiento=Entrada_Compra
+GET /inventario/kardex?fechaInicio=2026-01-01&fechaFin=2026-01-31&tipoMovimiento=Entrada_Compra
+```
+
+### Ver todos los traspasos a técnicos
+```
+GET /inventario/kardex?tipoMovimiento=Traspaso_Bodega_Tecnico
 ```
 
 ---
 
-**Última actualización:** 2025-11-28
+**Última actualización:** 2026-01-15

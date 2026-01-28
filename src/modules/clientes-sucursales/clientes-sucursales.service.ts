@@ -30,9 +30,17 @@ class ClientesSucursalesService {
       throw new HttpError('Ya existe una sucursal con ese nombre para este cliente', 300);
     }
 
+    // Verificar si es la primera sucursal del cliente (será matriz automáticamente)
+    const sucursalesExistentes = await prisma.clientes_sucursales.count({
+      where: { ClienteID: data.ClienteID },
+    });
+
+    const esMatriz = sucursalesExistentes === 0;
+
     const sucursal = await prisma.clientes_sucursales.create({
       data: {
         ...data,
+        EsMatriz: esMatriz,
         IsActive: true,
       },
       include: {
@@ -186,6 +194,53 @@ class ClientesSucursalesService {
     });
 
     return { message: 'Sucursal activada', data: sucursalUpdate };
+  }
+
+  /**
+   * Establecer una sucursal como matriz
+   * Quita el flag de matriz de las demás sucursales del mismo cliente
+   */
+  async setMatriz(SucursalID: number) {
+    const sucursal = await prisma.clientes_sucursales.findUnique({
+      where: { SucursalID },
+    });
+
+    if (!sucursal) {
+      throw new HttpError('La sucursal no existe', 404);
+    }
+
+    if (!sucursal.IsActive) {
+      throw new HttpError('No se puede establecer como matriz una sucursal inactiva', 300);
+    }
+
+    if (sucursal.EsMatriz) {
+      throw new HttpError('Esta sucursal ya es la matriz', 300);
+    }
+
+    // Transacción: quitar matriz de las demás y establecer en esta
+    const sucursalUpdate = await prisma.$transaction(async (tx) => {
+      // Quitar matriz de todas las sucursales del cliente
+      await tx.clientes_sucursales.updateMany({
+        where: { ClienteID: sucursal.ClienteID },
+        data: { EsMatriz: false },
+      });
+
+      // Establecer esta sucursal como matriz
+      return tx.clientes_sucursales.update({
+        where: { SucursalID },
+        data: { EsMatriz: true },
+        include: {
+          cliente: {
+            select: {
+              ClienteID: true,
+              NombreComercio: true,
+            },
+          },
+        },
+      });
+    });
+
+    return { message: 'Sucursal establecida como matriz', data: sucursalUpdate };
   }
 }
 

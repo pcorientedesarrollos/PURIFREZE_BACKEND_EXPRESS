@@ -768,4 +768,19 @@ Authorization: Bearer {token}
 
 ---
 
-**Última actualización:** 2025-12-23
+## Diferencia entre Ventas y Cobros
+
+| Aspecto | Ventas | Cobros |
+|---------|--------|--------|
+| **Propósito** | Venta directa de productos/servicios | Cargos recurrentes por renta de equipos |
+| **Origen** | Manual por usuario o desde presupuesto | Generados automáticamente desde contratos |
+| **Items** | Equipos, refacciones, servicios | Periodos de renta (mensual, quincenal, etc.) |
+| **Recurrencia** | Única | Múltiple (según frecuencia del contrato) |
+| **IVA** | Calculado automáticamente (16%) | Ya incluido en el monto configurado |
+| **Módulo relacionado** | `/ventas` | `/cobros` |
+
+Ver documentación de [Cobros](./cobros.md) para gestión de cargos recurrentes.
+
+---
+
+**Última actualización:** 2026-01-15

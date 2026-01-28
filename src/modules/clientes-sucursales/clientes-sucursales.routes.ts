@@ -154,4 +154,21 @@ router.patch('/baja/:SucursalID', validateParams(sucursalIdParamSchema), (req, r
  */
 router.patch('/activar/:SucursalID', validateParams(sucursalIdParamSchema), (req, res) => clientesSucursalesController.activar(req, res));
 
+/** @swagger
+ * /clientes-sucursales/matriz/{SucursalID}:
+ *   patch:
+ *     summary: Establecer sucursal como matriz
+ *     tags: [Clientes - Sucursales]
+ *     parameters:
+ *       - in: path
+ *         name: SucursalID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Establecida como matriz
+ */
+router.patch('/matriz/:SucursalID', validateParams(sucursalIdParamSchema), (req, res) => clientesSucursalesController.setMatriz(req, res));
+
 export default router;

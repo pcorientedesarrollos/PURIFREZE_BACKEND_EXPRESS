@@ -9,6 +9,7 @@ import {
   asignarPuestosSchema,
   agregarPuestoSchema,
   empleadoPuestoParamSchema,
+  sucursalIdParamSchema,
 } from './clientes-empleados.schema';
 
 const router = Router();
@@ -52,6 +53,25 @@ router.post('/', validateBody(createClienteEmpleadoSchema), (req, res) => client
  *         description: Lista de empleados
  */
 router.get('/', (req, res) => clientesEmpleadosController.findAll(req, res));
+
+/** @swagger
+ * /clientes-empleados/sucursal/{SucursalID}:
+ *   get:
+ *     summary: Obtener empleados de una sucursal específica
+ *     tags: [Clientes - Empleados]
+ *     parameters:
+ *       - in: path
+ *         name: SucursalID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Lista de empleados de la sucursal
+ *       404:
+ *         description: Sucursal no encontrada
+ */
+router.get('/sucursal/:SucursalID', validateParams(sucursalIdParamSchema), (req, res) => clientesEmpleadosController.findBySucursal(req, res));
 
 /** @swagger
  * /clientes-empleados/{EmpleadoID}:

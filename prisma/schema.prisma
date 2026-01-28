@@ -59,9 +59,11 @@ model clientes_sucursales {
   Telefono          String?                    @db.VarChar(50)
   Contacto          String?                    @db.VarChar(255)
   Observaciones     String?                    @db.VarChar(255)
+  EsMatriz          Boolean                    @default(false)
   IsActive          Boolean?                   @default(true)
 
   cliente           catalogo_clientes          @relation(fields: [ClienteID], references: [ClienteID])
+  empleados         clientes_empleados[]
   presupuestos      presupuestos_encabezado[]
   equipos           equipos[]
   contratos         contratos[]
@@ -177,11 +179,14 @@ model clientes_direcciones {
 }
 
 model clientes_empleados {
-  EmpleadoID        Int                 @id @default(autoincrement())
+  EmpleadoID        Int                  @id @default(autoincrement())
   ClienteID         Int?
-  NombreEmpleado    String?             @db.VarChar(255)
-  Observaciones     String?             @db.VarChar(255)
+  SucursalID        Int?
+  NombreEmpleado    String?              @db.VarChar(255)
+  Observaciones     String?              @db.VarChar(255)
   IsActive          Boolean?
+
+  sucursal          clientes_sucursales? @relation(fields: [SucursalID], references: [SucursalID])
   empleados_puestos empleados_puestos[]
 }
 

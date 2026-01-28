@@ -42,6 +42,12 @@ class ClientesSucursalesController {
     const result = await clientesSucursalesService.activar(SucursalID);
     return success(res, result.message, result.data);
   }
+
+  async setMatriz(req: Request, res: Response) {
+    const { SucursalID } = req.params as unknown as { SucursalID: number };
+    const result = await clientesSucursalesService.setMatriz(SucursalID);
+    return success(res, result.message, result.data);
+  }
 }
 
 export const clientesSucursalesController = new ClientesSucursalesController();

@@ -4,15 +4,24 @@ import { CreateClienteEmpleadoDto, UpdateClienteEmpleadoDto, AsignarPuestosDto, 
 
 class ClientesEmpleadosService {
   async create(data: CreateClienteEmpleadoDto) {
-    const { NombreEmpleado, PuestosTrabajoIDs, ClienteID, Observaciones } = data;
+    const { NombreEmpleado, PuestosTrabajoIDs, SucursalID, Observaciones } = data;
 
-    // Validar que el nombre no exista
+    // Validar que la sucursal exista
+    const sucursal = await prisma.clientes_sucursales.findUnique({
+      where: { SucursalID },
+    });
+
+    if (!sucursal) {
+      throw new HttpError('La sucursal no existe', 404);
+    }
+
+    // Validar que el nombre no exista en la misma sucursal
     const findEmpleado = await prisma.clientes_empleados.findFirst({
-      where: { NombreEmpleado },
+      where: { NombreEmpleado, SucursalID },
     });
 
     if (findEmpleado) {
-      throw new HttpError('El nombre del empleado ya existe', 300);
+      throw new HttpError('El nombre del empleado ya existe en esta sucursal', 300);
     }
 
     // Validar que todos los puestos existan
@@ -28,7 +37,8 @@ class ClientesEmpleadosService {
     const empleado = await prisma.$transaction(async (tx) => {
       const nuevoEmpleado = await tx.clientes_empleados.create({
         data: {
-          ClienteID,
+          ClienteID: sucursal.ClienteID,
+          SucursalID,
           NombreEmpleado,
           Observaciones,
           IsActive: true,
@@ -44,10 +54,11 @@ class ClientesEmpleadosService {
         })),
       });
 
-      // Retornar empleado con sus puestos
+      // Retornar empleado con sus puestos y sucursal
       return tx.clientes_empleados.findUnique({
         where: { EmpleadoID: nuevoEmpleado.EmpleadoID },
         include: {
+          sucursal: true,
           empleados_puestos: {
             include: {
               puesto: true,
@@ -66,6 +77,11 @@ class ClientesEmpleadosService {
         EmpleadoID: 'desc',
       },
       include: {
+        sucursal: {
+          include: {
+            cliente: true,
+          },
+        },
         empleados_puestos: {
           where: { IsActive: true },
           include: {
@@ -82,6 +98,11 @@ class ClientesEmpleadosService {
     const empleado = await prisma.clientes_empleados.findUnique({
       where: { EmpleadoID },
       include: {
+        sucursal: {
+          include: {
+            cliente: true,
+          },
+        },
         empleados_puestos: {
           include: {
             puesto: true,
@@ -95,6 +116,43 @@ class ClientesEmpleadosService {
     }
 
     return { message: 'Empleado obtenido', data: empleado };
+  }
+
+  async findBySucursal(SucursalID: number) {
+    // Validar que la sucursal exista
+    const sucursal = await prisma.clientes_sucursales.findUnique({
+      where: { SucursalID },
+      include: {
+        cliente: true,
+      },
+    });
+
+    if (!sucursal) {
+      throw new HttpError('La sucursal no existe', 404);
+    }
+
+    const empleados = await prisma.clientes_empleados.findMany({
+      where: { SucursalID },
+      orderBy: {
+        EmpleadoID: 'desc',
+      },
+      include: {
+        empleados_puestos: {
+          where: { IsActive: true },
+          include: {
+            puesto: true,
+          },
+        },
+      },
+    });
+
+    return {
+      message: 'Empleados de la sucursal obtenidos',
+      data: {
+        sucursal,
+        empleados,
+      },
+    };
   }
 
   async update(EmpleadoID: number, data: UpdateClienteEmpleadoDto) {
@@ -112,12 +170,13 @@ class ClientesEmpleadosService {
       const nameInUse = await prisma.clientes_empleados.findFirst({
         where: {
           NombreEmpleado,
+          SucursalID: empleadoExist.SucursalID,
           EmpleadoID: { not: EmpleadoID },
         },
       });
 
       if (nameInUse) {
-        throw new HttpError('El nombre del empleado ya existe', 300);
+        throw new HttpError('El nombre del empleado ya existe en esta sucursal', 300);
       }
     }
 
@@ -125,6 +184,11 @@ class ClientesEmpleadosService {
       where: { EmpleadoID },
       data,
       include: {
+        sucursal: {
+          include: {
+            cliente: true,
+          },
+        },
         empleados_puestos: {
           where: { IsActive: true },
           include: {
@@ -187,6 +251,11 @@ class ClientesEmpleadosService {
       return tx.clientes_empleados.findUnique({
         where: { EmpleadoID },
         include: {
+          sucursal: {
+            include: {
+              cliente: true,
+            },
+          },
           empleados_puestos: {
             where: { IsActive: true },
             include: {
@@ -253,6 +322,11 @@ class ClientesEmpleadosService {
     const empleado = await prisma.clientes_empleados.findUnique({
       where: { EmpleadoID },
       include: {
+        sucursal: {
+          include: {
+            cliente: true,
+          },
+        },
         empleados_puestos: {
           where: { IsActive: true },
           include: {
@@ -313,6 +387,11 @@ class ClientesEmpleadosService {
     const empleado = await prisma.clientes_empleados.findUnique({
       where: { EmpleadoID },
       include: {
+        sucursal: {
+          include: {
+            cliente: true,
+          },
+        },
         empleados_puestos: {
           where: { IsActive: true },
           include: {
@@ -365,6 +444,11 @@ class ClientesEmpleadosService {
       where: { EmpleadoID },
       data: { IsActive: false },
       include: {
+        sucursal: {
+          include: {
+            cliente: true,
+          },
+        },
         empleados_puestos: {
           include: {
             puesto: true,
@@ -393,6 +477,11 @@ class ClientesEmpleadosService {
       where: { EmpleadoID },
       data: { IsActive: true },
       include: {
+        sucursal: {
+          include: {
+            cliente: true,
+          },
+        },
         empleados_puestos: {
           include: {
             puesto: true,
