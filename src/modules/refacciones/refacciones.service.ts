@@ -22,6 +22,10 @@ class RefaccionesService {
       throw new HttpError('La clasificación no existe', 300);
     }
 
+    if (!findClasificacion.Codigo) {
+      throw new HttpError('La clasificación no tiene código asignado', 300);
+    }
+
     const findUnidad = await prisma.catalogo_unidades.findUnique({
       where: { UnidadID },
     });
@@ -30,6 +34,14 @@ class RefaccionesService {
       throw new HttpError('La unidad no existe', 300);
     }
 
+    // Generar código automático: {CodigoClasificacion}-{Consecutivo}
+    const countRefacciones = await prisma.catalogo_refacciones.count({
+      where: { ClasificacionID: ClasificacionRefaccionID },
+    });
+
+    const consecutivo = (countRefacciones + 1).toString().padStart(3, '0');
+    const codigoRefaccion = `${findClasificacion.Codigo}-${consecutivo}`;
+
     // Mapear ClasificacionRefaccionID a ClasificacionID (nombre en Prisma)
     const { ClasificacionRefaccionID: ClasificacionID, ...restData } = data;
 
@@ -37,6 +49,7 @@ class RefaccionesService {
       data: {
         ...restData,
         ClasificacionID,
+        Codigo: codigoRefaccion,
         IsActive: true,
       },
     });
@@ -85,14 +98,9 @@ class RefaccionesService {
       throw new HttpError('No existe la refacción', 404);
     }
 
-    if (ClasificacionRefaccionID) {
-      const findClasificacion = await prisma.catalogo_clasificacion_refacciones.findUnique({
-        where: { ClasificacionRefaccionID },
-      });
-
-      if (!findClasificacion) {
-        throw new HttpError('La clasificación no existe', 300);
-      }
+    // No permitir cambiar la clasificación porque el código está vinculado a ella
+    if (ClasificacionRefaccionID !== undefined && ClasificacionRefaccionID !== refaccionExist.ClasificacionID) {
+      throw new HttpError('No se puede cambiar la clasificación de una refacción porque el código está vinculado a ella', 300);
     }
 
     if (UnidadID) {
@@ -118,16 +126,12 @@ class RefaccionesService {
       }
     }
 
-    // Mapear ClasificacionRefaccionID a ClasificacionID (nombre en Prisma)
+    // Excluir ClasificacionRefaccionID del update (no se puede cambiar)
     const { ClasificacionRefaccionID: _, ...restData } = data;
-    const updateData: any = { ...restData };
-    if (ClasificacionRefaccionID !== undefined) {
-      updateData.ClasificacionID = ClasificacionRefaccionID;
-    }
 
     const refaccionUpdate = await prisma.catalogo_refacciones.update({
       where: { RefaccionID },
-      data: updateData,
+      data: restData,
     });
 
     return { message: 'Refacción Actualizada', data: refaccionUpdate };

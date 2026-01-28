@@ -31,6 +31,7 @@ model catalogo_bancos {
 
 model catalogo_clasificacion_refacciones {
   ClasificacionRefaccionID Int                   @id @default(autoincrement())
+  Codigo                   String?               @unique @db.VarChar(10)
   NombreClasificacion      String?               @db.VarChar(255)
   Observaciones            String?               @db.VarChar(255)
   IsActive                 Int?                  @db.TinyInt

@@ -6,7 +6,6 @@ export const createRefaccionSchema = z.object({
   NombrePieza: z.string().min(1, 'El nombre de la pieza es requerido').max(255),
   NombreCorto: z.string().max(255),
   Modelo: z.string().max(255),
-  Codigo: z.string().max(255),
   Observaciones: z.string().max(255).optional(),
 });
 
@@ -16,7 +15,6 @@ export const updateRefaccionSchema = z.object({
   NombrePieza: z.string().min(1).max(255).optional(),
   NombreCorto: z.string().max(255).optional(),
   Modelo: z.string().max(255).optional(),
-  Codigo: z.string().max(255).optional(),
   Observaciones: z.string().max(255).optional(),
 });
 
