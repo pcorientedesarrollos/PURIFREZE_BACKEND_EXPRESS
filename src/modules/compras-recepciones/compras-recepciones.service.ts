@@ -14,6 +14,7 @@ import {
 } from '../../shared/shared-operations.service';
 
 const ESTATUS_FINALIZADO: compras_encabezado_Estatus = 'Finalizado';
+const ESTATUS_PAGADO: compras_encabezado_Estatus = 'Pagado';
 
 class ComprasRecepcionesService {
   // ==================== CREAR RECEPCIÓN ====================
@@ -40,13 +41,17 @@ class ComprasRecepcionesService {
         throw new HttpError('La compra ya está finalizada', 400);
       }
 
+      const compraYaPagada = compra.Estatus === ESTATUS_PAGADO;
+
       // 2. Validar que vengan detalles
       if (!Detalles?.length) {
         throw new HttpError('No ingresaste ninguna refacción en la recepción', 400);
       }
 
-      // 3. Validar saldo suficiente en cuenta bancaria
-      await validarSaldoCuentaBancaria(tx, CuentaBancariaID, MontoRecepcion);
+      // 3. Validar saldo suficiente en cuenta bancaria (solo si NO está pagada)
+      if (!compraYaPagada) {
+        await validarSaldoCuentaBancaria(tx, CuentaBancariaID, MontoRecepcion);
+      }
 
       // 4. Obtener cantidades ya recibidas
       const cantidadesRecibidas = await obtenerCantidadesRecibidasCompra(tx, CompraEncabezadoID);
@@ -84,15 +89,18 @@ class ComprasRecepcionesService {
         }
       }
 
-      // 6. Validar que el monto no exceda el pendiente por pagar
+      // 6. Validar que el monto no exceda el pendiente por pagar (solo si NO está pagada)
       const totalPagado = await obtenerTotalPagadoCompra(tx, CompraEncabezadoID);
-      const montoPendiente = (compra.TotalNeto || 0) - totalPagado;
 
-      if (MontoRecepcion > montoPendiente) {
-        throw new HttpError(
-          `El monto de la recepción ($${MontoRecepcion}) excede el monto pendiente por pagar ($${montoPendiente})`,
-          400,
-        );
+      if (!compraYaPagada) {
+        const montoPendiente = (compra.TotalNeto || 0) - totalPagado;
+
+        if (MontoRecepcion > montoPendiente) {
+          throw new HttpError(
+            `El monto de la recepción ($${MontoRecepcion}) excede el monto pendiente por pagar ($${montoPendiente})`,
+            400,
+          );
+        }
       }
 
       // 7. Crear recepción de compra (encabezado)
@@ -152,20 +160,22 @@ class ComprasRecepcionesService {
         );
       }
 
-      // 9. Crear pago automático
-      await crearPagoYMovimientoBancario(tx, {
-        referenciaTipo: 'Compras',
-        referenciaID: CompraEncabezadoID,
-        metodoPagoID: MetodoPagoID,
-        cuentaBancariaID: CuentaBancariaID,
-        monto: MontoRecepcion,
-        UsuarioID: UsuarioID || 0,
-        observaciones: `Pago parcial de compra #${CompraEncabezadoID} - Recepción #${recepcionGuardada.ComprasRecepcionesEncabezadoID}`,
-        fechaPago: fechaHoyStr,
-      });
+      // 9. Crear pago automático (solo si la compra NO está ya pagada)
+      if (!compraYaPagada) {
+        await crearPagoYMovimientoBancario(tx, {
+          referenciaTipo: 'Compras',
+          referenciaID: CompraEncabezadoID,
+          metodoPagoID: MetodoPagoID,
+          cuentaBancariaID: CuentaBancariaID,
+          monto: MontoRecepcion,
+          UsuarioID: UsuarioID || 0,
+          observaciones: `Pago parcial de compra #${CompraEncabezadoID} - Recepción #${recepcionGuardada.ComprasRecepcionesEncabezadoID}`,
+          fechaPago: fechaHoyStr,
+        });
+      }
 
       // 10. Verificar si la compra se completó
-      const nuevoTotalPagado = totalPagado + MontoRecepcion;
+      const nuevoTotalPagado = compraYaPagada ? totalPagado : totalPagado + MontoRecepcion;
       const nuevasCantidadesRecibidas = await obtenerCantidadesRecibidasCompra(tx, CompraEncabezadoID);
 
       // Verificar si todas las cantidades están completas

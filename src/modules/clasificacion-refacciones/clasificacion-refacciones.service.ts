@@ -4,16 +4,7 @@ import { CreateClasificacionRefaccionDto, UpdateClasificacionRefaccionDto } from
 
 class ClasificacionRefaccionesService {
   async create(data: CreateClasificacionRefaccionDto) {
-    const { NombreClasificacion, Codigo } = data;
-
-    // Validar que el código no esté duplicado
-    const findByCodigo = await prisma.catalogo_clasificacion_refacciones.findUnique({
-      where: { Codigo },
-    });
-
-    if (findByCodigo) {
-      throw new HttpError('El código de clasificación ya existe', 300);
-    }
+    const { NombreClasificacion } = data;
 
     const findClasificacion = await prisma.catalogo_clasificacion_refacciones.findFirst({
       where: { NombreClasificacion },
@@ -81,17 +72,6 @@ class ClasificacionRefaccionesService {
 
       if (refaccionesConCodigo > 0) {
         throw new HttpError('No se puede editar el código porque ya existen refacciones con folios generados', 300);
-      }
-    }
-
-    // Verificar que el nuevo código no esté en uso por otra clasificación
-    if (Codigo && Codigo !== clasificacionExist.Codigo) {
-      const codigoInUse = await prisma.catalogo_clasificacion_refacciones.findUnique({
-        where: { Codigo },
-      });
-
-      if (codigoInUse) {
-        throw new HttpError('El código de clasificación ya existe', 300);
       }
     }
 

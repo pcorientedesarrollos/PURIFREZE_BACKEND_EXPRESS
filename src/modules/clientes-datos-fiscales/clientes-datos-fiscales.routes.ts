@@ -1,7 +1,20 @@
 import { Router } from 'express';
+import multer from 'multer';
 import { clientesDatosFiscalesController } from './clientes-datos-fiscales.controller';
 import { validateBody, validateParams } from '../../middlewares/validateRequest';
 import { createClienteDatosFiscalesSchema, updateClienteDatosFiscalesSchema, datosFiscalesIdParamSchema, clienteIdParamSchema } from './clientes-datos-fiscales.schema';
+
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 5 * 1024 * 1024 }, // 5MB máximo
+  fileFilter: (_req, file, cb) => {
+    if (file.mimetype === 'application/pdf') {
+      cb(null, true);
+    } else {
+      cb(new Error('Solo se permiten archivos PDF'));
+    }
+  },
+});
 
 const router = Router();
 
@@ -170,5 +183,51 @@ router.patch('/baja/:DatosFiscalesID', validateParams(datosFiscalesIdParamSchema
  *         description: Activado
  */
 router.patch('/activar/:DatosFiscalesID', validateParams(datosFiscalesIdParamSchema), (req, res) => clientesDatosFiscalesController.activar(req, res));
+
+/** @swagger
+ * /clientes-datos-fiscales/parsear-constancia:
+ *   post:
+ *     summary: Parsear PDF de constancia fiscal del SAT (solo extrae datos, no guarda)
+ *     tags: [Clientes - Datos Fiscales]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [constancia]
+ *             properties:
+ *               constancia:
+ *                 type: string
+ *                 format: binary
+ *     responses:
+ *       200:
+ *         description: Datos extraídos del PDF
+ */
+router.post('/parsear-constancia', upload.single('constancia'), (req, res) => clientesDatosFiscalesController.parsearConstancia(req, res));
+
+/** @swagger
+ * /clientes-datos-fiscales/upload-constancia:
+ *   post:
+ *     summary: Subir constancia fiscal, extraer datos y crear registro de datos fiscales
+ *     tags: [Clientes - Datos Fiscales]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         multipart/form-data:
+ *           schema:
+ *             type: object
+ *             required: [constancia, ClienteID]
+ *             properties:
+ *               constancia:
+ *                 type: string
+ *                 format: binary
+ *               ClienteID:
+ *                 type: integer
+ *     responses:
+ *       201:
+ *         description: Datos fiscales extraídos y guardados
+ */
+router.post('/upload-constancia', upload.single('constancia'), (req, res) => clientesDatosFiscalesController.uploadYCrear(req, res));
 
 export default router;

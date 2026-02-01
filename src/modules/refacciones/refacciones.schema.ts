@@ -5,7 +5,7 @@ export const createRefaccionSchema = z.object({
   UnidadID: z.number({ required_error: 'La unidad es requerida' }),
   NombrePieza: z.string().min(1, 'El nombre de la pieza es requerido').max(255),
   NombreCorto: z.string().max(255),
-  Modelo: z.string().max(255),
+  Modelo: z.string().max(255).optional(),
   Observaciones: z.string().max(255).optional(),
 });
 

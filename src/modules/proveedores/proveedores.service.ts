@@ -29,6 +29,11 @@ class ProveedoresService {
       orderBy: {
         ProveedorID: 'desc',
       },
+      include: {
+        contactos: {
+          where: { IsActive: true },
+        },
+      },
     });
 
     return { message: 'Proveedores obtenidos', data: allProveedores };
@@ -37,6 +42,9 @@ class ProveedoresService {
   async findOne(ProveedorID: number) {
     const proveedor = await prisma.catalogo_proveedores.findUnique({
       where: { ProveedorID },
+      include: {
+        contactos: true,
+      },
     });
 
     if (!proveedor) {

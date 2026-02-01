@@ -158,10 +158,10 @@ class ClientesService {
       orderBy: { DireccionID: 'desc' },
     });
 
-    // Obtener empleados con sus teléfonos y correos
+    // Obtener empleados con sus teléfonos y correos (activos e inactivos)
     const empleados = await prisma.clientes_empleados.findMany({
-      where: { ClienteID, IsActive: true },
-      orderBy: { NombreEmpleado: 'asc' },
+      where: { ClienteID },
+      orderBy: [{ IsActive: 'desc' }, { NombreEmpleado: 'asc' }],
     });
 
     // Obtener teléfonos, correos y puestos de cada empleado

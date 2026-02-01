@@ -19,6 +19,7 @@ import {
 } from '../../shared/shared-operations.service';
 
 const ESTATUS_FINALIZADO: compras_encabezado_Estatus = 'Finalizado';
+const ESTATUS_PAGADO: compras_encabezado_Estatus = 'Pagado';
 
 class ComprasService {
   /**
@@ -35,6 +36,8 @@ class ComprasService {
 
       if (dto.Estatus === ESTATUS_FINALIZADO) {
         await this.procesarFinalizacion(tx, encabezado.CompraEncabezadoID, dto.Detalles, dto);
+      } else if (dto.Estatus === ESTATUS_PAGADO) {
+        await this.procesarPago(tx, encabezado.CompraEncabezadoID, dto);
       }
 
       return { encabezado, detalles };
@@ -53,6 +56,7 @@ class ComprasService {
 
       const { Detalles, DetallesEliminar, CuentaBancariaID, MetodoPagoID, ...datosEncabezado } = dto;
       const cambiaAFinalizado = this.verificarCambioAFinalizado(dto.Estatus, compraExistente.Estatus);
+      const cambiaAPagado = this.verificarCambioAPagado(dto.Estatus, compraExistente.Estatus);
 
       let hayRecepcionesPrevias = false;
       if (cambiaAFinalizado) {
@@ -62,7 +66,32 @@ class ComprasService {
         );
       }
 
+      if (cambiaAPagado) {
+        if (!MetodoPagoID) {
+          throw new HttpError('El MetodoPagoID es requerido para pagar la compra', 400);
+        }
+        if (!CuentaBancariaID) {
+          throw new HttpError('El CuentaBancariaID es requerido para pagar la compra', 400);
+        }
+        const totalNeto = dto.TotalNeto ?? compraExistente.TotalNeto ?? 0;
+        await validarSaldoCuentaBancaria(tx, CuentaBancariaID, totalNeto);
+      }
+
       await this.ejecutarActualizaciones(tx, id, datosEncabezado, Detalles, DetallesEliminar);
+
+      if (cambiaAPagado) {
+        const totalNeto = dto.TotalNeto ?? compraExistente.TotalNeto ?? 0;
+        await crearPagoYMovimientoBancario(tx, {
+          referenciaTipo: 'Compras',
+          referenciaID: id,
+          metodoPagoID: MetodoPagoID!,
+          cuentaBancariaID: CuentaBancariaID!,
+          monto: totalNeto,
+          UsuarioID: dto.UsuarioID || 0,
+          observaciones: `Pago completo de compra #${id}`,
+          fechaPago: moment().format('YYYY-MM-DD'),
+        });
+      }
 
       if (cambiaAFinalizado && !hayRecepcionesPrevias) {
         const totalNeto = dto.TotalNeto ?? compraExistente.TotalNeto ?? 0;
@@ -82,7 +111,7 @@ class ComprasService {
    * Obtiene todos los estatus disponibles para compras
    */
   async findEstatus() {
-    const estatusCompra = ['Pendiente', 'Finalizado'];
+    const estatusCompra = ['Pendiente', 'Pagado', 'Finalizado'];
     return { message: 'Estatus obtenidos', data: estatusCompra };
   }
 
@@ -164,9 +193,9 @@ class ComprasService {
   }
 
   private async validarRequisitosCreacion(tx: Prisma.TransactionClient, dto: CreateCompraDto): Promise<void> {
-    if (dto.Estatus === ESTATUS_FINALIZADO) {
+    if (dto.Estatus === ESTATUS_FINALIZADO || dto.Estatus === ESTATUS_PAGADO) {
       if (!dto.MetodoPagoID) {
-        throw new HttpError('El MetodoPagoID es requerido cuando el estatus es Finalizado', 400);
+        throw new HttpError('El MetodoPagoID es requerido cuando el estatus es Finalizado o Pagado', 400);
       }
       await validarSaldoCuentaBancaria(tx, dto.CuentaBancariaID, dto.TotalNeto);
     }
@@ -176,10 +205,17 @@ class ComprasService {
     if (estatus === ESTATUS_FINALIZADO) {
       throw new HttpError('No se puede modificar una compra finalizada', 400);
     }
+    if (estatus === ESTATUS_PAGADO) {
+      throw new HttpError('No se puede modificar una compra ya pagada', 400);
+    }
   }
 
   private verificarCambioAFinalizado(nuevoEstatus: string | undefined, estatusActual: compras_encabezado_Estatus | null): boolean {
     return nuevoEstatus === ESTATUS_FINALIZADO && estatusActual !== ESTATUS_FINALIZADO;
+  }
+
+  private verificarCambioAPagado(nuevoEstatus: string | undefined, estatusActual: compras_encabezado_Estatus | null): boolean {
+    return nuevoEstatus === ESTATUS_PAGADO && estatusActual === 'Pendiente';
   }
 
   private async validarRequisitosFinalizacion(
@@ -350,6 +386,26 @@ class ComprasService {
   // ═══════════════════════════════════════════════════════════════════════════
   // PROCESAMIENTO DE FINALIZACIÓN
   // ═══════════════════════════════════════════════════════════════════════════
+
+  private async procesarPago(
+    tx: Prisma.TransactionClient,
+    compraEncabezadoID: number,
+    dto: CreateCompraDto,
+  ): Promise<void> {
+    const usuarioID = dto.UsuarioID || 0;
+    const fechaHoy = moment().format('YYYY-MM-DD');
+
+    await crearPagoYMovimientoBancario(tx, {
+      referenciaTipo: 'Compras',
+      referenciaID: compraEncabezadoID,
+      metodoPagoID: dto.MetodoPagoID!,
+      cuentaBancariaID: dto.CuentaBancariaID,
+      monto: dto.TotalNeto,
+      UsuarioID: usuarioID,
+      observaciones: `Pago completo de compra #${compraEncabezadoID} (pendiente de recepción)`,
+      fechaPago: fechaHoy,
+    });
+  }
 
   private async procesarFinalizacion(
     tx: Prisma.TransactionClient,

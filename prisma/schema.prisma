@@ -31,7 +31,7 @@ model catalogo_bancos {
 
 model catalogo_clasificacion_refacciones {
   ClasificacionRefaccionID Int                   @id @default(autoincrement())
-  Codigo                   String?               @unique @db.VarChar(10)
+  Codigo                   String?               @db.VarChar(10)
   NombreClasificacion      String?               @db.VarChar(255)
   Observaciones            String?               @db.VarChar(255)
   IsActive                 Int?                  @db.TinyInt
@@ -40,8 +40,8 @@ model catalogo_clasificacion_refacciones {
 
 model catalogo_clientes {
   ClienteID         Int                        @id @default(autoincrement())
-  NombreComercio    String?                    @db.VarChar(255)
-  Observaciones     String?                    @db.VarChar(255)
+  NombreComercio    String?                    @db.VarChar(500)
+  Observaciones     String?                    @db.VarChar(500)
   IsActive          Boolean?
   sucursales        clientes_sucursales[]
   presupuestos      presupuestos_encabezado[]
@@ -89,16 +89,31 @@ model catalogo_metodos_pago {
 }
 
 model catalogo_proveedores {
-  ProveedorID        Int                  @id @default(autoincrement())
-  NombreProveedor    String?              @db.VarChar(255)
-  Direccion          String?              @db.VarChar(255)
-  Telefono           String?              @db.VarChar(255)
-  Contacto           String?              @db.VarChar(255)
-  Pais               String?              @db.VarChar(255)
-  Correo             String?              @db.VarChar(255)
-  Observaciones      String?              @db.VarChar(255)
+  ProveedorID        Int                       @id @default(autoincrement())
+  NombreProveedor    String?                   @db.VarChar(255)
+  Direccion          String?                   @db.VarChar(255)
+  Telefono           String?                   @db.VarChar(255)
+  Contacto           String?                   @db.VarChar(255)
+  Pais               String?                   @db.VarChar(255)
+  Correo             String?                   @db.VarChar(255)
+  Observaciones      String?                   @db.VarChar(255)
   IsActive           Boolean?
-  compras_encabezado compras_encabezado[] @relation("ProveedorCompras")
+  compras_encabezado compras_encabezado[]      @relation("ProveedorCompras")
+  contactos          proveedores_contactos[]
+}
+
+model proveedores_contactos {
+  ContactoID      Int                   @id @default(autoincrement())
+  ProveedorID     Int
+  NombreContacto  String                @db.VarChar(255)
+  Celular         String?               @db.VarChar(50)
+  Correo          String?               @db.VarChar(255)
+  Observaciones   String?               @db.VarChar(500)
+  IsActive        Boolean?              @default(true)
+
+  proveedor       catalogo_proveedores  @relation(fields: [ProveedorID], references: [ProveedorID])
+
+  @@index([ProveedorID])
 }
 
 model catalogo_puestosTrabajo {
@@ -511,6 +526,7 @@ enum clientes_correos_TipoCorreo {
 
 enum compras_encabezado_Estatus {
   Pendiente
+  Pagado
   Finalizado
 }
 

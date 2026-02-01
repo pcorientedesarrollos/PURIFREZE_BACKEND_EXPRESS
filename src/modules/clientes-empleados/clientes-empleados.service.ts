@@ -6,35 +6,35 @@ class ClientesEmpleadosService {
   async create(data: CreateClienteEmpleadoDto) {
     const { NombreEmpleado, PuestosTrabajoIDs, SucursalID, Observaciones } = data;
 
-    // Validar que la sucursal exista
-    const sucursal = await prisma.clientes_sucursales.findUnique({
-      where: { SucursalID },
-    });
-
-    if (!sucursal) {
-      throw new HttpError('La sucursal no existe', 404);
-    }
-
-    // Validar que el nombre no exista en la misma sucursal
-    const findEmpleado = await prisma.clientes_empleados.findFirst({
-      where: { NombreEmpleado, SucursalID },
-    });
-
-    if (findEmpleado) {
-      throw new HttpError('El nombre del empleado ya existe en esta sucursal', 300);
-    }
-
-    // Validar que todos los puestos existan
-    const puestosExistentes = await prisma.catalogo_puestosTrabajo.findMany({
-      where: { PuestoTrabajoID: { in: PuestosTrabajoIDs } },
-    });
-
-    if (puestosExistentes.length !== PuestosTrabajoIDs.length) {
-      throw new HttpError('Uno o más puestos de trabajo no existen', 300);
-    }
-
-    // Crear empleado con sus puestos en una transacción
+    // Crear empleado con sus puestos en una transacción (validaciones dentro para evitar race conditions)
     const empleado = await prisma.$transaction(async (tx) => {
+      // Validar que la sucursal exista
+      const sucursal = await tx.clientes_sucursales.findUnique({
+        where: { SucursalID },
+      });
+
+      if (!sucursal) {
+        throw new HttpError('La sucursal no existe', 404);
+      }
+
+      // Validar que el nombre no exista en la misma sucursal (solo activos)
+      const findEmpleado = await tx.clientes_empleados.findFirst({
+        where: { NombreEmpleado, SucursalID, IsActive: true },
+      });
+
+      if (findEmpleado) {
+        throw new HttpError('El nombre del empleado ya existe en esta sucursal', 300);
+      }
+
+      // Validar que todos los puestos existan
+      const puestosExistentes = await tx.catalogo_puestosTrabajo.findMany({
+        where: { PuestoTrabajoID: { in: PuestosTrabajoIDs } },
+      });
+
+      if (puestosExistentes.length !== PuestosTrabajoIDs.length) {
+        throw new HttpError('Uno o más puestos de trabajo no existen', 300);
+      }
+
       const nuevoEmpleado = await tx.clientes_empleados.create({
         data: {
           ClienteID: sucursal.ClienteID,
@@ -158,44 +158,47 @@ class ClientesEmpleadosService {
   async update(EmpleadoID: number, data: UpdateClienteEmpleadoDto) {
     const { NombreEmpleado } = data;
 
-    const empleadoExist = await prisma.clientes_empleados.findUnique({
-      where: { EmpleadoID },
-    });
-
-    if (!empleadoExist) {
-      throw new HttpError('No existe el empleado', 404);
-    }
-
-    if (NombreEmpleado) {
-      const nameInUse = await prisma.clientes_empleados.findFirst({
-        where: {
-          NombreEmpleado,
-          SucursalID: empleadoExist.SucursalID,
-          EmpleadoID: { not: EmpleadoID },
-        },
+    const empleadoUpdate = await prisma.$transaction(async (tx) => {
+      const empleadoExist = await tx.clientes_empleados.findUnique({
+        where: { EmpleadoID },
       });
 
-      if (nameInUse) {
-        throw new HttpError('El nombre del empleado ya existe en esta sucursal', 300);
+      if (!empleadoExist) {
+        throw new HttpError('No existe el empleado', 404);
       }
-    }
 
-    const empleadoUpdate = await prisma.clientes_empleados.update({
-      where: { EmpleadoID },
-      data,
-      include: {
-        sucursal: {
-          include: {
-            cliente: true,
+      if (NombreEmpleado) {
+        const nameInUse = await tx.clientes_empleados.findFirst({
+          where: {
+            NombreEmpleado,
+            SucursalID: empleadoExist.SucursalID,
+            EmpleadoID: { not: EmpleadoID },
+            IsActive: true,
+          },
+        });
+
+        if (nameInUse) {
+          throw new HttpError('El nombre del empleado ya existe en esta sucursal', 300);
+        }
+      }
+
+      return tx.clientes_empleados.update({
+        where: { EmpleadoID },
+        data,
+        include: {
+          sucursal: {
+            include: {
+              cliente: true,
+            },
+          },
+          empleados_puestos: {
+            where: { IsActive: true },
+            include: {
+              puesto: true,
+            },
           },
         },
-        empleados_puestos: {
-          where: { IsActive: true },
-          include: {
-            puesto: true,
-          },
-        },
-      },
+      });
     });
 
     return { message: 'Empleado Actualizado', data: empleadoUpdate };
