@@ -9,7 +9,9 @@
       "Bash(npx prisma:*)",
       "Bash(npx ts-node:*)",
       "Bash(find:*)",
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(node:*)",
+      "Bash(npx ts-node-dev:*)"
     ],
     "deny": [],
     "ask": []
