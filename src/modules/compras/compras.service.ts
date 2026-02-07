@@ -1,6 +1,6 @@
 import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
-import { Prisma, compras_encabezado_Estatus } from '@prisma/client';
+import { Prisma, compras_encabezado_Estatus, FormaPagoCompra, EstadoPagoCompra, EstadoEntregaCompra } from '@prisma/client';
 import moment from 'moment';
 import {
   CreateCompraDto,
@@ -33,6 +33,11 @@ class ComprasService {
 
       const encabezado = await this.crearEncabezadoCompra(tx, dto);
       const detalles = await this.crearDetallesCompra(tx, encabezado.CompraEncabezadoID, dto.Detalles);
+
+      // Si es CONTADO, crear pago automático en compras_pagos
+      if (dto.FormaPago === 'CONTADO' && dto.MetodoPagoID && dto.CuentaBancariaID) {
+        await this.crearPagoAutomaticoContado(tx, encabezado.CompraEncabezadoID, dto);
+      }
 
       if (dto.Estatus === ESTATUS_FINALIZADO) {
         await this.procesarFinalizacion(tx, encabezado.CompraEncabezadoID, dto.Detalles, dto);
@@ -123,14 +128,25 @@ class ComprasService {
       include: {
         compras_detalle: true,
         catalogo_proveedores: true,
+        compras_pagos: {
+          where: { IsActive: 1 },
+          orderBy: { FechaPago: 'desc' },
+        },
       },
       orderBy: { CompraEncabezadoID: 'desc' },
     });
 
-    // Formatear FechaCompra a solo fecha (YYYY-MM-DD)
+    // Formatear fechas
     const comprasFormateadas = compras.map((compra) => ({
       ...compra,
       FechaCompra: compra.FechaCompra ? moment(compra.FechaCompra).format('YYYY-MM-DD') : null,
+      FechaVencimientoCredito: compra.FechaVencimientoCredito
+        ? moment(compra.FechaVencimientoCredito).format('YYYY-MM-DD')
+        : null,
+      compras_pagos: compra.compras_pagos.map((pago) => ({
+        ...pago,
+        FechaPago: moment(pago.FechaPago).format('YYYY-MM-DD'),
+      })),
     }));
 
     return { message: 'Compras obtenidas', data: comprasFormateadas };
@@ -142,17 +158,44 @@ class ComprasService {
   async findOne(id: number) {
     const compra = await prisma.compras_encabezado.findUnique({
       where: { CompraEncabezadoID: id },
-      include: { compras_detalle: true },
+      include: {
+        compras_detalle: true,
+        compras_pagos: {
+          where: { IsActive: 1 },
+          orderBy: { FechaPago: 'desc' },
+        },
+        compras_recepciones: {
+          where: { IsActive: 1 },
+          include: {
+            compras_recepciones_detalle: {
+              where: { IsActive: 1 },
+            },
+          },
+        },
+      },
     });
 
     if (!compra) {
       throw new HttpError('Compra no encontrada', 404);
     }
 
-    // Formatear FechaCompra a solo fecha (YYYY-MM-DD)
+    // Formatear fechas
     const compraFormateada = {
       ...compra,
       FechaCompra: compra.FechaCompra ? moment(compra.FechaCompra).format('YYYY-MM-DD') : null,
+      FechaVencimientoCredito: compra.FechaVencimientoCredito
+        ? moment(compra.FechaVencimientoCredito).format('YYYY-MM-DD')
+        : null,
+      compras_pagos: compra.compras_pagos.map((pago) => ({
+        ...pago,
+        FechaPago: moment(pago.FechaPago).format('YYYY-MM-DD'),
+      })),
+      compras_recepciones: compra.compras_recepciones.map((recepcion) => ({
+        ...recepcion,
+        FechaRecepcion: recepcion.FechaRecepcion
+          ? moment(recepcion.FechaRecepcion).format('YYYY-MM-DD')
+          : null,
+      })),
     };
 
     return { message: 'Compra obtenida', data: compraFormateada };
@@ -193,11 +236,25 @@ class ComprasService {
   }
 
   private async validarRequisitosCreacion(tx: Prisma.TransactionClient, dto: CreateCompraDto): Promise<void> {
+    // Validar requisitos para CONTADO
+    if (dto.FormaPago === 'CONTADO') {
+      if (!dto.MetodoPagoID) {
+        throw new HttpError('El MetodoPagoID es requerido para compras de CONTADO', 400);
+      }
+      if (!dto.CuentaBancariaID) {
+        throw new HttpError('El CuentaBancariaID es requerido para compras de CONTADO', 400);
+      }
+      await validarSaldoCuentaBancaria(tx, dto.CuentaBancariaID, dto.TotalNeto);
+    }
+
+    // Validar requisitos para Finalizado/Pagado (compatibilidad con sistema anterior)
     if (dto.Estatus === ESTATUS_FINALIZADO || dto.Estatus === ESTATUS_PAGADO) {
       if (!dto.MetodoPagoID) {
         throw new HttpError('El MetodoPagoID es requerido cuando el estatus es Finalizado o Pagado', 400);
       }
-      await validarSaldoCuentaBancaria(tx, dto.CuentaBancariaID, dto.TotalNeto);
+      if (dto.CuentaBancariaID) {
+        await validarSaldoCuentaBancaria(tx, dto.CuentaBancariaID, dto.TotalNeto);
+      }
     }
   }
 
@@ -296,6 +353,19 @@ class ComprasService {
   }
 
   private async crearEncabezadoCompra(tx: Prisma.TransactionClient, dto: CreateCompraDto) {
+    // Calcular fecha de vencimiento para crédito
+    let fechaVencimientoCredito: Date | null = null;
+    if (dto.FormaPago === 'CREDITO' && dto.DiasCredito) {
+      fechaVencimientoCredito = moment(dto.FechaCompra).add(dto.DiasCredito, 'days').toDate();
+    } else if (dto.FechaVencimientoCredito) {
+      fechaVencimientoCredito = dto.FechaVencimientoCredito;
+    }
+
+    // Determinar estados iniciales
+    const esContado = dto.FormaPago === 'CONTADO';
+    const estadoPagoInicial: EstadoPagoCompra = esContado ? 'PAGADO' : 'PENDIENTE';
+    const estadoEntregaInicial: EstadoEntregaCompra = dto.Estatus === 'Finalizado' ? 'ENTREGADO' : 'NO_ENTREGADO';
+
     return await tx.compras_encabezado.create({
       data: {
         ProveedorID: dto.ProveedorID,
@@ -311,6 +381,14 @@ class ComprasService {
         Estatus: dto.Estatus as compras_encabezado_Estatus,
         IsActive: true,
         FechaAlta: moment().format('YYYY-MM-DD HH:mm:ss'),
+        // Nuevos campos para sistema de ejes independientes
+        FormaPago: (dto.FormaPago || 'CREDITO') as FormaPagoCompra,
+        EstadoPago: estadoPagoInicial,
+        EstadoEntrega: estadoEntregaInicial,
+        TotalPagado: esContado ? dto.TotalNeto : 0,
+        TotalRecibido: estadoEntregaInicial === 'ENTREGADO' ? dto.TotalNeto : 0,
+        DiasCredito: dto.DiasCredito || null,
+        FechaVencimientoCredito: fechaVencimientoCredito,
       },
     });
   }
@@ -399,7 +477,7 @@ class ComprasService {
       referenciaTipo: 'Compras',
       referenciaID: compraEncabezadoID,
       metodoPagoID: dto.MetodoPagoID!,
-      cuentaBancariaID: dto.CuentaBancariaID,
+      cuentaBancariaID: dto.CuentaBancariaID!,
       monto: dto.TotalNeto,
       UsuarioID: usuarioID,
       observaciones: `Pago completo de compra #${compraEncabezadoID} (pendiente de recepción)`,
@@ -541,11 +619,125 @@ class ComprasService {
       referenciaTipo: 'Compras',
       referenciaID: compraID,
       metodoPagoID: dto.MetodoPagoID!,
-      cuentaBancariaID: dto.CuentaBancariaID,
+      cuentaBancariaID: dto.CuentaBancariaID!,
       monto: dto.TotalNeto,
       UsuarioID: usuarioID,
       observaciones: `Pago de compra #${compraID}`,
       fechaPago: fecha,
+    });
+  }
+
+  /**
+   * Crea un pago automático en compras_pagos para compras de CONTADO
+   */
+  private async crearPagoAutomaticoContado(
+    tx: Prisma.TransactionClient,
+    compraEncabezadoID: number,
+    dto: CreateCompraDto
+  ): Promise<void> {
+    const fechaHoy = moment().format('YYYY-MM-DD');
+    const usuarioID = dto.UsuarioID || 0;
+
+    // Crear pago en compras_pagos
+    const pago = await tx.compras_pagos.create({
+      data: {
+        CompraEncabezadoID: compraEncabezadoID,
+        MetodoPagoID: dto.MetodoPagoID!,
+        CuentaBancariaID: dto.CuentaBancariaID!,
+        Monto: dto.TotalNeto,
+        FechaPago: new Date(fechaHoy),
+        Observaciones: `Pago automático de compra CONTADO #${compraEncabezadoID}`,
+        UsuarioID: usuarioID,
+        IsActive: 1,
+      },
+    });
+
+    // Crear movimiento bancario (egreso)
+    await tx.historial_movimientos_bancarios.create({
+      data: {
+        CuentaBancariaID: dto.CuentaBancariaID!,
+        PagosID: pago.CompraPagoID,
+        CobrosID: 0,
+        CuentaContableID: '',
+        DescripcionMovimiento: `Pago de compra CONTADO #${compraEncabezadoID}`,
+        FechaMovimiento: new Date(fechaHoy),
+        EoI: false,
+        MontoMovimiento: dto.TotalNeto,
+      },
+    });
+
+    // Actualizar saldo de cuenta bancaria
+    const cuentaBancaria = await tx.catalogo_cuentasBancarias.findUnique({
+      where: { CuentaBancariaID: dto.CuentaBancariaID! },
+    });
+
+    if (cuentaBancaria) {
+      const nuevoSaldo = (cuentaBancaria.Saldo || 0) - dto.TotalNeto;
+      await tx.catalogo_cuentasBancarias.update({
+        where: { CuentaBancariaID: dto.CuentaBancariaID! },
+        data: { Saldo: nuevoSaldo },
+      });
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MÉTODOS PARA SISTEMA DE EJES INDEPENDIENTES
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Actualiza el EstadoEntrega y TotalRecibido de una compra
+   * basado en las recepciones realizadas
+   */
+  async actualizarEstadoEntrega(tx: Prisma.TransactionClient, compraEncabezadoID: number) {
+    // Obtener compra con detalles
+    const compra = await tx.compras_encabezado.findUnique({
+      where: { CompraEncabezadoID: compraEncabezadoID },
+      include: { compras_detalle: { where: { IsActive: true } } },
+    });
+
+    if (!compra) return;
+
+    // Obtener cantidades recibidas por refacción
+    const cantidadesRecibidas = await obtenerCantidadesRecibidasCompra(tx, compraEncabezadoID);
+
+    // Calcular totales
+    let totalCantidadComprada = 0;
+    let totalCantidadRecibida = 0;
+    let totalMontoRecibido = 0;
+
+    for (const detalle of compra.compras_detalle) {
+      if (!detalle.RefaccionID) continue;
+
+      const cantidadComprada = detalle.Cantidad || 0;
+      const cantidadRecibida = cantidadesRecibidas.get(detalle.RefaccionID) || 0;
+      const precioUnitario = detalle.PrecioUnitario || 0;
+
+      totalCantidadComprada += cantidadComprada;
+      totalCantidadRecibida += Math.min(cantidadRecibida, cantidadComprada);
+      totalMontoRecibido += Math.min(cantidadRecibida, cantidadComprada) * precioUnitario;
+    }
+
+    // Determinar estado de entrega
+    let nuevoEstado: EstadoEntregaCompra;
+    if (totalCantidadRecibida >= totalCantidadComprada && totalCantidadComprada > 0) {
+      nuevoEstado = 'ENTREGADO';
+    } else if (totalCantidadRecibida > 0) {
+      nuevoEstado = 'PARCIAL';
+    } else {
+      nuevoEstado = 'NO_ENTREGADO';
+    }
+
+    // Actualizar compra
+    await tx.compras_encabezado.update({
+      where: { CompraEncabezadoID: compraEncabezadoID },
+      data: {
+        TotalRecibido: totalMontoRecibido,
+        EstadoEntrega: nuevoEstado,
+        // Actualizar Estatus legacy si corresponde
+        Estatus: nuevoEstado === 'ENTREGADO' && compra.EstadoPago === 'PAGADO'
+          ? 'Finalizado'
+          : compra.Estatus,
+      },
     });
   }
 }

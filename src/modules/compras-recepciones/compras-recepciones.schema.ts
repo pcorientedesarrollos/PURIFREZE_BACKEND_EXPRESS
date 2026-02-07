@@ -7,14 +7,16 @@ export const createRecepcionDetalleSchema = z.object({
 });
 
 // Schema para crear recepción de compra
+// Nota: Con el nuevo sistema de ejes independientes, los pagos se hacen por separado
+// a través del módulo compras-pagos. Los campos de pago ahora son opcionales.
 export const createRecepcionSchema = z.object({
   CompraEncabezadoID: z.number({ required_error: 'CompraEncabezadoID es requerido' }),
   FechaRecepcion: z.string().optional(),
   Observaciones: z.string().optional(),
-  MontoRecepcion: z.number({ required_error: 'MontoRecepcion es requerido' }),
+  MontoRecepcion: z.number().optional().default(0), // Ya no es requerido
   UsuarioID: z.number({ required_error: 'UsuarioID es requerido' }),
-  MetodoPagoID: z.number({ required_error: 'MetodoPagoID es requerido' }),
-  CuentaBancariaID: z.number({ required_error: 'CuentaBancariaID es requerido' }),
+  MetodoPagoID: z.number().optional(), // Ahora opcional
+  CuentaBancariaID: z.number().optional(), // Ahora opcional
   Detalles: z.array(createRecepcionDetalleSchema).min(1, 'Debe incluir al menos un detalle'),
 });
 

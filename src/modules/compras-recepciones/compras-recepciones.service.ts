@@ -1,33 +1,29 @@
 import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
-import { compras_encabezado_Estatus } from '@prisma/client';
+import { compras_encabezado_Estatus, EstadoEntregaCompra, Prisma } from '@prisma/client';
 import moment from 'moment';
 import { CreateRecepcionDto } from './compras-recepciones.schema';
 import {
-  validarSaldoCuentaBancaria,
   actualizarInventario,
   crearKardex,
   actualizarCostoPromedioRefaccion,
-  crearPagoYMovimientoBancario,
-  obtenerTotalPagadoCompra,
   obtenerCantidadesRecibidasCompra,
 } from '../../shared/shared-operations.service';
 
 const ESTATUS_FINALIZADO: compras_encabezado_Estatus = 'Finalizado';
-const ESTATUS_PAGADO: compras_encabezado_Estatus = 'Pagado';
 
 class ComprasRecepcionesService {
   // ==================== CREAR RECEPCIÓN ====================
 
   async create(createDto: CreateRecepcionDto) {
-    const { CompraEncabezadoID, Detalles, MontoRecepcion, MetodoPagoID, CuentaBancariaID, UsuarioID } = createDto;
+    const { CompraEncabezadoID, Detalles, MontoRecepcion, UsuarioID } = createDto;
     const fechaHoyStr = createDto.FechaRecepcion || moment().format('YYYY-MM-DD');
     const fechaHoy = new Date(fechaHoyStr);
     const usuarioIDNum = UsuarioID || 0;
 
     const result = await prisma.$transaction(
       async (tx) => {
-      // 1. Verificar que la compra exista y no esté finalizada
+      // 1. Verificar que la compra exista y no esté completamente entregada
       const compra = await tx.compras_encabezado.findUnique({
         where: { CompraEncabezadoID },
         include: { compras_detalle: true },
@@ -37,23 +33,17 @@ class ComprasRecepcionesService {
         throw new HttpError('Compra no encontrada', 404);
       }
 
-      if (compra.Estatus === ESTATUS_FINALIZADO) {
-        throw new HttpError('La compra ya está finalizada', 400);
+      // Usar nuevo sistema de estados (EstadoEntrega en lugar de Estatus)
+      if (compra.EstadoEntrega === 'ENTREGADO') {
+        throw new HttpError('La compra ya está completamente entregada', 400);
       }
-
-      const compraYaPagada = compra.Estatus === ESTATUS_PAGADO;
 
       // 2. Validar que vengan detalles
       if (!Detalles?.length) {
         throw new HttpError('No ingresaste ninguna refacción en la recepción', 400);
       }
 
-      // 3. Validar saldo suficiente en cuenta bancaria (solo si NO está pagada)
-      if (!compraYaPagada) {
-        await validarSaldoCuentaBancaria(tx, CuentaBancariaID, MontoRecepcion);
-      }
-
-      // 4. Obtener cantidades ya recibidas
+      // 3. Obtener cantidades ya recibidas (sin validar pago, ahora son independientes)
       const cantidadesRecibidas = await obtenerCantidadesRecibidasCompra(tx, CompraEncabezadoID);
 
       // 5. Validar que las cantidades no excedan las de la compra
@@ -89,21 +79,7 @@ class ComprasRecepcionesService {
         }
       }
 
-      // 6. Validar que el monto no exceda el pendiente por pagar (solo si NO está pagada)
-      const totalPagado = await obtenerTotalPagadoCompra(tx, CompraEncabezadoID);
-
-      if (!compraYaPagada) {
-        const montoPendiente = (compra.TotalNeto || 0) - totalPagado;
-
-        if (MontoRecepcion > montoPendiente) {
-          throw new HttpError(
-            `El monto de la recepción ($${MontoRecepcion}) excede el monto pendiente por pagar ($${montoPendiente})`,
-            400,
-          );
-        }
-      }
-
-      // 7. Crear recepción de compra (encabezado)
+      // 6. Crear recepción de compra (encabezado)
       const recepcionGuardada = await tx.compras_recepciones_encabezado.create({
         data: {
           CompraEncabezadoID,
@@ -115,7 +91,7 @@ class ComprasRecepcionesService {
         },
       });
 
-      // 8. Crear detalles de recepción y procesar inventario/kardex
+      // 7. Crear detalles de recepción y procesar inventario/kardex
       for (const detalleRecepcion of Detalles) {
         // Crear detalle de recepción
         await tx.compras_recepciones_detalle.create({
@@ -160,39 +136,19 @@ class ComprasRecepcionesService {
         );
       }
 
-      // 9. Crear pago automático (solo si la compra NO está ya pagada)
-      if (!compraYaPagada) {
-        await crearPagoYMovimientoBancario(tx, {
-          referenciaTipo: 'Compras',
-          referenciaID: CompraEncabezadoID,
-          metodoPagoID: MetodoPagoID,
-          cuentaBancariaID: CuentaBancariaID,
-          monto: MontoRecepcion,
-          UsuarioID: UsuarioID || 0,
-          observaciones: `Pago parcial de compra #${CompraEncabezadoID} - Recepción #${recepcionGuardada.ComprasRecepcionesEncabezadoID}`,
-          fechaPago: fechaHoyStr,
-        });
-      }
+      // 8. Actualizar estado de entrega de la compra (nuevo sistema de ejes independientes)
+      await this.actualizarEstadoEntrega(tx, CompraEncabezadoID);
 
-      // 10. Verificar si la compra se completó
-      const nuevoTotalPagado = compraYaPagada ? totalPagado : totalPagado + MontoRecepcion;
-      const nuevasCantidadesRecibidas = await obtenerCantidadesRecibidasCompra(tx, CompraEncabezadoID);
+      // 9. Verificar estado final
+      const compraActualizada = await tx.compras_encabezado.findUnique({
+        where: { CompraEncabezadoID },
+      });
 
-      // Verificar si todas las cantidades están completas
-      let recepcionCompleta = true;
-      for (const detalle of compra.compras_detalle) {
-        if (detalle.IsActive && detalle.RefaccionID) {
-          const cantidadRecibida = nuevasCantidadesRecibidas.get(detalle.RefaccionID) || 0;
-          if (cantidadRecibida < (detalle.Cantidad || 0)) {
-            recepcionCompleta = false;
-            break;
-          }
-        }
-      }
+      const entregaCompleta = compraActualizada?.EstadoEntrega === 'ENTREGADO';
+      const pagoCompleto = compraActualizada?.EstadoPago === 'PAGADO';
 
-      // Si el pago y las recepciones están completas, finalizar la compra
-      const totalNeto = compra.TotalNeto || 0;
-      if (recepcionCompleta && nuevoTotalPagado >= totalNeto) {
+      // Actualizar Estatus legacy si ambos ejes están completos
+      if (entregaCompleta && pagoCompleto) {
         await tx.compras_encabezado.update({
           where: { CompraEncabezadoID },
           data: { Estatus: ESTATUS_FINALIZADO },
@@ -201,7 +157,9 @@ class ComprasRecepcionesService {
 
       return {
         recepcion: recepcionGuardada,
-        compraFinalizada: recepcionCompleta && nuevoTotalPagado >= totalNeto,
+        estadoEntrega: compraActualizada?.EstadoEntrega,
+        estadoPago: compraActualizada?.EstadoPago,
+        compraFinalizada: entregaCompleta && pagoCompleto,
       };
     },
       {
@@ -424,6 +382,63 @@ class ComprasRecepcionesService {
     }
 
     return { message: 'Recepción obtenida', data: recepcion };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // MÉTODOS PARA SISTEMA DE EJES INDEPENDIENTES
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Actualiza el EstadoEntrega y TotalRecibido de una compra
+   * basado en las recepciones realizadas
+   */
+  private async actualizarEstadoEntrega(tx: Prisma.TransactionClient, compraEncabezadoID: number) {
+    // Obtener compra con detalles
+    const compra = await tx.compras_encabezado.findUnique({
+      where: { CompraEncabezadoID: compraEncabezadoID },
+      include: { compras_detalle: { where: { IsActive: true } } },
+    });
+
+    if (!compra) return;
+
+    // Obtener cantidades recibidas por refacción
+    const cantidadesRecibidas = await obtenerCantidadesRecibidasCompra(tx, compraEncabezadoID);
+
+    // Calcular totales
+    let totalCantidadComprada = 0;
+    let totalCantidadRecibida = 0;
+    let totalMontoRecibido = 0;
+
+    for (const detalle of compra.compras_detalle) {
+      if (!detalle.RefaccionID) continue;
+
+      const cantidadComprada = detalle.Cantidad || 0;
+      const cantidadRecibida = cantidadesRecibidas.get(detalle.RefaccionID) || 0;
+      const precioUnitario = detalle.PrecioUnitario || 0;
+
+      totalCantidadComprada += cantidadComprada;
+      totalCantidadRecibida += Math.min(cantidadRecibida, cantidadComprada);
+      totalMontoRecibido += Math.min(cantidadRecibida, cantidadComprada) * precioUnitario;
+    }
+
+    // Determinar estado de entrega
+    let nuevoEstado: EstadoEntregaCompra;
+    if (totalCantidadRecibida >= totalCantidadComprada && totalCantidadComprada > 0) {
+      nuevoEstado = 'ENTREGADO';
+    } else if (totalCantidadRecibida > 0) {
+      nuevoEstado = 'PARCIAL';
+    } else {
+      nuevoEstado = 'NO_ENTREGADO';
+    }
+
+    // Actualizar compra
+    await tx.compras_encabezado.update({
+      where: { CompraEncabezadoID: compraEncabezadoID },
+      data: {
+        TotalRecibido: totalMontoRecibido,
+        EstadoEntrega: nuevoEstado,
+      },
+    });
   }
 }
 

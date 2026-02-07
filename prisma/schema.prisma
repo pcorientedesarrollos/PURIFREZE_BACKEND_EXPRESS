@@ -268,10 +268,25 @@ model compras_encabezado {
   TotalNeto                 Float?                      @db.Float
   FechaAlta                 String?                     @db.VarChar(255)
   IsActive                  Boolean?
-  Estatus                   compras_encabezado_Estatus?
   UsuarioID                 Int?
+
+  // DEPRECADO - Mantener para compatibilidad
+  Estatus                   compras_encabezado_Estatus?
+
+  // NUEVOS CAMPOS - Sistema de ejes independientes
+  FormaPago                 FormaPagoCompra             @default(CREDITO)
+  EstadoPago                EstadoPagoCompra            @default(PENDIENTE)
+  EstadoEntrega             EstadoEntregaCompra         @default(NO_ENTREGADO)
+  TotalPagado               Float?                      @db.Float @default(0)
+  TotalRecibido             Float?                      @db.Float @default(0)
+  DiasCredito               Int?
+  FechaVencimientoCredito   DateTime?                   @db.Date
+
+  // Relaciones
   compras_detalle           compras_detalle[]           @relation("CompraDetalles")
   catalogo_proveedores      catalogo_proveedores?       @relation("ProveedorCompras", fields: [ProveedorID], references: [ProveedorID])
+  compras_pagos             compras_pagos[]             @relation("CompraPagos")
+  compras_recepciones       compras_recepciones_encabezado[] @relation("CompraRecepciones")
 }
 
 model compras_recepciones_detalle {
@@ -292,6 +307,31 @@ model compras_recepciones_encabezado {
   UsuarioID                      Int?
   IsActive                       Int?                          @db.TinyInt
   compras_recepciones_detalle    compras_recepciones_detalle[] @relation("RecepcionDetalles")
+  compra                         compras_encabezado?           @relation("CompraRecepciones", fields: [CompraEncabezadoID], references: [CompraEncabezadoID])
+
+  @@index([CompraEncabezadoID])
+}
+
+// =============================================
+// PAGOS DE COMPRAS (Sistema de ejes independientes)
+// =============================================
+
+model compras_pagos {
+  CompraPagoID        Int                  @id @default(autoincrement())
+  CompraEncabezadoID  Int
+  MetodoPagoID        Int
+  CuentaBancariaID    Int?
+  Monto               Float                @db.Float
+  FechaPago           DateTime             @db.Date
+  Referencia          String?              @db.VarChar(100)
+  Observaciones       String?              @db.VarChar(255)
+  UsuarioID           Int
+  FechaRegistro       DateTime             @default(now())
+  IsActive            Int?                 @db.TinyInt @default(1)
+
+  compra              compras_encabezado   @relation("CompraPagos", fields: [CompraEncabezadoID], references: [CompraEncabezadoID])
+
+  @@index([CompraEncabezadoID])
 }
 
 model historial_movimientos_bancarios {
@@ -541,6 +581,27 @@ enum compras_encabezado_Estatus {
   Pendiente
   Pagado
   Finalizado
+}
+
+// =============================================
+// ENUMS PARA SISTEMA DE COMPRAS (EJES INDEPENDIENTES)
+// =============================================
+
+enum FormaPagoCompra {
+  CONTADO
+  CREDITO
+}
+
+enum EstadoPagoCompra {
+  PENDIENTE
+  PARCIAL
+  PAGADO
+}
+
+enum EstadoEntregaCompra {
+  NO_ENTREGADO
+  PARCIAL
+  ENTREGADO
 }
 
 enum TipoTraspaso {

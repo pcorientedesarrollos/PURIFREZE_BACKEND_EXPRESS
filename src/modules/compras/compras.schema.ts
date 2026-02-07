@@ -16,7 +16,7 @@ export const createCompraDetalleSchema = z.object({
 // Schema para encabezado de compra (crear)
 export const createCompraSchema = z.object({
   ProveedorID: z.number({ required_error: 'ProveedorID es requerido' }),
-  CuentaBancariaID: z.number({ required_error: 'CuentaBancariaID es requerido' }),
+  CuentaBancariaID: z.number().optional(), // Ahora opcional, solo requerido para CONTADO
   FechaCompra: z.string({ required_error: 'FechaCompra es requerida' }).transform((val) => new Date(val)),
   TotalBruto: z.number({ required_error: 'TotalBruto es requerido' }),
   TotalDescuentosPorcentaje: z.number({ required_error: 'TotalDescuentosPorcentaje es requerido' }),
@@ -29,6 +29,10 @@ export const createCompraSchema = z.object({
   Estatus: z.string({ required_error: 'Estatus es requerido' }),
   MetodoPagoID: z.number().optional(),
   Detalles: z.array(createCompraDetalleSchema).min(1, 'Debe incluir al menos un detalle'),
+  // Nuevos campos para sistema de ejes independientes
+  FormaPago: z.enum(['CONTADO', 'CREDITO']).default('CREDITO'),
+  DiasCredito: z.number().optional(),
+  FechaVencimientoCredito: z.string().optional().transform((val) => val ? new Date(val) : undefined),
 });
 
 // Schema para detalle de compra (actualizar)
@@ -62,6 +66,10 @@ export const updateCompraSchema = z.object({
   MetodoPagoID: z.number().optional(),
   Detalles: z.array(updateCompraDetalleSchema).optional(),
   DetallesEliminar: z.array(z.number()).optional(),
+  // Nuevos campos para sistema de ejes independientes
+  FormaPago: z.enum(['CONTADO', 'CREDITO']).optional(),
+  DiasCredito: z.number().optional(),
+  FechaVencimientoCredito: z.string().optional().transform((val) => val ? new Date(val) : undefined),
 });
 
 // Schema para params

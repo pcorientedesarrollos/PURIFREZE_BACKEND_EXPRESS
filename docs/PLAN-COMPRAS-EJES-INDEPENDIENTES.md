@@ -1,8 +1,8 @@
 # Plan: Sistema de Compras con Ejes Independientes (PAGO y ENTREGA)
 
-> **Estado:** Pendiente de implementación
-> **Fecha:** 2026-02-06
-> **Para continuar:** Solo di "continúa con el plan de compras" en una nueva conversación
+> **Estado:** ✅ IMPLEMENTADO
+> **Fecha implementación:** 2026-02-06
+> **Archivos modificados/creados:** Ver sección "Archivos Implementados" al final
 
 ---
 
@@ -369,4 +369,56 @@ npx prisma generate
 
 ---
 
-**Para continuar la implementación, di:** "continúa con el plan de compras"
+---
+
+## Archivos Implementados
+
+### Nuevos Archivos Creados:
+
+| Archivo | Descripción |
+|---------|-------------|
+| `src/modules/compras-pagos/compras-pagos.schema.ts` | Schemas Zod para validación |
+| `src/modules/compras-pagos/compras-pagos.service.ts` | Lógica de negocio para pagos |
+| `src/modules/compras-pagos/compras-pagos.controller.ts` | Controlador HTTP |
+| `src/modules/compras-pagos/compras-pagos.routes.ts` | Definición de rutas |
+| `src/modules/compras-pagos/index.ts` | Exports del módulo |
+| `docs/sql/migracion_compras_ejes_independientes.sql` | Script SQL de migración |
+
+### Archivos Modificados:
+
+| Archivo | Cambios |
+|---------|---------|
+| `prisma/schema.prisma` | Nuevos enums, tabla compras_pagos, campos en compras_encabezado |
+| `src/modules/compras/compras.schema.ts` | Agregados FormaPago, DiasCredito, FechaVencimientoCredito |
+| `src/modules/compras/compras.service.ts` | Lógica CONTADO/CREDITO, actualizarEstadoEntrega() |
+| `src/modules/compras-recepciones/compras-recepciones.schema.ts` | Campos de pago ahora opcionales |
+| `src/modules/compras-recepciones/compras-recepciones.service.ts` | Removido pago automático, usa actualizarEstadoEntrega() |
+| `src/index.ts` | Registrado módulo compras-pagos |
+
+---
+
+## Pasos para Aplicar en Producción
+
+```bash
+# 1. Aplicar cambios a la base de datos
+npx prisma db push
+
+# 2. Generar cliente Prisma
+npx prisma generate
+
+# 3. Ejecutar migración de datos (opcional, solo si hay datos existentes)
+# Usar el script: docs/sql/migracion_compras_ejes_independientes.sql
+
+# 4. Reiniciar el servidor
+npm run dev
+```
+
+---
+
+## Endpoints del Nuevo Módulo compras-pagos
+
+| Método | Endpoint | Descripción |
+|--------|----------|-------------|
+| POST | `/compras-pagos` | Registrar nuevo pago |
+| GET | `/compras-pagos/compra/:CompraEncabezadoID` | Obtener pagos de una compra |
+| DELETE | `/compras-pagos/:CompraPagoID` | Eliminar pago (soft delete) |
