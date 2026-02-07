@@ -4,18 +4,18 @@ export const createRefaccionSchema = z.object({
   ClasificacionRefaccionID: z.number({ required_error: 'La clasificación es requerida' }),
   UnidadID: z.number({ required_error: 'La unidad es requerida' }),
   NombrePieza: z.string().min(1, 'El nombre de la pieza es requerido').max(255),
-  NombreCorto: z.string().max(255),
-  Modelo: z.string().max(255).optional(),
-  Observaciones: z.string().max(255).optional(),
+  NombreCorto: z.string().max(255).nullish(),
+  Modelo: z.string().max(255).nullish(),
+  Observaciones: z.string().max(255).nullish(),
 });
 
 export const updateRefaccionSchema = z.object({
   ClasificacionRefaccionID: z.number().optional(),
   UnidadID: z.number().optional(),
   NombrePieza: z.string().min(1).max(255).optional(),
-  NombreCorto: z.string().max(255).optional(),
-  Modelo: z.string().max(255).optional(),
-  Observaciones: z.string().max(255).optional(),
+  NombreCorto: z.string().max(255).nullish(),
+  Modelo: z.string().max(255).nullish(),
+  Observaciones: z.string().max(255).nullish(),
 });
 
 export const refaccionIdParamSchema = z.object({

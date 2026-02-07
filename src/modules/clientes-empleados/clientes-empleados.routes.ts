@@ -10,6 +10,9 @@ import {
   agregarPuestoSchema,
   empleadoPuestoParamSchema,
   sucursalIdParamSchema,
+  asignarSucursalesSchema,
+  agregarSucursalSchema,
+  empleadoSucursalParamSchema,
 } from './clientes-empleados.schema';
 
 const router = Router();
@@ -17,7 +20,7 @@ const router = Router();
 /** @swagger
  * /clientes-empleados:
  *   post:
- *     summary: Crear empleado de cliente con múltiples puestos
+ *     summary: Crear empleado de cliente con múltiples puestos y sucursales
  *     tags: [Clientes - Empleados]
  *     requestBody:
  *       required: true
@@ -25,7 +28,7 @@ const router = Router();
  *         application/json:
  *           schema:
  *             type: object
- *             required: [ClienteID, NombreEmpleado, PuestosTrabajoIDs]
+ *             required: [ClienteID, NombreEmpleado, PuestosTrabajoIDs, SucursalesIDs]
  *             properties:
  *               ClienteID:
  *                 type: integer
@@ -34,6 +37,10 @@ const router = Router();
  *               Observaciones:
  *                 type: string
  *               PuestosTrabajoIDs:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *               SucursalesIDs:
  *                 type: array
  *                 items:
  *                   type: integer
@@ -46,7 +53,7 @@ router.post('/', validateBody(createClienteEmpleadoSchema), (req, res) => client
 /** @swagger
  * /clientes-empleados:
  *   get:
- *     summary: Obtener todos los empleados de clientes con sus puestos
+ *     summary: Obtener todos los empleados de clientes con sus puestos y sucursales
  *     tags: [Clientes - Empleados]
  *     responses:
  *       200:
@@ -57,7 +64,7 @@ router.get('/', (req, res) => clientesEmpleadosController.findAll(req, res));
 /** @swagger
  * /clientes-empleados/sucursal/{SucursalID}:
  *   get:
- *     summary: Obtener empleados de una sucursal específica
+ *     summary: Obtener empleados asignados a una sucursal específica
  *     tags: [Clientes - Empleados]
  *     parameters:
  *       - in: path
@@ -76,7 +83,7 @@ router.get('/sucursal/:SucursalID', validateParams(sucursalIdParamSchema), (req,
 /** @swagger
  * /clientes-empleados/{EmpleadoID}:
  *   get:
- *     summary: Obtener empleado por ID con sus puestos
+ *     summary: Obtener empleado por ID con sus puestos y sucursales
  *     tags: [Clientes - Empleados]
  *     parameters:
  *       - in: path
@@ -95,7 +102,7 @@ router.get('/:EmpleadoID', validateParams(empleadoIdParamSchema), (req, res) => 
 /** @swagger
  * /clientes-empleados/{EmpleadoID}:
  *   put:
- *     summary: Actualizar datos del empleado (sin puestos)
+ *     summary: Actualizar datos del empleado (sin puestos ni sucursales)
  *     tags: [Clientes - Empleados]
  *     parameters:
  *       - in: path
@@ -217,6 +224,105 @@ router.post('/:EmpleadoID/puestos', validateParams(empleadoIdParamSchema), valid
  *         description: Puesto removido
  */
 router.delete('/:EmpleadoID/puestos/:PuestoTrabajoID', validateParams(empleadoPuestoParamSchema), (req, res) => clientesEmpleadosController.quitarPuesto(req, res));
+
+// =============================================
+// ENDPOINTS DE GESTIÓN DE SUCURSALES
+// =============================================
+
+/** @swagger
+ * /clientes-empleados/{EmpleadoID}/sucursales:
+ *   get:
+ *     summary: Obtener sucursales de un empleado
+ *     tags: [Clientes - Empleados]
+ *     parameters:
+ *       - in: path
+ *         name: EmpleadoID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Lista de sucursales del empleado
+ */
+router.get('/:EmpleadoID/sucursales', validateParams(empleadoIdParamSchema), (req, res) => clientesEmpleadosController.getSucursales(req, res));
+
+/** @swagger
+ * /clientes-empleados/{EmpleadoID}/sucursales:
+ *   put:
+ *     summary: Asignar sucursales (reemplaza todas las existentes)
+ *     tags: [Clientes - Empleados]
+ *     parameters:
+ *       - in: path
+ *         name: EmpleadoID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [SucursalesIDs]
+ *             properties:
+ *               SucursalesIDs:
+ *                 type: array
+ *                 items:
+ *                   type: integer
+ *     responses:
+ *       200:
+ *         description: Sucursales asignadas
+ */
+router.put('/:EmpleadoID/sucursales', validateParams(empleadoIdParamSchema), validateBody(asignarSucursalesSchema), (req, res) => clientesEmpleadosController.asignarSucursales(req, res));
+
+/** @swagger
+ * /clientes-empleados/{EmpleadoID}/sucursales:
+ *   post:
+ *     summary: Agregar una sucursal adicional al empleado
+ *     tags: [Clientes - Empleados]
+ *     parameters:
+ *       - in: path
+ *         name: EmpleadoID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [SucursalID]
+ *             properties:
+ *               SucursalID:
+ *                 type: integer
+ *     responses:
+ *       200:
+ *         description: Sucursal agregada
+ */
+router.post('/:EmpleadoID/sucursales', validateParams(empleadoIdParamSchema), validateBody(agregarSucursalSchema), (req, res) => clientesEmpleadosController.agregarSucursal(req, res));
+
+/** @swagger
+ * /clientes-empleados/{EmpleadoID}/sucursales/{SucursalID}:
+ *   delete:
+ *     summary: Quitar una sucursal del empleado
+ *     tags: [Clientes - Empleados]
+ *     parameters:
+ *       - in: path
+ *         name: EmpleadoID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: SucursalID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Sucursal removida
+ */
+router.delete('/:EmpleadoID/sucursales/:SucursalID', validateParams(empleadoSucursalParamSchema), (req, res) => clientesEmpleadosController.quitarSucursal(req, res));
 
 // =============================================
 // ENDPOINTS DE BAJA Y ACTIVACIÓN

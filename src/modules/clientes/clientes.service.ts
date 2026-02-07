@@ -164,7 +164,7 @@ class ClientesService {
       orderBy: [{ IsActive: 'desc' }, { NombreEmpleado: 'asc' }],
     });
 
-    // Obtener teléfonos, correos y puestos de cada empleado
+    // Obtener teléfonos, correos, puestos y sucursales de cada empleado
     const empleadosConDetalle = await Promise.all(
       empleados.map(async (empleado) => {
         const telefonos = await prisma.clientes_telefonos.findMany({
@@ -182,11 +182,19 @@ class ClientesService {
           },
         });
 
+        const empleados_sucursales = await prisma.empleados_sucursales.findMany({
+          where: { EmpleadoID: empleado.EmpleadoID, IsActive: true },
+          include: {
+            sucursal: true,
+          },
+        });
+
         return {
           ...empleado,
           telefonos,
           correos,
           empleados_puestos,
+          empleados_sucursales,
         };
       })
     );

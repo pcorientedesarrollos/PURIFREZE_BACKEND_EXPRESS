@@ -63,13 +63,13 @@ model clientes_sucursales {
   EsMatriz          Boolean                    @default(false)
   IsActive          Boolean?                   @default(true)
 
-  cliente           catalogo_clientes          @relation(fields: [ClienteID], references: [ClienteID])
-  empleados         clientes_empleados[]
-  presupuestos      presupuestos_encabezado[]
-  equipos           equipos[]
-  contratos         contratos[]
-  clientes_equipos  clientes_equipos[]
-  ventas            ventas_encabezado[]
+  cliente               catalogo_clientes          @relation(fields: [ClienteID], references: [ClienteID])
+  empleados_sucursales  empleados_sucursales[]
+  presupuestos          presupuestos_encabezado[]
+  equipos               equipos[]
+  contratos             contratos[]
+  clientes_equipos      clientes_equipos[]
+  ventas                ventas_encabezado[]
 }
 
 model catalogo_cuentasBancarias {
@@ -195,15 +195,28 @@ model clientes_direcciones {
 }
 
 model clientes_empleados {
-  EmpleadoID        Int                  @id @default(autoincrement())
+  EmpleadoID        Int                    @id @default(autoincrement())
   ClienteID         Int?
-  SucursalID        Int?
-  NombreEmpleado    String?              @db.VarChar(255)
-  Observaciones     String?              @db.VarChar(255)
+  NombreEmpleado    String?                @db.VarChar(255)
+  Observaciones     String?                @db.VarChar(255)
   IsActive          Boolean?
 
-  sucursal          clientes_sucursales? @relation(fields: [SucursalID], references: [SucursalID])
-  empleados_puestos empleados_puestos[]
+  empleados_puestos     empleados_puestos[]
+  empleados_sucursales  empleados_sucursales[]
+}
+
+model empleados_sucursales {
+  EmpleadoSucursalID Int                  @id @default(autoincrement())
+  EmpleadoID         Int
+  SucursalID         Int
+  IsActive           Boolean?             @default(true)
+
+  empleado           clientes_empleados   @relation(fields: [EmpleadoID], references: [EmpleadoID])
+  sucursal           clientes_sucursales  @relation(fields: [SucursalID], references: [SucursalID])
+
+  @@unique([EmpleadoID, SucursalID])
+  @@index([EmpleadoID])
+  @@index([SucursalID])
 }
 
 model empleados_puestos {

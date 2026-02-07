@@ -11,7 +11,9 @@
       "Bash(find:*)",
       "Bash(grep:*)",
       "Bash(node:*)",
-      "Bash(npx ts-node-dev:*)"
+      "Bash(npx ts-node-dev:*)",
+      "Bash(npx tsx:*)",
+      "Bash(del \"C:\\\\Users\\\\HP\\\\Documents\\\\DESARROLLOS\\\\PCORIENTE\\\\PURIFREEZE\\\\PURIFREZE_BACKEND_EXPRESS\\\\test-parser.ts\")"
     ],
     "deny": [],
     "ask": []
