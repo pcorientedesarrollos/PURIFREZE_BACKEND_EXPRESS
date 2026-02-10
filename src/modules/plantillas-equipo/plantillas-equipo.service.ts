@@ -33,6 +33,7 @@ class PlantillasEquipoService {
           EsExterno: dto.EsExterno ? 1 : 0,
           PorcentajeVenta: dto.PorcentajeVenta,
           PorcentajeRenta: dto.PorcentajeRenta,
+          PrecioRenta: dto.PrecioRenta || null,
           IsActive: 1,
           FechaCreacion: new Date(),
         },
@@ -103,6 +104,7 @@ class PlantillasEquipoService {
     // Calcular precios para cada plantilla
     const plantillasConPrecios = plantillas.map(plantilla => {
       const costoTotal = this.calcularCostoTotal(plantilla.detalles);
+      const precioRentaSugerido = this.redondear(costoTotal * ((plantilla.PorcentajeRenta || 15) / 100));
       return {
         PlantillaEquipoID: plantilla.PlantillaEquipoID,
         Codigo: plantilla.Codigo,
@@ -114,7 +116,8 @@ class PlantillasEquipoService {
         TotalRefacciones: plantilla.detalles.length,
         CostoTotal: this.redondear(costoTotal),
         PrecioVenta: this.redondear(costoTotal * (1 + (plantilla.PorcentajeVenta || 35) / 100)),
-        PrecioRenta: this.redondear(costoTotal * ((plantilla.PorcentajeRenta || 15) / 100)),
+        PrecioRenta: plantilla.PrecioRenta || precioRentaSugerido,
+        PrecioRentaSugerido: precioRentaSugerido,
         FechaCreacion: plantilla.FechaCreacion ? moment(plantilla.FechaCreacion).format('YYYY-MM-DD') : null,
         FechaModificacion: plantilla.FechaModificacion ? moment(plantilla.FechaModificacion).format('YYYY-MM-DD') : null,
       };
@@ -155,6 +158,7 @@ class PlantillasEquipoService {
     }
 
     const costoTotal = this.calcularCostoTotal(plantilla.detalles);
+    const precioRentaSugerido = this.redondear(costoTotal * ((plantilla.PorcentajeRenta || 15) / 100));
 
     const plantillaFormateada = {
       PlantillaEquipoID: plantilla.PlantillaEquipoID,
@@ -169,7 +173,8 @@ class PlantillasEquipoService {
       FechaModificacion: plantilla.FechaModificacion ? moment(plantilla.FechaModificacion).format('YYYY-MM-DD') : null,
       CostoTotal: this.redondear(costoTotal),
       PrecioVenta: this.redondear(costoTotal * (1 + (plantilla.PorcentajeVenta || 35) / 100)),
-      PrecioRenta: this.redondear(costoTotal * ((plantilla.PorcentajeRenta || 15) / 100)),
+      PrecioRenta: plantilla.PrecioRenta || precioRentaSugerido,
+      PrecioRentaSugerido: precioRentaSugerido,
       detalles: plantilla.detalles.map(detalle => ({
         PlantillaDetalleID: detalle.PlantillaDetalleID,
         RefaccionID: detalle.RefaccionID,
@@ -227,6 +232,7 @@ class PlantillasEquipoService {
           EsExterno: dto.EsExterno !== undefined ? (dto.EsExterno ? 1 : 0) : plantillaExistente.EsExterno,
           PorcentajeVenta: dto.PorcentajeVenta ?? plantillaExistente.PorcentajeVenta,
           PorcentajeRenta: dto.PorcentajeRenta ?? plantillaExistente.PorcentajeRenta,
+          PrecioRenta: dto.PrecioRenta !== undefined ? dto.PrecioRenta : plantillaExistente.PrecioRenta,
           FechaModificacion: new Date(),
         },
       });
@@ -312,6 +318,7 @@ class PlantillasEquipoService {
           EsExterno: plantillaOriginal.EsExterno,
           PorcentajeVenta: plantillaOriginal.PorcentajeVenta,
           PorcentajeRenta: plantillaOriginal.PorcentajeRenta,
+          PrecioRenta: plantillaOriginal.PrecioRenta,
           IsActive: 1,
           FechaCreacion: new Date(),
         },

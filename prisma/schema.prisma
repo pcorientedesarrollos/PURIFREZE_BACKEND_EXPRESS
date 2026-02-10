@@ -60,6 +60,7 @@ model clientes_sucursales {
   Telefono          String?                    @db.VarChar(50)
   Contacto          String?                    @db.VarChar(255)
   Observaciones     String?                    @db.VarChar(255)
+  GiroNegocio       String?                    @db.VarChar(255)
   EsMatriz          Boolean                    @default(false)
   IsActive          Boolean?                   @default(true)
 
@@ -652,6 +653,7 @@ model plantillas_equipo {
   EsExterno          Int       @default(0) @db.TinyInt
   PorcentajeVenta    Float     @default(35.00) @db.Float
   PorcentajeRenta    Float     @default(15.00) @db.Float
+  PrecioRenta        Float?    @db.Float
   IsActive           Int?      @db.TinyInt @default(1)
   FechaCreacion      DateTime  @default(now()) @db.Date
   FechaModificacion  DateTime? @db.Date

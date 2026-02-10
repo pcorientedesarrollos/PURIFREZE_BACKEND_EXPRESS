@@ -23,8 +23,14 @@ class EquiposService {
    * Crea múltiples equipos a partir de una plantilla
    * - Solo equipos internos (Purifreeze) afectan inventario
    * - Genera números de serie automáticos
+   *
+   * @param options.permitirInventarioNegativo - Si es true, permite crear equipos aunque no haya stock suficiente
    */
-  async createFromPlantilla(dto: CreateEquiposFromPlantillaDto, usuarioId?: number) {
+  async createFromPlantilla(
+    dto: CreateEquiposFromPlantillaDto,
+    usuarioId?: number,
+    options?: { permitirInventarioNegativo?: boolean }
+  ) {
     const result = await prisma.$transaction(
       async (tx) => {
         // Obtener plantilla con detalles
@@ -44,8 +50,8 @@ class EquiposService {
 
         const esInterno = plantilla.EsExterno === 0;
 
-        // Validar stock si es equipo interno
-        if (esInterno) {
+        // Validar stock si es equipo interno (a menos que se permita inventario negativo)
+        if (esInterno && !options?.permitirInventarioNegativo) {
           await this.validarStockParaEquipos(tx, plantilla.detalles, dto.Cantidad);
         }
 
@@ -112,6 +118,141 @@ class EquiposService {
     // Obtener equipos creados con detalles
     const equipos = await this.findByIds(result);
     return { message: `${dto.Cantidad} equipo(s) creado(s) correctamente`, data: equipos };
+  }
+
+  /**
+   * Crea un solo equipo desde una plantilla dentro de una transacción existente
+   * Usado por presupuestos para crear equipos automáticamente
+   * Siempre permite inventario negativo para no bloquear el flujo
+   *
+   * @param tx - Cliente de transacción Prisma
+   * @returns EquipoID del equipo creado
+   */
+  async crearEquipoEnTransaccion(
+    tx: Prisma.TransactionClient,
+    plantillaEquipoId: number,
+    usuarioId?: number,
+    observaciones?: string
+  ): Promise<number> {
+    // Obtener plantilla con detalles
+    const plantilla = await tx.plantillas_equipo.findFirst({
+      where: { PlantillaEquipoID: plantillaEquipoId, IsActive: 1 },
+      include: {
+        detalles: {
+          where: { IsActive: 1 },
+          include: { refaccion: true },
+        },
+      },
+    });
+
+    if (!plantilla) {
+      throw new HttpError('Plantilla no encontrada', 404);
+    }
+
+    const esInterno = plantilla.EsExterno === 0;
+
+    // Generar número de serie
+    const numerosSerie = await this.generarNumerosSerie(tx, plantilla.NombreEquipo, 1);
+
+    // Crear equipo
+    const equipo = await tx.equipos.create({
+      data: {
+        PlantillaEquipoID: plantilla.PlantillaEquipoID,
+        NumeroSerie: numerosSerie[0],
+        EsExterno: plantilla.EsExterno,
+        Estatus: 'Armado',
+        Observaciones: observaciones || null,
+        FechaCreacion: new Date(),
+        UsuarioCreadorID: usuarioId || null,
+        IsActive: 1,
+      },
+    });
+
+    // Crear detalles del equipo y descontar inventario
+    for (const detalle of plantilla.detalles) {
+      await tx.equipos_detalle.create({
+        data: {
+          EquipoID: equipo.EquipoID,
+          RefaccionID: detalle.RefaccionID,
+          Cantidad: detalle.Cantidad,
+          IsActive: 1,
+        },
+      });
+
+      // Descontar del inventario si es interno (permite negativos)
+      if (esInterno) {
+        await this.descontarInventarioTx(tx, detalle.RefaccionID, detalle.Cantidad, usuarioId);
+      }
+    }
+
+    // Registrar historial de creación
+    await this.registrarHistorial(
+      tx,
+      equipo.EquipoID,
+      'CREACION',
+      null,
+      'Armado',
+      `Equipo creado automáticamente desde presupuesto - ${plantilla.NombreEquipo}`,
+      { PlantillaID: plantilla.PlantillaEquipoID, NumeroSerie: numerosSerie[0] },
+      usuarioId
+    );
+
+    return equipo.EquipoID;
+  }
+
+  /**
+   * Descuenta inventario dentro de una transacción (permite negativos)
+   */
+  private async descontarInventarioTx(
+    tx: Prisma.TransactionClient,
+    refaccionId: number,
+    cantidad: number,
+    usuarioId?: number
+  ): Promise<void> {
+    // Verificar si existe registro de inventario
+    const inventarioExistente = await tx.inventario.findFirst({
+      where: { RefaccionID: refaccionId, IsActive: 1 },
+    });
+
+    if (inventarioExistente) {
+      // Actualizar inventario (permite negativos)
+      await tx.inventario.updateMany({
+        where: { RefaccionID: refaccionId, IsActive: 1 },
+        data: {
+          StockActual: { decrement: cantidad },
+          FechaUltimoMovimiento: new Date(),
+        },
+      });
+    } else {
+      // Crear registro de inventario con valor negativo
+      await tx.inventario.create({
+        data: {
+          RefaccionID: refaccionId,
+          StockActual: -cantidad,
+          FechaUltimoMovimiento: new Date(),
+          IsActive: 1,
+        },
+      });
+    }
+
+    // Obtener costo promedio para kardex
+    const refaccion = await tx.catalogo_refacciones.findUnique({
+      where: { RefaccionID: refaccionId },
+      select: { CostoPromedio: true },
+    });
+
+    // Registrar en kardex
+    await tx.kardex_inventario.create({
+      data: {
+        RefaccionID: refaccionId,
+        FechaMovimiento: new Date(),
+        TipoMovimiento: 'Traspaso_Bodega_Equipo',
+        Cantidad: -cantidad,
+        CostoPromedioMovimiento: refaccion?.CostoPromedio || 0,
+        UsuarioID: usuarioId || null,
+        Observaciones: 'Salida automática para armado de equipo desde presupuesto',
+      },
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

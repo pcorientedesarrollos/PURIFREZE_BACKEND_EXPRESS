@@ -8,6 +8,7 @@ import {
   UpdateDetalleDto,
   CreateDetalleDto,
 } from './presupuestos.schema';
+import { equiposService } from '../equipos/equipos.service';
 
 const IVA_PORCENTAJE = 0.16;
 
@@ -518,7 +519,7 @@ class PresupuestosService {
             FechaInicio: new Date(),
             FechaFin: fechaFin,
             MontoTotal: montoTotal,
-            Estatus: 'EN_REVISION', // Se activa manualmente después de configurar cobros
+            Estatus: 'ACTIVO', // Se activa automáticamente al aprobar presupuesto
             Observaciones: `Generado automáticamente desde presupuesto ${presupuesto.NumeroPresupuesto}`,
             UsuarioID: presupuesto.UsuarioID,
             IsActive: 1,
@@ -531,17 +532,38 @@ class PresupuestosService {
       // 3.1 Equipos en VENTA (COMPRA para el cliente)
       for (const equipo of equiposVenta) {
         if (equipo.PlantillaEquipoID) {
+          // Verificar si es equipo Purifreeze (interno) para crear equipo físico
+          const plantilla = await tx.plantillas_equipo.findUnique({
+            where: { PlantillaEquipoID: equipo.PlantillaEquipoID },
+            select: { EsExterno: true, NombreEquipo: true },
+          });
+
+          const esPurifreeze = plantilla?.EsExterno === 0;
+
           for (let i = 0; i < equipo.Cantidad; i++) {
+            let equipoID: number | null = null;
+
+            // Si es Purifreeze, crear equipo físico automáticamente
+            if (esPurifreeze) {
+              equipoID = await equiposService.crearEquipoEnTransaccion(
+                tx,
+                equipo.PlantillaEquipoID,
+                presupuesto.UsuarioID,
+                `Creado automáticamente - Venta desde presupuesto`
+              );
+            }
+
             await tx.clientes_equipos.create({
               data: {
                 ClienteID: presupuesto.ClienteID,
                 SucursalID: presupuesto.SucursalID,
                 PlantillaEquipoID: equipo.PlantillaEquipoID,
+                EquipoID: equipoID, // Asignar equipo físico si es Purifreeze
                 TipoPropiedad: 'COMPRA',
                 PresupuestoDetalleID: equipo.DetalleID,
                 FechaAsignacion: new Date(),
-                Estatus: 'ACTIVO',
-                Observaciones: `Compra desde presupuesto ${presupuesto.NumeroPresupuesto}`,
+                Estatus: equipoID ? 'PENDIENTE_INSTALACION' : 'ACTIVO',
+                Observaciones: `Compra desde presupuesto - ${esPurifreeze ? 'Equipo físico creado automáticamente' : 'Equipo externo'}`,
                 IsActive: 1,
               },
             });
@@ -549,24 +571,57 @@ class PresupuestosService {
         }
       }
 
-      // 3.2 Equipos en RENTA
+      // 3.2 Equipos en RENTA (siempre son Purifreeze internos)
       for (const equipo of equiposRenta) {
         if (equipo.PlantillaEquipoID) {
           for (let i = 0; i < equipo.Cantidad; i++) {
-            await tx.clientes_equipos.create({
+            // Crear equipo físico automáticamente (renta siempre es Purifreeze)
+            const equipoID = await equiposService.crearEquipoEnTransaccion(
+              tx,
+              equipo.PlantillaEquipoID,
+              presupuesto.UsuarioID,
+              `Creado automáticamente - Renta desde presupuesto`
+            );
+
+            // Crear registro en clientes_equipos
+            const clienteEquipo = await tx.clientes_equipos.create({
               data: {
                 ClienteID: presupuesto.ClienteID,
                 SucursalID: presupuesto.SucursalID,
                 PlantillaEquipoID: equipo.PlantillaEquipoID,
+                EquipoID: equipoID,
                 TipoPropiedad: 'RENTA',
                 ContratoID: contratoID,
                 PresupuestoDetalleID: equipo.DetalleID,
+                Modalidad: 'RENTA',
+                PrecioUnitario: equipo.PrecioUnitario,
+                PeriodoMeses: equipo.PeriodoRenta || 12,
                 FechaAsignacion: new Date(),
-                Estatus: 'PENDIENTE_INSTALACION', // Pendiente hasta que se active el contrato
-                Observaciones: `Renta desde presupuesto ${presupuesto.NumeroPresupuesto}`,
+                Estatus: 'PENDIENTE_INSTALACION',
+                Observaciones: `Renta desde presupuesto - Equipo físico creado automáticamente`,
                 IsActive: 1,
               },
             });
+
+            // Crear registro en contratos_equipos
+            if (contratoID) {
+              await tx.contratos_equipos.create({
+                data: {
+                  ContratoID: contratoID,
+                  EquipoID: equipoID,
+                  PlantillaEquipoID: equipo.PlantillaEquipoID,
+                  Modalidad: 'RENTA',
+                  PrecioUnitario: equipo.PrecioUnitario,
+                  PeriodoMeses: equipo.PeriodoRenta || 12,
+                  TipoItem: 'EQUIPO_PURIFREEZE',
+                  CantidadRequerida: 1,
+                  CantidadAsignada: 1,
+                  Estatus: 'PENDIENTE',
+                  Observaciones: `Equipo creado automáticamente desde presupuesto`,
+                  IsActive: 1,
+                },
+              });
+            }
           }
         }
       }
@@ -598,7 +653,12 @@ class PresupuestosService {
         where: { PresupuestoID: presupuesto.PresupuestoID },
         data: { Estatus: 'Aprobado' },
       });
-    });
+    }, { timeout: 60000 }); // 60 segundos para permitir creación de múltiples equipos
+
+    // Contar equipos físicos creados
+    const equiposPurifreezeVenta = equiposVenta.filter((e: any) => e.TipoItem === 'EQUIPO_PURIFREEZE');
+    const totalEquiposFisicosCreados = equiposPurifreezeVenta.reduce((sum: number, e: any) => sum + e.Cantidad, 0)
+      + equiposRenta.reduce((sum: number, e: any) => sum + e.Cantidad, 0);
 
     return {
       message: 'Presupuesto aprobado y procesado correctamente',
@@ -609,6 +669,8 @@ class PresupuestosService {
           VentasCreadas: [...equiposVenta, ...refacciones, ...servicios].length > 0,
           ContratosCreados: equiposRenta.length > 0,
           EquiposAsignados: equiposVenta.length + equiposRenta.length + equiposExternosMantenimiento.length,
+          EquiposFisicosCreados: totalEquiposFisicosCreados,
+          InventarioAfectado: totalEquiposFisicosCreados > 0,
         },
       },
     };

@@ -14,6 +14,7 @@ export const createPlantillaEquipoSchema = z.object({
   EsExterno: z.boolean().default(false),
   PorcentajeVenta: z.number().min(0, 'PorcentajeVenta debe ser mayor o igual a 0').default(35),
   PorcentajeRenta: z.number().min(0, 'PorcentajeRenta debe ser mayor o igual a 0').default(15),
+  PrecioRenta: z.number().min(0, 'PrecioRenta debe ser mayor o igual a 0').optional(),
   Detalles: z.array(createPlantillaDetalleSchema).min(1, 'Debe incluir al menos una refacción'),
 });
 
@@ -32,6 +33,7 @@ export const updatePlantillaEquipoSchema = z.object({
   EsExterno: z.boolean().optional(),
   PorcentajeVenta: z.number().min(0, 'PorcentajeVenta debe ser mayor o igual a 0').optional(),
   PorcentajeRenta: z.number().min(0, 'PorcentajeRenta debe ser mayor o igual a 0').optional(),
+  PrecioRenta: z.number().min(0, 'PrecioRenta debe ser mayor o igual a 0').optional().nullable(),
   Detalles: z.array(updatePlantillaDetalleSchema).optional(),
   DetallesEliminar: z.array(z.number()).optional(),
 });

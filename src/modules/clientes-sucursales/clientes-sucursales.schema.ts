@@ -8,6 +8,7 @@ export const createClienteSucursalSchema = z.object({
   Telefono: z.string().max(50).optional(),
   Contacto: z.string().max(255).optional(),
   Observaciones: z.string().max(255).optional(),
+  GiroNegocio: z.string().max(255).optional(),
 });
 
 export const updateClienteSucursalSchema = z.object({
@@ -17,6 +18,7 @@ export const updateClienteSucursalSchema = z.object({
   Telefono: z.string().max(50).optional(),
   Contacto: z.string().max(255).optional(),
   Observaciones: z.string().max(255).optional(),
+  GiroNegocio: z.string().max(255).optional(),
 });
 
 export const sucursalIdParamSchema = z.object({
