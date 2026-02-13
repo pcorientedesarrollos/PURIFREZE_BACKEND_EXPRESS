@@ -4,24 +4,6 @@ import { CreateClienteDatosFiscalesDto, UpdateClienteDatosFiscalesDto } from './
 
 class ClientesDatosFiscalesService {
   async create(data: CreateClienteDatosFiscalesDto) {
-    const { RazonSocial, RFC } = data;
-
-    const findRazonSocial = await prisma.clientes_datosFiscales.findFirst({
-      where: { RazonSocial },
-    });
-
-    if (findRazonSocial) {
-      throw new HttpError('La Razón Social ya existe', 300);
-    }
-
-    const findRFC = await prisma.clientes_datosFiscales.findFirst({
-      where: { RFC },
-    });
-
-    if (findRFC) {
-      throw new HttpError('El RFC ya existe', 300);
-    }
-
     const datosFiscales = await prisma.clientes_datosFiscales.create({
       data: {
         ...data,
@@ -67,40 +49,12 @@ class ClientesDatosFiscalesService {
   }
 
   async update(DatosFiscalesID: number, data: UpdateClienteDatosFiscalesDto) {
-    const { RazonSocial, RFC } = data;
-
     const dataExist = await prisma.clientes_datosFiscales.findUnique({
       where: { DatosFiscalesID },
     });
 
     if (!dataExist) {
       throw new HttpError('No existen los Datos Fiscales', 404);
-    }
-
-    if (RazonSocial) {
-      const nameInUse = await prisma.clientes_datosFiscales.findFirst({
-        where: {
-          RazonSocial,
-          DatosFiscalesID: { not: DatosFiscalesID },
-        },
-      });
-
-      if (nameInUse) {
-        throw new HttpError('La Razón Social ya existe', 300);
-      }
-    }
-
-    if (RFC) {
-      const rfcInUse = await prisma.clientes_datosFiscales.findFirst({
-        where: {
-          RFC,
-          DatosFiscalesID: { not: DatosFiscalesID },
-        },
-      });
-
-      if (rfcInUse) {
-        throw new HttpError('El RFC ya existe', 300);
-      }
     }
 
     const dataUpdate = await prisma.clientes_datosFiscales.update({
