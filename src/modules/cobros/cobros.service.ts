@@ -35,6 +35,21 @@ class CobrosService {
       throw new HttpError('Solo se pueden configurar cobros para contratos EN_REVISION o ACTIVO', 300);
     }
 
+    // Verificar si ya existen cobros generados (no se puede modificar si hay cobros)
+    const cobrosExistentes = await prisma.cobros.count({
+      where: {
+        ContratoID: contratoId,
+        IsActive: 1,
+      },
+    });
+
+    if (cobrosExistentes > 0) {
+      throw new HttpError(
+        'No se puede modificar la configuración porque ya existen cobros generados. Use la opción de modificar montos de cobros pendientes.',
+        300
+      );
+    }
+
     // Calcular el número total de cobros
     const totalCobros = this.calcularTotalCobros(
       data.TipoTiempoContrato,
@@ -118,6 +133,14 @@ class CobrosService {
     // Generar el número de contrato base para los cobros
     const numeroContratoBase = configuracion.contrato.NumeroContrato;
 
+    // Calcular el monto del cobro según la frecuencia
+    // El MontoCobro es MENSUAL, se multiplica por el período de frecuencia
+    const multiplicadorMeses = this.calcularMultiplicadorMeses(
+      configuracion.FrecuenciaCobro,
+      configuracion.TiempoFrecuencia
+    );
+    const montoPorPeriodo = configuracion.MontoCobro * multiplicadorMeses;
+
     for (let i = 0; i < cobrosAGenerar; i++) {
       const numeroPeriodo = configuracion.CobrosGenerados + i + 1;
       const numeroCobro = `${numeroContratoBase}-C${numeroPeriodo.toString().padStart(3, '0')}`;
@@ -128,8 +151,8 @@ class CobrosService {
           NumeroCobro: numeroCobro,
           NumeroPeriodo: numeroPeriodo,
           FechaVencimiento: fechaVencimiento,
-          MontoOriginal: configuracion.MontoCobro,
-          MontoFinal: configuracion.MontoCobro,
+          MontoOriginal: montoPorPeriodo,
+          MontoFinal: montoPorPeriodo,
           Estatus: 'PENDIENTE',
           UsuarioCreadorID: usuarioId,
         },
@@ -140,7 +163,7 @@ class CobrosService {
         data: {
           CobroID: cobro.CobroID,
           TipoAccion: 'CREACION',
-          Descripcion: `Cobro generado automáticamente - Periodo ${numeroPeriodo}/${configuracion.TotalCobros}`,
+          Descripcion: `Cobro generado automáticamente - Periodo ${numeroPeriodo}/${configuracion.TotalCobros} - Monto: $${montoPorPeriodo.toFixed(2)} (${multiplicadorMeses} mes${multiplicadorMeses !== 1 ? 'es' : ''})`,
           UsuarioID: usuarioId,
         },
       });
@@ -167,6 +190,9 @@ class CobrosService {
       data: {
         cobrosGenerados: cobrosCreados.length,
         totalCobros: configuracion.TotalCobros,
+        montoMensual: configuracion.MontoCobro,
+        multiplicadorMeses,
+        montoPorPeriodo,
         cobros: cobrosCreados,
       },
     };
@@ -840,6 +866,89 @@ class CobrosService {
   }
 
   /**
+   * Modificar monto de todos los cobros pendientes de un contrato
+   * Útil cuando se necesita ajustar la mensualidad para todos los cobros futuros
+   */
+  async modificarMontoPendientes(contratoId: number, data: ModificarMontoDto) {
+    // Verificar que el contrato existe
+    const contrato = await prisma.contratos.findUnique({
+      where: { ContratoID: contratoId },
+    });
+
+    if (!contrato) {
+      throw new HttpError('El contrato no existe', 404);
+    }
+
+    // Obtener cobros pendientes (PENDIENTE, PARCIAL, VENCIDO)
+    const cobrosPendientes = await prisma.cobros.findMany({
+      where: {
+        ContratoID: contratoId,
+        Estatus: { in: ['PENDIENTE', 'PARCIAL', 'VENCIDO'] },
+        IsActive: 1,
+      },
+      orderBy: { NumeroPeriodo: 'asc' },
+    });
+
+    if (cobrosPendientes.length === 0) {
+      throw new HttpError('No hay cobros pendientes para modificar', 300);
+    }
+
+    const cobrosActualizados = await prisma.$transaction(async (tx) => {
+      const updated = [];
+
+      for (const cobro of cobrosPendientes) {
+        // Calcular nuevo monto final (conservando descuentos existentes)
+        const nuevoMontoFinal = data.MontoNuevo - (cobro.MontoDescuento || 0) - (cobro.MontoPromocion || 0);
+
+        const cobroUpdated = await tx.cobros.update({
+          where: { CobroID: cobro.CobroID },
+          data: {
+            MontoOriginal: data.MontoNuevo,
+            MontoFinal: Math.max(0, nuevoMontoFinal),
+          },
+        });
+
+        // Registrar en historial
+        await tx.cobros_historial.create({
+          data: {
+            CobroID: cobro.CobroID,
+            TipoAccion: 'MODIFICACION',
+            Descripcion: `Monto modificado en lote${data.Motivo ? ': ' + data.Motivo : ''} (de $${cobro.MontoOriginal} a $${data.MontoNuevo})`,
+            ValorAnterior: JSON.stringify({ MontoOriginal: cobro.MontoOriginal }),
+            ValorNuevo: JSON.stringify({ MontoOriginal: data.MontoNuevo }),
+            UsuarioID: data.UsuarioID,
+          },
+        });
+
+        updated.push(cobroUpdated);
+      }
+
+      // También actualizar la configuración si existe
+      const config = await tx.cobros_configuracion.findUnique({
+        where: { ContratoID: contratoId },
+      });
+
+      if (config) {
+        await tx.cobros_configuracion.update({
+          where: { ConfiguracionID: config.ConfiguracionID },
+          data: { MontoCobro: data.MontoNuevo },
+        });
+      }
+
+      return updated;
+    });
+
+    return {
+      message: `Se modificaron ${cobrosActualizados.length} cobro(s) pendiente(s) exitosamente`,
+      data: {
+        cobrosModificados: cobrosActualizados.length,
+        nuevoMonto: data.MontoNuevo,
+        cobros: cobrosActualizados,
+      },
+    };
+  }
+
+  /**
    * Marcar cobros vencidos (tarea programada)
    */
   async marcarVencidos() {
@@ -866,6 +975,45 @@ class CobrosService {
   // =============================================
   // HELPERS
   // =============================================
+
+  /**
+   * Calcular el multiplicador de meses según la frecuencia
+   * El MontoCobro siempre es MENSUAL, por lo que si la frecuencia
+   * es mayor a 1 mes, se debe multiplicar
+   */
+  private calcularMultiplicadorMeses(frecuencia: string, tiempoFrecuencia: number): number {
+    let mesesPorPeriodo: number;
+
+    switch (frecuencia) {
+      case 'SEMANAL':
+        // Aproximadamente 0.25 meses por semana
+        mesesPorPeriodo = 0.25;
+        break;
+      case 'QUINCENAL':
+        // 0.5 meses por quincena
+        mesesPorPeriodo = 0.5;
+        break;
+      case 'MENSUAL':
+        mesesPorPeriodo = 1;
+        break;
+      case 'BIMESTRAL':
+        mesesPorPeriodo = 2;
+        break;
+      case 'TRIMESTRAL':
+        mesesPorPeriodo = 3;
+        break;
+      case 'SEMESTRAL':
+        mesesPorPeriodo = 6;
+        break;
+      case 'ANUAL':
+        mesesPorPeriodo = 12;
+        break;
+      default:
+        mesesPorPeriodo = 1;
+    }
+
+    return mesesPorPeriodo * tiempoFrecuencia;
+  }
 
   /**
    * Calcular el total de cobros según la configuración

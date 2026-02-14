@@ -67,6 +67,12 @@ class PresupuestosController {
     return success(res, result.message, result.data);
   }
 
+  async duplicar(req: Request, res: Response) {
+    const { PresupuestoID } = req.params as unknown as { PresupuestoID: number };
+    const result = await presupuestosService.duplicar(PresupuestoID);
+    return success(res, result.message, result.data, 201);
+  }
+
   async getPrecioPlantilla(req: Request, res: Response) {
     const { PlantillaEquipoID } = req.params as unknown as { PlantillaEquipoID: number };
     const { modalidad } = req.query as { modalidad: 'VENTA' | 'RENTA' | 'MANTENIMIENTO' };

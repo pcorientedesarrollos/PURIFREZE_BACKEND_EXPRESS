@@ -106,6 +106,12 @@ class CobrosController {
     return success(res, result.message, result.data);
   }
 
+  async modificarMontoPendientes(req: Request, res: Response) {
+    const { ContratoID } = req.params as unknown as { ContratoID: number };
+    const result = await cobrosService.modificarMontoPendientes(ContratoID, req.body);
+    return success(res, result.message, result.data);
+  }
+
   async marcarVencidos(req: Request, res: Response) {
     const result = await cobrosService.marcarVencidos();
     return success(res, result.message, result.data);

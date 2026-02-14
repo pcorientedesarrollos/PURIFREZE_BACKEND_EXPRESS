@@ -206,7 +206,10 @@ class ContratosService {
           select: { PresupuestoID: true, Total: true },
         },
         _count: {
-          select: { clientes_equipos: true },
+          select: {
+            clientes_equipos: true,
+            cobros: true
+          },
         },
       },
     });
@@ -467,6 +470,26 @@ class ContratosService {
 
     if (contrato.Estatus !== 'ACTIVO' && contrato.Estatus !== 'VENCIDO') {
       throw new HttpError('Solo se pueden renovar contratos activos o vencidos', 300);
+    }
+
+    // Validar que el último cobro esté pagado antes de renovar
+    const ultimoCobro = await prisma.cobros.findFirst({
+      where: {
+        ContratoID,
+        IsActive: 1,
+      },
+      orderBy: { NumeroPeriodo: 'desc' },
+    });
+
+    if (ultimoCobro) {
+      // Solo permitir renovar si el último cobro está PAGADO, REGALADO o PROMOCION
+      const estatusPermitidos = ['PAGADO', 'REGALADO', 'PROMOCION'];
+      if (!estatusPermitidos.includes(ultimoCobro.Estatus)) {
+        throw new HttpError(
+          `No se puede renovar el contrato. El último cobro (Periodo ${ultimoCobro.NumeroPeriodo}) debe estar pagado. Estatus actual: ${ultimoCobro.Estatus}`,
+          300
+        );
+      }
     }
 
     const numeroContrato = await this.generarNumeroContrato();

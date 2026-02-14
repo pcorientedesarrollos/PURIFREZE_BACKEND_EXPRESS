@@ -134,6 +134,14 @@ router.patch(
   (req, res) => cobrosController.modificarMonto(req, res)
 );
 
+/** Modificar el monto de todos los cobros pendientes de un contrato */
+router.patch(
+  '/contrato/:ContratoID/monto-pendientes',
+  validateParams(contratoIdParamSchema),
+  validateBody(modificarMontoSchema),
+  (req, res) => cobrosController.modificarMontoPendientes(req, res)
+);
+
 // =============================================
 // TAREAS ADMINISTRATIVAS
 // =============================================

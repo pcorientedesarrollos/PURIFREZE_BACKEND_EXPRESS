@@ -106,6 +106,14 @@ router.patch('/baja/:PresupuestoID', validateParams(presupuestoIdParamSchema), (
  */
 router.patch('/activar/:PresupuestoID', validateParams(presupuestoIdParamSchema), (req, res) => presupuestosController.activar(req, res));
 
+/** @swagger
+ * /presupuestos/{PresupuestoID}/duplicar:
+ *   post:
+ *     summary: Duplicar presupuesto
+ *     tags: [Presupuestos]
+ */
+router.post('/:PresupuestoID/duplicar', validateParams(presupuestoIdParamSchema), (req, res) => presupuestosController.duplicar(req, res));
+
 // =============================================
 // PRESUPUESTOS - DETALLE
 // =============================================

@@ -14,14 +14,11 @@ const IVA_PORCENTAJE = 0.16;
 
 class PresupuestosService {
   // Calcular subtotal de un detalle
+  // Nota: El PeriodoRenta es solo informativo (cuántos meses renta el cliente)
+  // El precio en el presupuesto es MENSUAL, no se multiplica por el período
   private calcularSubtotalDetalle(detalle: CreateDetalleDto): number {
     const base = detalle.PrecioUnitario * detalle.Cantidad;
     let subtotal = base;
-
-    // Aplicar periodo de renta si existe
-    if (detalle.PeriodoRenta && detalle.PeriodoRenta > 0) {
-      subtotal = base * detalle.PeriodoRenta;
-    }
 
     // Aplicar descuentos
     if (detalle.DescuentoPorcentaje && detalle.DescuentoPorcentaje > 0) {
@@ -102,6 +99,11 @@ class PresupuestosService {
       if (detalle.Modalidad === 'VENTA') {
         return costoTotal * (1 + (plantilla.PorcentajeVenta / 100));
       } else if (detalle.Modalidad === 'RENTA') {
+        // Si la plantilla tiene PrecioRenta fijo, usarlo directamente
+        if (plantilla.PrecioRenta && plantilla.PrecioRenta > 0) {
+          return plantilla.PrecioRenta;
+        }
+        // Si no, calcular con el porcentaje
         return costoTotal * (plantilla.PorcentajeRenta / 100);
       } else if (detalle.Modalidad === 'MANTENIMIENTO') {
         // Para mantenimiento, usar un porcentaje base (ej: 20% del costo)
@@ -200,8 +202,12 @@ class PresupuestosService {
 
     // Crear presupuesto con transacción
     const presupuesto = await prisma.$transaction(async (tx) => {
+      // Generar número de presupuesto
+      const numeroPresupuesto = await this.generarNumeroPresupuesto(tx);
+
       const encabezado = await tx.presupuestos_encabezado.create({
         data: {
+          NumeroPresupuesto: numeroPresupuesto,
           ClienteID: data.ClienteID,
           SucursalID: data.SucursalID || null,
           FechaVigencia: new Date(data.FechaVigencia),
@@ -260,7 +266,19 @@ class PresupuestosService {
       },
     });
 
-    return { message: 'Presupuestos obtenidos', data: presupuestos };
+    // Calcular vencimiento dinámicamente
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    const presupuestosConVencimiento = presupuestos.map(p => {
+      // Si está Pendiente y la fecha de vigencia pasó, mostrar como Vencido
+      if (p.Estatus === 'Pendiente' && new Date(p.FechaVigencia) < hoy) {
+        return { ...p, Estatus: 'Vencido' as const };
+      }
+      return p;
+    });
+
+    return { message: 'Presupuestos obtenidos', data: presupuestosConVencimiento };
   }
 
   async findOne(PresupuestoID: number) {
@@ -304,7 +322,15 @@ class PresupuestosService {
       throw new HttpError('Presupuesto no encontrado', 404);
     }
 
-    return { message: 'Presupuesto obtenido', data: presupuesto };
+    // Calcular vencimiento dinámicamente
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+    let estatusFinal = presupuesto.Estatus;
+    if (presupuesto.Estatus === 'Pendiente' && new Date(presupuesto.FechaVigencia) < hoy) {
+      estatusFinal = 'Vencido';
+    }
+
+    return { message: 'Presupuesto obtenido', data: { ...presupuesto, Estatus: estatusFinal } };
   }
 
   async findByCliente(ClienteID: number) {
@@ -324,7 +350,18 @@ class PresupuestosService {
       },
     });
 
-    return { message: 'Presupuestos del cliente obtenidos', data: presupuestos };
+    // Calcular vencimiento dinámicamente
+    const hoy = new Date();
+    hoy.setHours(0, 0, 0, 0);
+
+    const presupuestosConVencimiento = presupuestos.map(p => {
+      if (p.Estatus === 'Pendiente' && new Date(p.FechaVigencia) < hoy) {
+        return { ...p, Estatus: 'Vencido' as const };
+      }
+      return p;
+    });
+
+    return { message: 'Presupuestos del cliente obtenidos', data: presupuestosConVencimiento };
   }
 
   async update(PresupuestoID: number, data: UpdatePresupuestoDto) {
@@ -503,11 +540,11 @@ class PresupuestosService {
         const fechaFin = new Date();
         fechaFin.setMonth(fechaFin.getMonth() + maxPeriodo);
 
-        // Calcular monto total (precio mensual * meses * cantidad)
-        let montoTotal = 0;
+        // Calcular monto mensual (precio mensual * cantidad)
+        // El contrato mantiene el precio mensual, no se multiplica por período
+        let montoMensual = 0;
         for (const equipo of equiposRenta) {
-          const periodoMeses = equipo.PeriodoRenta || 12;
-          montoTotal += equipo.PrecioUnitario * equipo.Cantidad * periodoMeses;
+          montoMensual += equipo.PrecioUnitario * equipo.Cantidad;
         }
 
         const contrato = await tx.contratos.create({
@@ -518,9 +555,9 @@ class PresupuestosService {
             SucursalID: presupuesto.SucursalID,
             FechaInicio: new Date(),
             FechaFin: fechaFin,
-            MontoTotal: montoTotal,
+            MontoTotal: montoMensual, // Es el monto mensual (no multiplicado por período)
             Estatus: 'ACTIVO', // Se activa automáticamente al aprobar presupuesto
-            Observaciones: `Generado automáticamente desde presupuesto ${presupuesto.NumeroPresupuesto}`,
+            Observaciones: `Generado automáticamente desde presupuesto #${presupuesto.PresupuestoID}`,
             UsuarioID: presupuesto.UsuarioID,
             IsActive: 1,
           },
@@ -640,7 +677,7 @@ class PresupuestosService {
                 DescripcionEquipo: equipo.Descripcion,
                 FechaAsignacion: new Date(),
                 Estatus: 'ACTIVO',
-                Observaciones: `Equipo externo para mantenimiento desde presupuesto ${presupuesto.NumeroPresupuesto}`,
+                Observaciones: `Equipo externo para mantenimiento desde presupuesto #${presupuesto.PresupuestoID}`,
                 IsActive: 1,
               },
             });
@@ -708,6 +745,25 @@ class PresupuestosService {
     let siguiente = 1;
     if (ultimoContrato) {
       const partes = ultimoContrato.NumeroContrato.split('-');
+      siguiente = parseInt(partes[2]) + 1;
+    }
+
+    return `${prefix}${siguiente.toString().padStart(4, '0')}`;
+  }
+
+  // Generar número de presupuesto
+  private async generarNumeroPresupuesto(tx: any): Promise<string> {
+    const year = new Date().getFullYear();
+    const prefix = `P-${year}-`;
+
+    const ultimoPresupuesto = await tx.presupuestos_encabezado.findFirst({
+      where: { NumeroPresupuesto: { startsWith: prefix } },
+      orderBy: { PresupuestoID: 'desc' },
+    });
+
+    let siguiente = 1;
+    if (ultimoPresupuesto && ultimoPresupuesto.NumeroPresupuesto) {
+      const partes = ultimoPresupuesto.NumeroPresupuesto.split('-');
       siguiente = parseInt(partes[2]) + 1;
     }
 
@@ -899,6 +955,77 @@ class PresupuestosService {
     return { message: 'Presupuesto activado', data: updated };
   }
 
+  // Duplicar presupuesto
+  async duplicar(PresupuestoID: number) {
+    const original = await prisma.presupuestos_encabezado.findUnique({
+      where: { PresupuestoID },
+      include: {
+        detalles: {
+          where: { IsActive: 1 },
+        },
+      },
+    });
+
+    if (!original) {
+      throw new HttpError('Presupuesto no encontrado', 404);
+    }
+
+    // Crear copia con transacción
+    const copia = await prisma.$transaction(async (tx) => {
+      // Generar nuevo número de presupuesto
+      const numeroPresupuesto = await this.generarNumeroPresupuesto(tx);
+
+      // Calcular nueva fecha de vigencia (30 días desde hoy)
+      const nuevaVigencia = new Date();
+      nuevaVigencia.setDate(nuevaVigencia.getDate() + 30);
+
+      // Crear encabezado
+      const nuevoEncabezado = await tx.presupuestos_encabezado.create({
+        data: {
+          NumeroPresupuesto: numeroPresupuesto,
+          ClienteID: original.ClienteID,
+          SucursalID: original.SucursalID,
+          FechaVigencia: nuevaVigencia,
+          Observaciones: original.Observaciones ? `${original.Observaciones} (Copia)` : '(Copia)',
+          UsuarioID: original.UsuarioID,
+          DescuentoPorcentaje: original.DescuentoPorcentaje,
+          DescuentoEfectivo: original.DescuentoEfectivo,
+          GastosAdicionales: original.GastosAdicionales,
+          Subtotal: original.Subtotal,
+          IVA: original.IVA,
+          Total: original.Total,
+          Estatus: 'Pendiente',
+          IsActive: 1,
+        },
+      });
+
+      // Copiar detalles
+      if (original.detalles.length > 0) {
+        await tx.presupuestos_detalle.createMany({
+          data: original.detalles.map(d => ({
+            PresupuestoID: nuevoEncabezado.PresupuestoID,
+            TipoItem: d.TipoItem,
+            Modalidad: d.Modalidad,
+            PlantillaEquipoID: d.PlantillaEquipoID,
+            RefaccionID: d.RefaccionID,
+            Descripcion: d.Descripcion,
+            Cantidad: d.Cantidad,
+            PeriodoRenta: d.PeriodoRenta,
+            PrecioUnitario: d.PrecioUnitario,
+            DescuentoPorcentaje: d.DescuentoPorcentaje,
+            DescuentoEfectivo: d.DescuentoEfectivo,
+            Subtotal: d.Subtotal,
+            IsActive: 1,
+          })),
+        });
+      }
+
+      return nuevoEncabezado;
+    });
+
+    return this.findOne(copia.PresupuestoID);
+  }
+
   // Endpoint auxiliar para obtener precio de plantilla
   async getPrecioPlantilla(PlantillaEquipoID: number, modalidad: 'VENTA' | 'RENTA' | 'MANTENIMIENTO') {
     const plantilla = await prisma.plantillas_equipo.findUnique({
@@ -924,10 +1051,18 @@ class PresupuestosService {
     }, 0);
 
     let precio = 0;
+    let usaPrecioFijo = false;
+
     if (modalidad === 'VENTA') {
       precio = costoTotal * (1 + (plantilla.PorcentajeVenta / 100));
     } else if (modalidad === 'RENTA') {
-      precio = costoTotal * (plantilla.PorcentajeRenta / 100);
+      // Si la plantilla tiene PrecioRenta fijo, usarlo directamente
+      if (plantilla.PrecioRenta && plantilla.PrecioRenta > 0) {
+        precio = plantilla.PrecioRenta;
+        usaPrecioFijo = true;
+      } else {
+        precio = costoTotal * (plantilla.PorcentajeRenta / 100);
+      }
     } else if (modalidad === 'MANTENIMIENTO') {
       precio = costoTotal * 0.20;
     }
@@ -942,6 +1077,8 @@ class PresupuestosService {
         Modalidad: modalidad,
         PorcentajeAplicado: modalidad === 'VENTA' ? plantilla.PorcentajeVenta : modalidad === 'RENTA' ? plantilla.PorcentajeRenta : 20,
         PrecioCalculado: precio,
+        UsaPrecioFijo: usaPrecioFijo,
+        PrecioRentaFijo: plantilla.PrecioRenta,
       },
     };
   }
