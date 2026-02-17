@@ -65,6 +65,15 @@ class PresupuestosService {
 
   // Obtener precio automático según tipo de item
   async obtenerPrecioAutomatico(detalle: CreateDetalleDto): Promise<number> {
+    // Si es servicio del catálogo, obtener precio del catálogo
+    if (detalle.TipoItem === 'SERVICIO' && detalle.ServicioAdicionalID) {
+      const servicioAdicional = await prisma.catalogo_servicios_adicionales.findUnique({
+        where: { ServicioAdicionalID: detalle.ServicioAdicionalID },
+        select: { Costo: true },
+      });
+      return servicioAdicional?.Costo || 0;
+    }
+
     if (detalle.TipoItem === 'REFACCION' && detalle.RefaccionID) {
       const refaccion = await prisma.catalogo_refacciones.findUnique({
         where: { RefaccionID: detalle.RefaccionID },
@@ -231,6 +240,7 @@ class PresupuestosService {
           Modalidad: d.Modalidad || null,
           PlantillaEquipoID: d.PlantillaEquipoID || null,
           RefaccionID: d.RefaccionID || null,
+          ServicioAdicionalID: d.ServicioAdicionalID || null,
           Descripcion: d.Descripcion || null,
           Cantidad: d.Cantidad,
           PeriodoRenta: d.PeriodoRenta || null,
@@ -311,6 +321,13 @@ class PresupuestosService {
                 NombreCorto: true,
                 Codigo: true,
                 PrecioVenta: true,
+              },
+            },
+            servicio_adicional: {
+              select: {
+                ServicioAdicionalID: true,
+                Nombre: true,
+                Costo: true,
               },
             },
           },
@@ -466,6 +483,11 @@ class PresupuestosService {
     );
     const refacciones = detalles.filter((d: any) => d.TipoItem === 'REFACCION');
     const servicios = detalles.filter((d: any) => d.TipoItem === 'SERVICIO');
+
+    // Servicios adicionales del catálogo (para generar cobros en RENTA)
+    const serviciosAdicionalesDelCatalogo = servicios.filter(
+      (d: any) => d.ServicioAdicionalID !== null && d.ServicioAdicionalID !== undefined
+    );
 
     // Items para venta (equipos venta + refacciones + servicios)
     const itemsVenta = [...equiposVenta, ...refacciones, ...servicios];
@@ -685,7 +707,101 @@ class PresupuestosService {
         }
       }
 
-      // 4. Actualizar estatus del presupuesto
+      // 4. CREAR COBROS
+      // =============================================
+      let cobrosServiciosCreados = 0;
+      let cobroVentaCreado = false;
+
+      // 4.1 Si hay RENTA Y servicios adicionales del catálogo → crear cobro por cada servicio
+      if (contratoID && serviciosAdicionalesDelCatalogo.length > 0) {
+        for (const servicio of serviciosAdicionalesDelCatalogo) {
+          const numeroCobro = `SA-${presupuesto.PresupuestoID}-${servicio.DetalleID}`;
+
+          await tx.cobros.create({
+            data: {
+              ContratoID: contratoID,
+              PresupuestoID: presupuesto.PresupuestoID,
+              NumeroCobro: numeroCobro,
+              NumeroPeriodo: 1,
+              FechaVencimiento: new Date(),
+              MontoOriginal: servicio.Subtotal || 0,
+              MontoFinal: servicio.Subtotal || 0,
+              Estatus: 'PENDIENTE',
+              Observaciones: `Servicio adicional: ${servicio.Descripcion || 'Servicio'} (generado al aprobar presupuesto)`,
+              UsuarioCreadorID: presupuesto.UsuarioID,
+              IsActive: 1,
+            },
+          });
+
+          // Registrar en historial
+          const cobroCreado = await tx.cobros.findFirst({
+            where: { NumeroCobro: numeroCobro },
+            orderBy: { CobroID: 'desc' },
+          });
+
+          if (cobroCreado) {
+            await tx.cobros_historial.create({
+              data: {
+                CobroID: cobroCreado.CobroID,
+                TipoAccion: 'CREACION',
+                Descripcion: `Cobro por servicio adicional generado automáticamente desde presupuesto #${presupuesto.PresupuestoID}`,
+                UsuarioID: presupuesto.UsuarioID,
+              },
+            });
+          }
+
+          cobrosServiciosCreados++;
+        }
+      }
+
+      // 4.2 Si hay VENTA → crear cobro pendiente por el total de la venta
+      if (ventaID) {
+        // Obtener totales de la venta recién creada
+        const ventaCreada = await tx.ventas_encabezado.findUnique({
+          where: { VentaID: ventaID },
+        });
+
+        if (ventaCreada && ventaCreada.Total > 0) {
+          const numeroCobroVenta = `CV-${presupuesto.PresupuestoID}-${ventaID}`;
+
+          await tx.cobros.create({
+            data: {
+              VentaID: ventaID,
+              PresupuestoID: presupuesto.PresupuestoID,
+              NumeroCobro: numeroCobroVenta,
+              NumeroPeriodo: 1,
+              FechaVencimiento: new Date(),
+              MontoOriginal: ventaCreada.Total,
+              MontoFinal: ventaCreada.Total,
+              Estatus: 'PENDIENTE',
+              Observaciones: `Cobro por venta (generado al aprobar presupuesto #${presupuesto.PresupuestoID})`,
+              UsuarioCreadorID: presupuesto.UsuarioID,
+              IsActive: 1,
+            },
+          });
+
+          // Registrar en historial
+          const cobroVenta = await tx.cobros.findFirst({
+            where: { NumeroCobro: numeroCobroVenta },
+            orderBy: { CobroID: 'desc' },
+          });
+
+          if (cobroVenta) {
+            await tx.cobros_historial.create({
+              data: {
+                CobroID: cobroVenta.CobroID,
+                TipoAccion: 'CREACION',
+                Descripcion: `Cobro por venta generado automáticamente desde presupuesto #${presupuesto.PresupuestoID} - Total: $${ventaCreada.Total.toFixed(2)}`,
+                UsuarioID: presupuesto.UsuarioID,
+              },
+            });
+          }
+
+          cobroVentaCreado = true;
+        }
+      }
+
+      // 5. Actualizar estatus del presupuesto
       await tx.presupuestos_encabezado.update({
         where: { PresupuestoID: presupuesto.PresupuestoID },
         data: { Estatus: 'Aprobado' },
@@ -696,6 +812,9 @@ class PresupuestosService {
     const equiposPurifreezeVenta = equiposVenta.filter((e: any) => e.TipoItem === 'EQUIPO_PURIFREEZE');
     const totalEquiposFisicosCreados = equiposPurifreezeVenta.reduce((sum: number, e: any) => sum + e.Cantidad, 0)
       + equiposRenta.reduce((sum: number, e: any) => sum + e.Cantidad, 0);
+
+    // Contar cobros creados
+    const totalCobrosCreados = serviciosAdicionalesDelCatalogo.length + (itemsVenta.length > 0 ? 1 : 0);
 
     return {
       message: 'Presupuesto aprobado y procesado correctamente',
@@ -708,6 +827,9 @@ class PresupuestosService {
           EquiposAsignados: equiposVenta.length + equiposRenta.length + equiposExternosMantenimiento.length,
           EquiposFisicosCreados: totalEquiposFisicosCreados,
           InventarioAfectado: totalEquiposFisicosCreados > 0,
+          CobrosGenerados: totalCobrosCreados,
+          CobrosServiciosAdicionales: serviciosAdicionalesDelCatalogo.length,
+          CobroVentaGenerado: itemsVenta.length > 0,
         },
       },
     };
@@ -800,6 +922,7 @@ class PresupuestosService {
         Modalidad: data.Modalidad || null,
         PlantillaEquipoID: data.PlantillaEquipoID || null,
         RefaccionID: data.RefaccionID || null,
+        ServicioAdicionalID: data.ServicioAdicionalID || null,
         Descripcion: data.Descripcion || null,
         Cantidad: data.Cantidad,
         PeriodoRenta: data.PeriodoRenta || null,
@@ -1008,6 +1131,7 @@ class PresupuestosService {
             Modalidad: d.Modalidad,
             PlantillaEquipoID: d.PlantillaEquipoID,
             RefaccionID: d.RefaccionID,
+            ServicioAdicionalID: d.ServicioAdicionalID,
             Descripcion: d.Descripcion,
             Cantidad: d.Cantidad,
             PeriodoRenta: d.PeriodoRenta,

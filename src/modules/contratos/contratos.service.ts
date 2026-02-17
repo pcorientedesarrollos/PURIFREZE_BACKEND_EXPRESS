@@ -506,7 +506,7 @@ class ContratosService {
           FechaFin: new Date(data.FechaFin),
           CondicionesPago: data.CondicionesPago || contrato.CondicionesPago,
           DiaPago: data.DiaPago || contrato.DiaPago,
-          MontoTotal: contrato.MontoTotal || 0,
+          MontoTotal: data.MontoTotal !== undefined ? data.MontoTotal : (contrato.MontoTotal || 0),
           FrecuenciaMantenimiento: data.FrecuenciaMantenimiento !== undefined ? data.FrecuenciaMantenimiento : contrato.FrecuenciaMantenimiento,
           PenalizacionCancelacion: data.PenalizacionCancelacion !== undefined ? data.PenalizacionCancelacion : contrato.PenalizacionCancelacion,
           Observaciones: data.Observaciones || null,
@@ -592,7 +592,31 @@ class ContratosService {
       { MontoTotal: data.MontoTotal }
     );
 
-    return { message: 'Monto actualizado', data: updated };
+    // Actualizar cobros pendientes si se solicita
+    let cobrosActualizados = null;
+    if (data.ActualizarCobros) {
+      try {
+        const resultado = await cobrosService.modificarMontoPendientes(ContratoID, {
+          MontoNuevo: data.MontoTotal,
+          Motivo: 'Actualización de monto de contrato',
+          UsuarioID: data.UsuarioID,
+        });
+        cobrosActualizados = resultado.data;
+      } catch (error) {
+        // Si no hay cobros pendientes, no falla
+        console.warn('No se pudieron actualizar cobros:', error);
+      }
+    }
+
+    return {
+      message: cobrosActualizados
+        ? `Monto actualizado y ${cobrosActualizados.cobrosModificados} cobro(s) pendiente(s) actualizados`
+        : 'Monto actualizado',
+      data: {
+        contrato: updated,
+        cobros: cobrosActualizados,
+      },
+    };
   }
 
   /**

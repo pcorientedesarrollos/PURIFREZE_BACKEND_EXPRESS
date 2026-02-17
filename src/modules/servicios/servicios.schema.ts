@@ -52,6 +52,7 @@ export const updateServicioSchema = z.object({
 
 export const cambiarEstatusSchema = z.object({
   Estatus: EstatusServicioEnum,
+  TecnicoID: z.number().optional().nullable(),
   Observaciones: z.string().max(500, 'Observaciones máximo 500 caracteres').optional(),
 });
 

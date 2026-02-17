@@ -11,6 +11,7 @@ export const createDetalleSchema = z.object({
   Modalidad: ModalidadPresupuesto.optional().nullable(),
   PlantillaEquipoID: z.number().optional().nullable(),
   RefaccionID: z.number().optional().nullable(),
+  ServicioAdicionalID: z.number().optional().nullable(),
   Descripcion: z.string().max(500).optional().nullable(),
   Cantidad: z.number().min(1).default(1),
   PeriodoRenta: z.number().min(1).optional().nullable(),

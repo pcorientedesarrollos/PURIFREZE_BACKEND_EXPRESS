@@ -86,12 +86,14 @@ export const renovarContratoSchema = z.object({
   FrecuenciaMantenimiento: z.number().min(1).optional().nullable(),
   PenalizacionCancelacion: z.number().min(0).max(100).optional().nullable(),
   Observaciones: z.string().max(500).optional().nullable(),
+  MontoTotal: z.number().min(0).optional(),
   UsuarioID: z.number({ required_error: 'El UsuarioID es requerido' }),
 });
 
 // Schema para actualizar monto
 export const actualizarMontoSchema = z.object({
   MontoTotal: z.number().min(0, 'El monto debe ser mayor o igual a 0'),
+  ActualizarCobros: z.boolean().optional().default(false),
   UsuarioID: z.number({ required_error: 'El UsuarioID es requerido' }),
 });
 

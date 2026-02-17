@@ -171,6 +171,20 @@ model catalogo_unidades {
   refacciones    catalogo_refacciones[] @relation("UnidadRefacciones")
 }
 
+// =============================================
+// CATALOGO SERVICIOS ADICIONALES
+// =============================================
+
+model catalogo_servicios_adicionales {
+  ServicioAdicionalID  Int                    @id @default(autoincrement())
+  Nombre               String                 @db.VarChar(255)
+  Costo                Float                  @db.Float
+  IsActive             Int                    @default(1) @db.TinyInt
+
+  presupuestos_detalle presupuestos_detalle[]
+  servicios_aplicados  servicios_adicionales_aplicados[]
+}
+
 model clientes_correos {
   CorreoID      Int                          @id @default(autoincrement())
   ClienteID     Int?
@@ -801,6 +815,7 @@ model presupuestos_encabezado {
   detalles              presupuestos_detalle[]
   contratos             contratos[]
   ventas                ventas_encabezado[]
+  cobros                cobros[]                 // Cobros generados desde este presupuesto
 }
 
 model presupuestos_detalle {
@@ -811,6 +826,7 @@ model presupuestos_detalle {
 
   PlantillaEquipoID     Int?
   RefaccionID           Int?
+  ServicioAdicionalID   Int?                     // FK a catalogo_servicios_adicionales
 
   Descripcion           String?                  @db.VarChar(500)
   Cantidad              Int                      @default(1)
@@ -825,6 +841,7 @@ model presupuestos_detalle {
   presupuesto           presupuestos_encabezado  @relation(fields: [PresupuestoID], references: [PresupuestoID])
   plantilla             plantillas_equipo?       @relation(fields: [PlantillaEquipoID], references: [PlantillaEquipoID])
   refaccion             catalogo_refacciones?    @relation(fields: [RefaccionID], references: [RefaccionID])
+  servicio_adicional    catalogo_servicios_adicionales? @relation(fields: [ServicioAdicionalID], references: [ServicioAdicionalID])
   clientes_equipos      clientes_equipos[]
   ventas_detalle        ventas_detalle[]
 }
@@ -984,6 +1001,8 @@ model servicios {
   historial               servicios_historial[]
   notificaciones          servicios_notificaciones[]
   firmas                  servicios_firmas[]
+  servicios_adicionales   servicios_adicionales_aplicados[]
+  cobros                  cobros[]
 
   @@index([ContratoID])
   @@index([ClienteEquipoID])
@@ -1158,6 +1177,47 @@ model servicios_firmas {
   servicio                servicios              @relation(fields: [ServicioID], references: [ServicioID])
 
   @@index([ServicioID])
+}
+
+// =============================================
+// SERVICIOS ADICIONALES APLICADOS
+// =============================================
+
+model servicios_adicionales_aplicados {
+  ServicioAdicionalAplicadoID Int                    @id @default(autoincrement())
+  ServicioID                  Int
+  ServicioAdicionalID         Int
+
+  // Datos del servicio adicional al momento de aplicarlo
+  NombreServicio              String                 @db.VarChar(255)
+  CostoOriginal               Float                  @db.Float  // Costo del catálogo
+  CostoAplicado               Float                  @db.Float  // Costo ajustado (puede ser diferente)
+
+  // Autorización del cliente
+  Autorizado                  Int                    @default(0) @db.TinyInt
+  FechaAutorizacion           DateTime?
+  NombreAutorizante           String?                @db.VarChar(255) // Nombre de quien autoriza
+
+  // Cobro generado
+  CobroGenerado               Int                    @default(0) @db.TinyInt
+  CobroID                     Int?                   // Referencia al cobro creado
+
+  // Observaciones
+  Observaciones               String?                @db.VarChar(500)
+
+  // Auditoría
+  UsuarioAgregaID             Int?
+  UsuarioAutorizaID           Int?
+  FechaCreacion               DateTime               @default(now())
+  IsActive                    Int?                   @db.TinyInt @default(1)
+
+  // Relaciones
+  servicio                    servicios              @relation(fields: [ServicioID], references: [ServicioID])
+  servicio_adicional          catalogo_servicios_adicionales @relation(fields: [ServicioAdicionalID], references: [ServicioAdicionalID])
+
+  @@index([ServicioID])
+  @@index([ServicioAdicionalID])
+  @@unique([ServicioID, ServicioAdicionalID])
 }
 
 model contratos_historial {
@@ -1394,6 +1454,7 @@ model ventas_encabezado {
   presupuesto           presupuestos_encabezado? @relation(fields: [PresupuestoID], references: [PresupuestoID])
   detalles              ventas_detalle[]
   pagos                 ventas_pagos[]
+  cobros                cobros[]                // Cobros generados desde esta venta
 
   @@index([ClienteID])
   @@index([FechaVenta])
@@ -1489,7 +1550,10 @@ enum EstatusVenta {
 
 model cobros {
   CobroID               Int                     @id @default(autoincrement())
-  ContratoID            Int
+  ContratoID            Int?                    // Opcional - para cobros de renta
+  VentaID               Int?                    // Opcional - para cobros de venta
+  ServicioID            Int?                    // Opcional - para cobros de servicio adicional
+  PresupuestoID         Int?                    // Trazabilidad al presupuesto origen
   ClienteEquipoID       Int?                    // Equipo específico (opcional)
 
   // Identificador único del cobro
@@ -1532,11 +1596,17 @@ model cobros {
   IsActive              Int?                    @db.TinyInt @default(1)
 
   // Relaciones
-  contrato              contratos               @relation(fields: [ContratoID], references: [ContratoID])
+  contrato              contratos?              @relation(fields: [ContratoID], references: [ContratoID])
+  venta                 ventas_encabezado?      @relation(fields: [VentaID], references: [VentaID])
+  servicio              servicios?              @relation(fields: [ServicioID], references: [ServicioID])
+  presupuesto           presupuestos_encabezado? @relation(fields: [PresupuestoID], references: [PresupuestoID])
   cliente_equipo        clientes_equipos?       @relation(fields: [ClienteEquipoID], references: [ClienteEquipoID])
   historial             cobros_historial[]
 
   @@index([ContratoID])
+  @@index([VentaID])
+  @@index([ServicioID])
+  @@index([PresupuestoID])
   @@index([FechaVencimiento])
   @@index([Estatus])
 }

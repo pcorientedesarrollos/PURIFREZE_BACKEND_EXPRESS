@@ -1,6 +1,6 @@
 import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
-import { Prisma, TipoServicio, EstatusServicio } from '@prisma/client';
+import { Prisma, TipoServicio, EstatusServicio, MotivoDano, TipoAccionServicio } from '@prisma/client';
 import moment from 'moment';
 import {
   CreateServicioDto,
@@ -151,13 +151,13 @@ class ServiciosService {
       }
 
       // Registrar en historial
-      await this.registrarHistorial(tx, servicio.ServicioID, 'CREACION', 'Servicio creado', null, JSON.stringify({
+      await this.registrarHistorial(tx, servicio.ServicioID, TipoAccionServicio.CREACION, 'Servicio creado', null, JSON.stringify({
         TipoServicio: dto.TipoServicio,
         Equipos: dto.EquiposIDs!.length,
       }), usuarioId);
 
       return servicio.ServicioID;
-    });
+    }, { timeout: 30000 }); // 30 segundos de timeout
 
     // Retornar el servicio completo (fuera de la transacción)
     return await this.findOne(servicioId);
@@ -330,6 +330,19 @@ class ServiciosService {
             FechaFirma: true,
           },
         },
+        servicios_adicionales: {
+          where: { IsActive: 1 },
+          include: {
+            servicio_adicional: {
+              select: {
+                ServicioAdicionalID: true,
+                Nombre: true,
+                Costo: true,
+              },
+            },
+          },
+          orderBy: { FechaCreacion: 'asc' },
+        },
       },
     });
 
@@ -449,7 +462,7 @@ class ServiciosService {
       data: dataUpdate,
     });
 
-    await this.registrarHistorial(prisma, id, 'MODIFICACION', 'Servicio actualizado', null, JSON.stringify(dto), usuarioId);
+    await this.registrarHistorial(prisma, id, TipoAccionServicio.MODIFICACION, 'Servicio actualizado', null, JSON.stringify(dto), usuarioId);
 
     return await this.findOne(id);
   }
@@ -474,17 +487,21 @@ class ServiciosService {
       throw new HttpError(`No se puede cambiar de ${estatusAnterior} a ${dto.Estatus}`, 400);
     }
 
-    // Validaciones específicas
-    if (dto.Estatus === 'PENDIENTE' && !servicio.TecnicoID) {
+    // Validaciones específicas - considerar si viene TecnicoID en el payload
+    const tecnicoIdFinal = dto.TecnicoID ?? servicio.TecnicoID;
+    if (dto.Estatus === 'PENDIENTE' && !tecnicoIdFinal) {
       throw new HttpError('Debe asignar un técnico antes de pasar a PENDIENTE', 400);
     }
 
     await prisma.servicios.update({
       where: { ServicioID: id },
-      data: { Estatus: dto.Estatus as EstatusServicio },
+      data: {
+        Estatus: dto.Estatus as EstatusServicio,
+        ...(dto.TecnicoID !== undefined && { TecnicoID: dto.TecnicoID }),
+      },
     });
 
-    await this.registrarHistorial(prisma, id, 'CAMBIO_ESTATUS', `Estatus cambiado de ${estatusAnterior} a ${dto.Estatus}`, estatusAnterior, dto.Estatus, usuarioId);
+    await this.registrarHistorial(prisma, id, TipoAccionServicio.CAMBIO_ESTATUS, `Estatus cambiado de ${estatusAnterior} a ${dto.Estatus}`, estatusAnterior, dto.Estatus, usuarioId);
 
     return await this.findOne(id);
   }
@@ -500,7 +517,7 @@ class ServiciosService {
       },
     });
 
-    await this.registrarHistorial(prisma, id, 'CANCELACION', `Servicio cancelado: ${dto.MotivoCancelacion}`, servicio.Estatus, 'CANCELADO', usuarioId);
+    await this.registrarHistorial(prisma, id, TipoAccionServicio.CANCELACION, `Servicio cancelado: ${dto.MotivoCancelacion}`, servicio.Estatus, 'CANCELADO', usuarioId);
 
     return await this.findOne(id);
   }
@@ -587,11 +604,11 @@ class ServiciosService {
         }
       }
 
-      await this.registrarHistorial(tx, id, 'REAGENDAMIENTO', `Reagendado a servicio ${nuevoServicio.ServicioID}`, null, dto.MotivoReagendamiento, usuarioId);
-      await this.registrarHistorial(tx, nuevoServicio.ServicioID, 'CREACION', `Servicio creado por reagendamiento desde ${id}`, null, null, usuarioId);
+      await this.registrarHistorial(tx, id, TipoAccionServicio.REAGENDAMIENTO, `Reagendado a servicio ${nuevoServicio.ServicioID}`, null, dto.MotivoReagendamiento, usuarioId);
+      await this.registrarHistorial(tx, nuevoServicio.ServicioID, TipoAccionServicio.CREACION, `Servicio creado por reagendamiento desde ${id}`, null, null, usuarioId);
 
       return await this.findOneInternal(tx, nuevoServicio.ServicioID);
-    });
+    }, { timeout: 30000 }); // 30 segundos de timeout
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -634,7 +651,7 @@ class ServiciosService {
       data: dataUpdate,
     });
 
-    await this.registrarHistorial(prisma, servicioId, 'MODIFICACION_REFACCION', 'Refacción actualizada', null, JSON.stringify(dto), usuarioId);
+    await this.registrarHistorial(prisma, servicioId, TipoAccionServicio.MODIFICACION_REFACCION, 'Refacción actualizada', null, JSON.stringify(dto), usuarioId);
 
     return await this.findOne(servicioId);
   }
@@ -674,7 +691,7 @@ class ServiciosService {
       },
     });
 
-    await this.registrarHistorial(prisma, servicioId, 'MODIFICACION_REFACCION', 'Refacción agregada al equipo', null, JSON.stringify(dto), usuarioId);
+    await this.registrarHistorial(prisma, servicioId, TipoAccionServicio.MODIFICACION_REFACCION, 'Refacción agregada al equipo', null, JSON.stringify(dto), usuarioId);
 
     return await this.findOne(servicioId);
   }
@@ -708,7 +725,7 @@ class ServiciosService {
       },
     });
 
-    await this.registrarHistorial(prisma, servicioId, 'MODIFICACION_REFACCION', 'Refacción eliminada del equipo', null, JSON.stringify(dto), usuarioId);
+    await this.registrarHistorial(prisma, servicioId, TipoAccionServicio.MODIFICACION_REFACCION, 'Refacción eliminada del equipo', null, JSON.stringify(dto), usuarioId);
 
     return await this.findOne(servicioId);
   }
@@ -749,7 +766,7 @@ class ServiciosService {
     // Actualizar costo total del servicio
     await this.recalcularCostos(servicioId);
 
-    await this.registrarHistorial(prisma, servicioId, 'AGREGAR_INSUMO', `Insumo agregado: ${refaccion.NombrePieza}`, null, JSON.stringify(dto), usuarioId);
+    await this.registrarHistorial(prisma, servicioId, TipoAccionServicio.AGREGAR_INSUMO, `Insumo agregado: ${refaccion.NombrePieza}`, null, JSON.stringify(dto), usuarioId);
 
     return await this.findOne(servicioId);
   }
@@ -848,7 +865,7 @@ class ServiciosService {
       }
     }
 
-    await this.registrarHistorial(prisma, servicioId, 'MODIFICACION', 'Configuración de desinstalación actualizada', null, JSON.stringify(dto), usuarioId);
+    await this.registrarHistorial(prisma, servicioId, TipoAccionServicio.MODIFICACION, 'Configuración de desinstalación actualizada', null, JSON.stringify(dto), usuarioId);
 
     return await this.findOne(servicioId);
   }
@@ -938,7 +955,7 @@ class ServiciosService {
                   RefaccionID: refaccion.RefaccionID,
                   EquipoID: equipo?.EquipoID || null,
                   Cantidad: refaccion.CantidadEquipo,
-                  MotivoDano: refaccion.MotivoDano || 'Otro',
+                  MotivoDano: refaccion.MotivoDano ?? MotivoDano.Otro,
                   Observaciones: refaccion.ObservacionesDano || null,
                   FechaRegistro: new Date(),
                   UsuarioID: usuarioId || 1,
@@ -1002,7 +1019,7 @@ class ServiciosService {
                       RefaccionID: refaccion.RefaccionID,
                       EquipoID: equipo.EquipoID,
                       Cantidad: refaccion.CantidadEquipo,
-                      MotivoDano: refaccion.MotivoDano || 'Otro',
+                      MotivoDano: refaccion.MotivoDano ?? MotivoDano.Otro,
                       Observaciones: refaccion.ObservacionesDano || null,
                       FechaRegistro: new Date(),
                       UsuarioID: usuarioId || 1,
@@ -1074,6 +1091,47 @@ class ServiciosService {
         });
       }
 
+      // Generar cobros para servicios adicionales autorizados
+      const serviciosAdicionalesAutorizados = await tx.servicios_adicionales_aplicados.findMany({
+        where: {
+          ServicioID: id,
+          Autorizado: 1,
+          CobroGenerado: 0,
+          IsActive: 1,
+        },
+      });
+
+      for (const adicional of serviciosAdicionalesAutorizados) {
+        // Generar número de cobro único
+        const numeroCobro = `SA-${id}-${adicional.ServicioAdicionalAplicadoID}`;
+
+        // Crear el cobro
+        const cobro = await tx.cobros.create({
+          data: {
+            ServicioID: id,
+            ContratoID: servicio.ContratoID,
+            NumeroCobro: numeroCobro,
+            NumeroPeriodo: 1, // Los servicios adicionales son cobros únicos
+            FechaVencimiento: new Date(), // Vence hoy
+            MontoOriginal: adicional.CostoAplicado,
+            MontoFinal: adicional.CostoAplicado,
+            Estatus: 'PENDIENTE',
+            Observaciones: `Servicio adicional: ${adicional.NombreServicio}`,
+            UsuarioCreadorID: usuarioId || null,
+            IsActive: 1,
+          },
+        });
+
+        // Actualizar el registro de servicio adicional aplicado
+        await tx.servicios_adicionales_aplicados.update({
+          where: { ServicioAdicionalAplicadoID: adicional.ServicioAdicionalAplicadoID },
+          data: {
+            CobroGenerado: 1,
+            CobroID: cobro.CobroID,
+          },
+        });
+      }
+
       // Crear notificación para próximo servicio si aplica
       if (dto.ProximoServicioMeses) {
         const fechaProximo = moment().add(dto.ProximoServicioMeses, 'months').toDate();
@@ -1091,10 +1149,10 @@ class ServiciosService {
         });
       }
 
-      await this.registrarHistorial(tx, id, 'FINALIZACION', 'Servicio finalizado', null, JSON.stringify(dto), usuarioId);
+      await this.registrarHistorial(tx, id, TipoAccionServicio.FINALIZACION, 'Servicio finalizado', null, JSON.stringify(dto), usuarioId);
 
       return await this.findOneInternal(tx, id);
-    });
+    }, { timeout: 60000 }); // 60 segundos de timeout para finalizar
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1272,20 +1330,23 @@ class ServiciosService {
   private async registrarHistorial(
     tx: Prisma.TransactionClient | typeof prisma,
     servicioId: number,
-    tipoAccion: string,
+    tipoAccion: TipoAccionServicio,
     descripcion: string,
     valorAnterior: string | null,
     valorNuevo: string | null,
     usuarioId?: number
   ) {
+    if (!usuarioId) {
+      throw new HttpError('UsuarioID es requerido para registrar historial', 400);
+    }
     await tx.servicios_historial.create({
       data: {
         ServicioID: servicioId,
-        TipoAccion: tipoAccion as any,
+        TipoAccion: tipoAccion,
         Descripcion: descripcion,
         ValorAnterior: valorAnterior,
         ValorNuevo: valorNuevo,
-        UsuarioID: usuarioId || 1,
+        UsuarioID: usuarioId,
       },
     });
   }
@@ -1448,6 +1509,26 @@ class ServiciosService {
         NombreFirmante: f.NombreFirmante,
         FechaFirma: moment(f.FechaFirma).format('YYYY-MM-DD HH:mm'),
       })),
+      ServiciosAdicionales: servicio.servicios_adicionales?.map((sa: any) => ({
+        ServicioAdicionalAplicadoID: sa.ServicioAdicionalAplicadoID,
+        ServicioID: sa.ServicioID,
+        ServicioAdicionalID: sa.ServicioAdicionalID,
+        NombreServicio: sa.NombreServicio,
+        CostoOriginal: sa.CostoOriginal,
+        CostoAplicado: sa.CostoAplicado,
+        Autorizado: sa.Autorizado === 1,
+        FechaAutorizacion: sa.FechaAutorizacion ? moment(sa.FechaAutorizacion).format('YYYY-MM-DD HH:mm') : null,
+        NombreAutorizante: sa.NombreAutorizante,
+        CobroGenerado: sa.CobroGenerado === 1,
+        CobroID: sa.CobroID,
+        Observaciones: sa.Observaciones,
+        FechaCreacion: moment(sa.FechaCreacion).format('YYYY-MM-DD HH:mm'),
+        servicio_adicional: sa.servicio_adicional ? {
+          ServicioAdicionalID: sa.servicio_adicional.ServicioAdicionalID,
+          Nombre: sa.servicio_adicional.Nombre,
+          Costo: sa.servicio_adicional.Costo,
+        } : null,
+      })) || [],
       FechaCreacion: moment(servicio.FechaCreacion).format('YYYY-MM-DD HH:mm'),
     };
   }

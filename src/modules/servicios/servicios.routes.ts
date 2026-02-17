@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { serviciosController } from './servicios.controller';
+import { serviciosAdicionalesController } from '../servicios-adicionales/servicios-adicionales.controller';
 import { validateBody, validateParams, validateQuery } from '../../middlewares/validateRequest';
 import {
   createServicioSchema,
@@ -18,6 +19,12 @@ import {
   searchServiciosQuerySchema,
   agendaQuerySchema,
 } from './servicios.schema';
+import {
+  agregarServicioAdicionalAplicadoSchema,
+  autorizarServicioAdicionalSchema,
+  actualizarServicioAdicionalAplicadoSchema,
+  servicioAdicionalAplicadoIdParamSchema,
+} from '../servicios-adicionales/servicios-adicionales.schema';
 import { z } from 'zod';
 
 const router = Router();
@@ -172,6 +179,62 @@ router.patch(
   validateParams(servicioIdParamSchema),
   validateBody(configurarDesinstalacionSchema),
   (req, res) => serviciosController.configurarDesinstalacion(req, res)
+);
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SERVICIOS ADICIONALES APLICADOS
+// ═══════════════════════════════════════════════════════════════════════════
+
+// GET /servicios/:ServicioID/adicionales - Obtener servicios adicionales de un servicio
+router.get(
+  '/:ServicioID/adicionales',
+  validateParams(servicioIdParamSchema),
+  (req, res) => serviciosAdicionalesController.obtenerDeServicio(req, res)
+);
+
+// GET /servicios/:ServicioID/adicionales/resumen - Obtener resumen
+router.get(
+  '/:ServicioID/adicionales/resumen',
+  validateParams(servicioIdParamSchema),
+  (req, res) => serviciosAdicionalesController.obtenerResumen(req, res)
+);
+
+// POST /servicios/:ServicioID/adicionales - Agregar servicio adicional
+router.post(
+  '/:ServicioID/adicionales',
+  validateParams(servicioIdParamSchema),
+  validateBody(agregarServicioAdicionalAplicadoSchema),
+  (req, res) => serviciosAdicionalesController.agregarAServicio(req, res)
+);
+
+// PUT /servicios/adicionales-aplicados/:ServicioAdicionalAplicadoID - Actualizar
+router.put(
+  '/adicionales-aplicados/:ServicioAdicionalAplicadoID',
+  validateParams(servicioAdicionalAplicadoIdParamSchema),
+  validateBody(actualizarServicioAdicionalAplicadoSchema),
+  (req, res) => serviciosAdicionalesController.actualizarServicioAplicado(req, res)
+);
+
+// PATCH /servicios/adicionales-aplicados/:ServicioAdicionalAplicadoID/autorizar
+router.patch(
+  '/adicionales-aplicados/:ServicioAdicionalAplicadoID/autorizar',
+  validateParams(servicioAdicionalAplicadoIdParamSchema),
+  validateBody(autorizarServicioAdicionalSchema),
+  (req, res) => serviciosAdicionalesController.autorizarServicioAplicado(req, res)
+);
+
+// PATCH /servicios/adicionales-aplicados/:ServicioAdicionalAplicadoID/revocar
+router.patch(
+  '/adicionales-aplicados/:ServicioAdicionalAplicadoID/revocar',
+  validateParams(servicioAdicionalAplicadoIdParamSchema),
+  (req, res) => serviciosAdicionalesController.revocarAutorizacion(req, res)
+);
+
+// DELETE /servicios/adicionales-aplicados/:ServicioAdicionalAplicadoID
+router.delete(
+  '/adicionales-aplicados/:ServicioAdicionalAplicadoID',
+  validateParams(servicioAdicionalAplicadoIdParamSchema),
+  (req, res) => serviciosAdicionalesController.eliminarDeServicio(req, res)
 );
 
 export default router;

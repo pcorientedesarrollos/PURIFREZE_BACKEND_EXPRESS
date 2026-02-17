@@ -13,7 +13,7 @@ class ServiciosController {
    * POST /servicios
    */
   async create(req: Request, res: Response) {
-    const usuarioId = (req as any).usuario?.UsuarioID;
+    const usuarioId = req.user?.UsuarioID;
     const result = await serviciosService.create(req.body, usuarioId);
     return success(res, result.message, result.data, 201);
   }
@@ -44,7 +44,7 @@ class ServiciosController {
    */
   async update(req: Request, res: Response) {
     const { ServicioID } = req.params as unknown as { ServicioID: number };
-    const usuarioId = (req as any).usuario?.UsuarioID;
+    const usuarioId = req.user?.UsuarioID;
     const result = await serviciosService.update(ServicioID, req.body, usuarioId);
     return success(res, result.message, result.data);
   }
@@ -69,7 +69,7 @@ class ServiciosController {
    */
   async cambiarEstatus(req: Request, res: Response) {
     const { ServicioID } = req.params as unknown as { ServicioID: number };
-    const usuarioId = (req as any).usuario?.UsuarioID;
+    const usuarioId = req.user?.UsuarioID;
     const result = await serviciosService.cambiarEstatus(ServicioID, req.body, usuarioId);
     return success(res, result.message, result.data);
   }
@@ -80,7 +80,7 @@ class ServiciosController {
    */
   async cancelar(req: Request, res: Response) {
     const { ServicioID } = req.params as unknown as { ServicioID: number };
-    const usuarioId = (req as any).usuario?.UsuarioID;
+    const usuarioId = req.user?.UsuarioID;
     const result = await serviciosService.cancelar(ServicioID, req.body, usuarioId);
     return success(res, result.message, result.data);
   }
@@ -91,7 +91,7 @@ class ServiciosController {
    */
   async reagendar(req: Request, res: Response) {
     const { ServicioID } = req.params as unknown as { ServicioID: number };
-    const usuarioId = (req as any).usuario?.UsuarioID;
+    const usuarioId = req.user?.UsuarioID;
     const result = await serviciosService.reagendar(ServicioID, req.body, usuarioId);
     return success(res, result.message, result.data, 201);
   }
@@ -102,7 +102,7 @@ class ServiciosController {
    */
   async finalizar(req: Request, res: Response) {
     const { ServicioID } = req.params as unknown as { ServicioID: number };
-    const usuarioId = (req as any).usuario?.UsuarioID;
+    const usuarioId = req.user?.UsuarioID;
     const result = await serviciosService.finalizar(ServicioID, req.body, usuarioId);
     return success(res, result.message, result.data);
   }
@@ -117,7 +117,7 @@ class ServiciosController {
    */
   async actualizarRefaccion(req: Request, res: Response) {
     const { ServicioID } = req.params as unknown as { ServicioID: number };
-    const usuarioId = (req as any).usuario?.UsuarioID;
+    const usuarioId = req.user?.UsuarioID;
     const result = await serviciosService.actualizarRefaccion(ServicioID, req.body, usuarioId);
     return success(res, result.message, result.data);
   }
@@ -128,7 +128,7 @@ class ServiciosController {
    */
   async agregarRefaccion(req: Request, res: Response) {
     const { ServicioID } = req.params as unknown as { ServicioID: number };
-    const usuarioId = (req as any).usuario?.UsuarioID;
+    const usuarioId = req.user?.UsuarioID;
     const result = await serviciosService.agregarRefaccionEquipo(ServicioID, req.body, usuarioId);
     return success(res, result.message, result.data, 201);
   }
@@ -139,7 +139,7 @@ class ServiciosController {
    */
   async eliminarRefaccion(req: Request, res: Response) {
     const { ServicioID } = req.params as unknown as { ServicioID: number };
-    const usuarioId = (req as any).usuario?.UsuarioID;
+    const usuarioId = req.user?.UsuarioID;
     const result = await serviciosService.eliminarRefaccionEquipo(ServicioID, req.body, usuarioId);
     return success(res, result.message, result.data);
   }
@@ -154,7 +154,7 @@ class ServiciosController {
    */
   async agregarInsumo(req: Request, res: Response) {
     const { ServicioID } = req.params as unknown as { ServicioID: number };
-    const usuarioId = (req as any).usuario?.UsuarioID;
+    const usuarioId = req.user?.UsuarioID;
     const result = await serviciosService.agregarInsumo(ServicioID, req.body, usuarioId);
     return success(res, result.message, result.data, 201);
   }
@@ -165,7 +165,7 @@ class ServiciosController {
    */
   async modificarInsumo(req: Request, res: Response) {
     const { ServicioID } = req.params as unknown as { ServicioID: number };
-    const usuarioId = (req as any).usuario?.UsuarioID;
+    const usuarioId = req.user?.UsuarioID;
     const result = await serviciosService.modificarInsumo(ServicioID, req.body, usuarioId);
     return success(res, result.message, result.data);
   }
@@ -176,7 +176,7 @@ class ServiciosController {
    */
   async eliminarInsumo(req: Request, res: Response) {
     const { ServicioID, ServicioInsumoID } = req.params as unknown as { ServicioID: number; ServicioInsumoID: number };
-    const usuarioId = (req as any).usuario?.UsuarioID;
+    const usuarioId = req.user?.UsuarioID;
     const result = await serviciosService.eliminarInsumo(ServicioID, ServicioInsumoID, usuarioId);
     return success(res, result.message, result.data);
   }
@@ -191,7 +191,7 @@ class ServiciosController {
    */
   async configurarDesinstalacion(req: Request, res: Response) {
     const { ServicioID } = req.params as unknown as { ServicioID: number };
-    const usuarioId = (req as any).usuario?.UsuarioID;
+    const usuarioId = req.user?.UsuarioID;
     const result = await serviciosService.configurarDesinstalacion(ServicioID, req.body, usuarioId);
     return success(res, result.message, result.data);
   }
