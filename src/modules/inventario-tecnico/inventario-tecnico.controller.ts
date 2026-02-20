@@ -49,6 +49,13 @@ class InventarioTecnicoController {
     const result = await inventarioTecnicoService.buscarRefacciones(TecnicoID, q || '');
     return success(res, result.message, result.data);
   }
+
+  async buscarEnStock(req: Request, res: Response) {
+    const { TecnicoID } = req.params as unknown as { TecnicoID: number };
+    const { q } = req.query as { q: string };
+    const result = await inventarioTecnicoService.buscarEnStock(TecnicoID, q || '');
+    return success(res, result.message, result.data);
+  }
 }
 
 export const inventarioTecnicoController = new InventarioTecnicoController();

@@ -112,6 +112,17 @@ class ServiciosController {
   // ═══════════════════════════════════════════════════════════════════════════
 
   /**
+   * Buscar refacciones disponibles del equipo
+   * GET /servicios/:ServicioID/equipos/:ServicioEquipoID/refacciones/buscar
+   */
+  async buscarRefaccionesEquipo(req: Request, res: Response) {
+    const { ServicioID, ServicioEquipoID } = req.params as unknown as { ServicioID: number; ServicioEquipoID: number };
+    const { q } = req.query as { q?: string };
+    const result = await serviciosService.buscarRefaccionesEquipo(ServicioID, ServicioEquipoID, q || '');
+    return success(res, result.message, result.data);
+  }
+
+  /**
    * Actualizar refacción en equipo
    * PATCH /servicios/:ServicioID/refacciones
    */

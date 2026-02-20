@@ -110,6 +110,50 @@ router.get('/tecnico/:TecnicoID/sugerencias', validateParams(tecnicoIdParamSchem
 router.get('/tecnico/:TecnicoID/buscar', validateParams(tecnicoIdParamSchema), (req, res) => inventarioTecnicoController.buscarRefacciones(req, res));
 
 /** @swagger
+ * /inventario-tecnico/tecnico/{TecnicoID}/stock/buscar:
+ *   get:
+ *     summary: Buscar en stock ACTUAL del técnico (refacciones que tiene)
+ *     tags: [Inventario Técnico]
+ *     description: Busca en el inventario actual del técnico. Útil para agregar insumos a servicios.
+ *     parameters:
+ *       - in: path
+ *         name: TecnicoID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: query
+ *         name: q
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Término de búsqueda (nombre, código)
+ *     responses:
+ *       200:
+ *         description: Refacciones con stock disponible
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       RefaccionID:
+ *                         type: integer
+ *                       NombrePieza:
+ *                         type: string
+ *                       StockNuevo:
+ *                         type: integer
+ *                       StockUsado:
+ *                         type: integer
+ *                       StockDisponible:
+ *                         type: integer
+ */
+router.get('/tecnico/:TecnicoID/stock/buscar', validateParams(tecnicoIdParamSchema), (req, res) => inventarioTecnicoController.buscarEnStock(req, res));
+
+/** @swagger
  * /inventario-tecnico/tecnico/{TecnicoID}/refaccion/{RefaccionID}:
  *   get:
  *     summary: Obtener detalle de una refacción en inventario

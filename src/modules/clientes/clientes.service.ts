@@ -41,11 +41,28 @@ class ClientesService {
     return { message: 'Cliente Creado', data: result };
   }
 
-  async findAll() {
+  async findAll(search?: string, isActive?: boolean) {
+    const where: any = {};
+
+    // Filtro por búsqueda
+    if (search && search.trim()) {
+      where.OR = [
+        { NombreComercio: { contains: search.trim() } },
+        { Observaciones: { contains: search.trim() } },
+      ];
+    }
+
+    // Filtro por estado activo
+    if (isActive !== undefined) {
+      where.IsActive = isActive;
+    }
+
     const allClientes = await prisma.catalogo_clientes.findMany({
+      where,
       orderBy: {
         ClienteID: 'desc',
       },
+      take: search ? 20 : undefined, // Limitar resultados en búsqueda
     });
 
     return { message: 'Clientes obtenidos', data: allClientes };

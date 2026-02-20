@@ -22,6 +22,12 @@ class InventarioController {
     return success(res, result.message, result.data);
   }
 
+  async buscarEnBodega(req: Request, res: Response) {
+    const { q } = req.query as { q: string };
+    const result = await inventarioService.buscarEnBodega(q || '');
+    return success(res, result.message, result.data);
+  }
+
   // ==================== KARDEX ====================
 
   async findAllKardex(req: Request, res: Response) {

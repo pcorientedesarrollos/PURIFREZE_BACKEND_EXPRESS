@@ -159,6 +159,7 @@ model catalogo_refacciones {
   servicios_equipos_refacciones_nueva servicios_equipos_refacciones[] @relation("RefaccionNueva")
   servicios_insumos                  servicios_insumos[]
   ventas_detalle                     ventas_detalle[]
+  periodos_cambio                    refaccion_periodo_cambio[]
 }
 
 model catalogo_unidades {
@@ -446,14 +447,15 @@ model ubicaciones_inventario {
 }
 
 model usuarios {
-  UsuarioID         Int                 @id @default(autoincrement())
-  Usuario           String?             @db.VarChar(255)
-  Password          String?             @db.VarChar(255)
-  NombreCompleto    String?             @db.VarChar(255)
-  IsActive          Boolean
-  IsAdmin           Boolean
-  Permisos          permisos[]
-  catalogo_tecnicos catalogo_tecnicos?
+  UsuarioID            Int                    @id @default(autoincrement())
+  Usuario              String?                @db.VarChar(255)
+  Password             String?                @db.VarChar(255)
+  NombreCompleto       String?                @db.VarChar(255)
+  IsActive             Boolean
+  IsAdmin              Boolean
+  Permisos             permisos[]
+  catalogo_tecnicos    catalogo_tecnicos?
+  contratos_historial  contratos_historial[]
 }
 
 model catalogo_tecnicos {
@@ -1231,6 +1233,7 @@ model contratos_historial {
   FechaAccion             DateTime               @default(now())
 
   contrato                contratos              @relation(fields: [ContratoID], references: [ContratoID])
+  usuario                 usuarios               @relation(fields: [UsuarioID], references: [UsuarioID])
 }
 
 // Enums de Contratos
@@ -1713,4 +1716,27 @@ enum FrecuenciaCobro {
   TRIMESTRAL
   SEMESTRAL
   ANUAL
+}
+
+// =============================================
+// PERIODOS DE CAMBIO DE REFACCIONES
+// =============================================
+
+model refaccion_periodo_cambio {
+  RefaccionPeriodoCambioID Int                    @id @default(autoincrement())
+  RefaccionID              Int
+  PeriodoContrato          Int                    // Frecuencia del contrato en meses (3, 4, 6, etc.)
+  PeriodoCambioMeses       Int                    // Cada cuántos meses se debe cambiar la refacción
+  Observaciones            String?                @db.VarChar(500)
+  IsActive                 Int?                   @db.TinyInt @default(1)
+  CreatedAt                DateTime               @default(now())
+  UpdatedAt                DateTime               @updatedAt
+
+  // Relaciones
+  refaccion                catalogo_refacciones   @relation(fields: [RefaccionID], references: [RefaccionID], onDelete: Cascade)
+
+  // Constraints
+  @@unique([RefaccionID, PeriodoContrato])
+  @@index([RefaccionID])
+  @@index([PeriodoContrato])
 }

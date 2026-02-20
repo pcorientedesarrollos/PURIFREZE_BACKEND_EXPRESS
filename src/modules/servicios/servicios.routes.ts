@@ -113,6 +113,24 @@ router.post(
 // GESTIÓN DE REFACCIONES EN EQUIPOS
 // ═══════════════════════════════════════════════════════════════════════════
 
+// Parámetros para búsqueda de refacciones del equipo
+const buscarRefaccionesEquipoParamsSchema = z.object({
+  ServicioID: z.string().regex(/^\d+$/, 'ServicioID debe ser un número válido').transform(Number),
+  ServicioEquipoID: z.string().regex(/^\d+$/, 'ServicioEquipoID debe ser un número válido').transform(Number),
+});
+
+const buscarRefaccionesEquipoQuerySchema = z.object({
+  q: z.string().optional().default(''),
+});
+
+// GET /servicios/:ServicioID/equipos/:ServicioEquipoID/refacciones/buscar - Buscar refacciones del equipo
+router.get(
+  '/:ServicioID/equipos/:ServicioEquipoID/refacciones/buscar',
+  validateParams(buscarRefaccionesEquipoParamsSchema),
+  validateQuery(buscarRefaccionesEquipoQuerySchema),
+  (req, res) => serviciosController.buscarRefaccionesEquipo(req, res)
+);
+
 // PATCH /servicios/:ServicioID/refacciones - Actualizar refacción
 router.patch(
   '/:ServicioID/refacciones',

@@ -8,8 +8,10 @@ class ClientesController {
     return success(res, result.message, result.data, 201);
   }
 
-  async findAll(_req: Request, res: Response) {
-    const result = await clientesService.findAll();
+  async findAll(req: Request, res: Response) {
+    const { search, IsActive } = req.query;
+    const isActive = IsActive === 'true' ? true : IsActive === 'false' ? false : undefined;
+    const result = await clientesService.findAll(search as string, isActive);
     return success(res, result.message, result.data);
   }
 

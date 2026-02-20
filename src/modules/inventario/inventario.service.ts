@@ -258,6 +258,77 @@ class InventarioService {
   }
 
   /**
+   * Buscar refacciones con stock disponible en bodega (inventario general)
+   * Para usar en servicios cuando se necesita agregar insumos desde bodega
+   * Nota: Usa la tabla 'inventario' que es diferente de 'inventario_tecnico'
+   */
+  async buscarEnBodega(busqueda: string) {
+    // Buscar en inventario general con stock > 0
+    // La tabla 'inventario' representa el stock de bodega/almacén
+    const inventario = await prisma.inventario.findMany({
+      where: {
+        IsActive: 1,
+        StockActual: { gt: 0 },
+      },
+    });
+
+    if (!inventario.length) {
+      return { message: 'No hay stock en bodega', data: [] };
+    }
+
+    // Obtener IDs de refacciones
+    const refaccionIds = inventario.map((i) => i.RefaccionID).filter(Boolean) as number[];
+
+    // Buscar refacciones con filtro de búsqueda
+    const refacciones = await prisma.catalogo_refacciones.findMany({
+      where: {
+        RefaccionID: { in: refaccionIds },
+        IsActive: true,
+        ...(busqueda
+          ? {
+              OR: [
+                { NombrePieza: { contains: busqueda } },
+                { NombreCorto: { contains: busqueda } },
+                { Codigo: { contains: busqueda } },
+              ],
+            }
+          : {}),
+      },
+      select: {
+        RefaccionID: true,
+        NombrePieza: true,
+        NombreCorto: true,
+        Codigo: true,
+        CostoPromedio: true,
+        catalogo_unidades: {
+          select: {
+            DesUnidad: true,
+          },
+        },
+      },
+      take: 20,
+      orderBy: {
+        NombrePieza: 'asc',
+      },
+    });
+
+    // Combinar con stock
+    const inventarioMap = new Map(inventario.map((i) => [i.RefaccionID, i.StockActual]));
+
+    const resultado = refacciones.map((refaccion) => ({
+      RefaccionID: refaccion.RefaccionID,
+      NombrePieza: refaccion.NombrePieza,
+      NombreCorto: refaccion.NombreCorto,
+      Codigo: refaccion.Codigo,
+      CostoPromedio: refaccion.CostoPromedio,
+      Unidad: refaccion.catalogo_unidades?.DesUnidad,
+      StockDisponible: inventarioMap.get(refaccion.RefaccionID) || 0,
+    }));
+
+    return { message: 'Stock de bodega encontrado', data: resultado };
+  }
+
+  /**
    * Obtiene tipos de movimiento disponibles
    */
   async getTiposMovimiento() {

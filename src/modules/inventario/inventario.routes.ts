@@ -30,6 +30,45 @@ router.get('/', (req, res) => inventarioController.findAll(req, res));
 router.get('/resumen', (req, res) => inventarioController.getResumen(req, res));
 
 /** @swagger
+ * /inventario/bodega/buscar:
+ *   get:
+ *     summary: Buscar refacciones con stock en bodega
+ *     tags: [Inventario]
+ *     description: Busca en el inventario de bodega. Útil para agregar insumos a servicios.
+ *     parameters:
+ *       - in: query
+ *         name: q
+ *         required: false
+ *         schema:
+ *           type: string
+ *         description: Término de búsqueda (nombre, código)
+ *     responses:
+ *       200:
+ *         description: Refacciones con stock disponible en bodega
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 data:
+ *                   type: array
+ *                   items:
+ *                     type: object
+ *                     properties:
+ *                       RefaccionID:
+ *                         type: integer
+ *                       NombrePieza:
+ *                         type: string
+ *                       Codigo:
+ *                         type: string
+ *                       CostoPromedio:
+ *                         type: number
+ *                       StockDisponible:
+ *                         type: integer
+ */
+router.get('/bodega/buscar', (req, res) => inventarioController.buscarEnBodega(req, res));
+
+/** @swagger
  * /inventario/refaccion/{RefaccionID}:
  *   get:
  *     summary: Obtener inventario por RefaccionID

@@ -263,7 +263,23 @@ class ContratosService {
         },
         historial: {
           orderBy: { FechaAccion: 'desc' },
-          take: 20,
+          take: 50,
+          select: {
+            HistorialID: true,
+            ContratoID: true,
+            TipoAccion: true,
+            Descripcion: true,
+            ValorAnterior: true,
+            ValorNuevo: true,
+            UsuarioID: true,
+            FechaAccion: true,
+            usuario: {
+              select: {
+                UsuarioID: true,
+                NombreCompleto: true,
+              },
+            },
+          },
         },
       },
     });

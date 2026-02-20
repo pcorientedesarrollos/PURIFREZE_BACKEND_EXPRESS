@@ -497,6 +497,71 @@ class InventarioTecnicoService {
     return { message: 'Sugerencias obtenidas', data: sugerencias };
   }
 
+  // Buscar en el stock ACTUAL del técnico (refacciones que SÍ tiene)
+  // Para usar en servicios cuando se necesita agregar insumos del inventario del técnico
+  async buscarEnStock(TecnicoID: number, busqueda: string) {
+    // Verificar que el técnico existe
+    const tecnico = await prisma.catalogo_tecnicos.findUnique({
+      where: { TecnicoID },
+    });
+
+    if (!tecnico) {
+      throw new HttpError('Técnico no encontrado', 404);
+    }
+
+    // Buscar en el inventario actual del técnico
+    const inventario = await prisma.inventario_tecnico.findMany({
+      where: {
+        TecnicoID,
+        IsActive: 1,
+        OR: busqueda
+          ? [
+              { refaccion: { NombrePieza: { contains: busqueda } } },
+              { refaccion: { NombreCorto: { contains: busqueda } } },
+              { refaccion: { Codigo: { contains: busqueda } } },
+            ]
+          : undefined,
+      },
+      include: {
+        refaccion: {
+          select: {
+            RefaccionID: true,
+            NombrePieza: true,
+            NombreCorto: true,
+            Codigo: true,
+            CostoPromedio: true,
+            catalogo_unidades: {
+              select: {
+                DesUnidad: true,
+              },
+            },
+          },
+        },
+      },
+      take: 20,
+      orderBy: {
+        refaccion: {
+          NombrePieza: 'asc',
+        },
+      },
+    });
+
+    // Transformar a formato más útil para el frontend
+    const refacciones = inventario.map((item) => ({
+      RefaccionID: item.refaccion.RefaccionID,
+      NombrePieza: item.refaccion.NombrePieza,
+      NombreCorto: item.refaccion.NombreCorto,
+      Codigo: item.refaccion.Codigo,
+      CostoPromedio: item.refaccion.CostoPromedio,
+      Unidad: item.refaccion.catalogo_unidades?.DesUnidad,
+      StockNuevo: item.StockNuevo,
+      StockUsado: item.StockUsado,
+      StockDisponible: item.StockNuevo + item.StockUsado,
+    }));
+
+    return { message: 'Stock del técnico encontrado', data: refacciones };
+  }
+
   // Buscar refacciones disponibles para agregar al inventario
   async buscarRefacciones(TecnicoID: number, busqueda: string) {
     // Obtener refacciones que ya tiene el técnico

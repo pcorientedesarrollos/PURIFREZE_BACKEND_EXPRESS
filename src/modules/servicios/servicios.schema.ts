@@ -96,12 +96,14 @@ export const actualizarRefaccionSchema = z.object({
   Observaciones: z.string().max(255, 'Observaciones máximo 255 caracteres').optional(),
 });
 
-// Agregar nueva refacción al equipo durante el servicio
+// Agregar nueva refacción al equipo durante el servicio (MANTENIMIENTO/REPARACIÓN)
 export const agregarRefaccionEquipoServicioSchema = z.object({
   ServicioEquipoID: z.number({ required_error: 'ServicioEquipoID es requerido' }),
   RefaccionID: z.number({ required_error: 'RefaccionID es requerido' }),
-  CantidadTecnico: z.number({ required_error: 'Cantidad es requerida' }).min(1, 'Cantidad mínima es 1'),
-  Cambio: z.boolean().optional().default(true),
+  CantidadTecnico: z.number({ required_error: 'Cantidad es requerida' }).min(0, 'Cantidad mínima es 0'),
+  Cambio: z.boolean().optional().default(false),
+  Limpieza: z.boolean().optional().default(false),
+  Verificacion: z.boolean().optional().default(false),
   Observaciones: z.string().max(255, 'Observaciones máximo 255 caracteres').optional(),
 });
 

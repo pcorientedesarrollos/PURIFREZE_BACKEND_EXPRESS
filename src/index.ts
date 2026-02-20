@@ -49,6 +49,7 @@ import { cobrosRoutes } from './modules/cobros';
 import { proveedoresContactosRoutes } from './modules/proveedores-contactos';
 import { girosNegocioRoutes } from './modules/giros-negocio';
 import { serviciosAdicionalesRoutes } from './modules/servicios-adicionales';
+import { refaccionPeriodoCambioRoutes } from './modules/refaccion-periodo-cambio';
 
 const app = express();
 
@@ -118,6 +119,7 @@ app.use('/giros-negocio', girosNegocioRoutes);
 app.use('/catalogo-giros-negocio', girosNegocioRoutes);
 app.use('/servicios-adicionales', serviciosAdicionalesRoutes);
 app.use('/catalogo-servicios-adicionales', serviciosAdicionalesRoutes);
+app.use('/refaccion-periodo-cambio', refaccionPeriodoCambioRoutes);
 
 // Error handler (debe ir al final)
 app.use(errorHandler);

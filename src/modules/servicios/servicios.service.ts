@@ -127,8 +127,9 @@ class ServiciosService {
           },
         });
 
-        // Cargar refacciones del equipo si existe
-        if (clienteEquipo.EquipoID) {
+        // Cargar refacciones del equipo SOLO para INSTALACIÓN y DESINSTALACIÓN
+        // Para MANTENIMIENTO y REPARACIÓN, el técnico las agrega manualmente
+        if (clienteEquipo.EquipoID && (dto.TipoServicio === 'INSTALACION' || dto.TipoServicio === 'DESINSTALACION')) {
           const equipoDetalles = await tx.equipos_detalle.findMany({
             where: { EquipoID: clienteEquipo.EquipoID, IsActive: 1 },
           });
@@ -677,15 +678,24 @@ class ServiciosService {
       throw new HttpError('Esta refacción ya está en el equipo', 400);
     }
 
+    // Obtener cantidad del equipo desde equipos_detalle si existe
+    let cantidadEquipo = 0;
+    if (servicioEquipo.EquipoID) {
+      const equipoDetalle = await prisma.equipos_detalle.findFirst({
+        where: { EquipoID: servicioEquipo.EquipoID, RefaccionID: dto.RefaccionID, IsActive: 1 },
+      });
+      cantidadEquipo = equipoDetalle?.Cantidad || 0;
+    }
+
     await prisma.servicios_equipos_refacciones.create({
       data: {
         ServicioEquipoID: dto.ServicioEquipoID,
         RefaccionID: dto.RefaccionID,
-        CantidadEquipo: 0, // Nueva refacción, no estaba en el equipo
+        CantidadEquipo: cantidadEquipo,
         CantidadTecnico: dto.CantidadTecnico,
         Cambio: dto.Cambio ? 1 : 0,
-        Limpieza: 0,
-        Verificacion: 0,
+        Limpieza: dto.Limpieza ? 1 : 0,
+        Verificacion: dto.Verificacion ? 1 : 0,
         Observaciones: dto.Observaciones || null,
         IsActive: 1,
       },
@@ -694,6 +704,74 @@ class ServiciosService {
     await this.registrarHistorial(prisma, servicioId, TipoAccionServicio.MODIFICACION_REFACCION, 'Refacción agregada al equipo', null, JSON.stringify(dto), usuarioId);
 
     return await this.findOne(servicioId);
+  }
+
+  /**
+   * Buscar refacciones disponibles del equipo para agregar al servicio
+   * Solo retorna las que están en equipos_detalle y NO están ya en el servicio
+   */
+  async buscarRefaccionesEquipo(servicioId: number, servicioEquipoId: number, busqueda: string) {
+    const servicioEquipo = await prisma.servicios_equipos.findFirst({
+      where: { ServicioEquipoID: servicioEquipoId, ServicioID: servicioId, IsActive: 1 },
+    });
+
+    if (!servicioEquipo) {
+      throw new HttpError('Equipo no encontrado en este servicio', 404);
+    }
+
+    if (!servicioEquipo.EquipoID) {
+      return { message: 'Este equipo no tiene refacciones registradas', data: [] };
+    }
+
+    // Obtener IDs de refacciones ya agregadas al servicio
+    const refaccionesYaAgregadas = await prisma.servicios_equipos_refacciones.findMany({
+      where: { ServicioEquipoID: servicioEquipoId, IsActive: 1 },
+      select: { RefaccionID: true },
+    });
+    const idsYaAgregados = refaccionesYaAgregadas.map(r => r.RefaccionID);
+
+    // Obtener refacciones del equipo que NO están ya agregadas
+    const equipoDetalles = await prisma.equipos_detalle.findMany({
+      where: {
+        EquipoID: servicioEquipo.EquipoID,
+        IsActive: 1,
+        RefaccionID: { notIn: idsYaAgregados },
+      },
+      include: {
+        refaccion: {
+          select: {
+            RefaccionID: true,
+            NombrePieza: true,
+            NombreCorto: true,
+            Codigo: true,
+            catalogo_unidades: { select: { DesUnidad: true } },
+          },
+        },
+      },
+    });
+
+    // Filtrar por búsqueda si se proporciona
+    let resultados = equipoDetalles;
+    if (busqueda && busqueda.trim()) {
+      const termino = busqueda.trim().toLowerCase();
+      resultados = equipoDetalles.filter(ed =>
+        ed.refaccion?.NombrePieza?.toLowerCase().includes(termino) ||
+        ed.refaccion?.NombreCorto?.toLowerCase().includes(termino) ||
+        ed.refaccion?.Codigo?.toLowerCase().includes(termino)
+      );
+    }
+
+    return {
+      message: 'Refacciones del equipo',
+      data: resultados.map(ed => ({
+        RefaccionID: ed.refaccion?.RefaccionID,
+        NombrePieza: ed.refaccion?.NombrePieza,
+        NombreCorto: ed.refaccion?.NombreCorto,
+        Codigo: ed.refaccion?.Codigo,
+        Unidad: ed.refaccion?.catalogo_unidades?.DesUnidad,
+        CantidadEnEquipo: ed.Cantidad,
+      })),
+    };
   }
 
   async eliminarRefaccionEquipo(servicioId: number, dto: EliminarRefaccionEquipoServicioDto, usuarioId?: number) {
@@ -967,8 +1045,9 @@ class ServiciosService {
         }
 
         // Actualizar estado del equipo según tipo de servicio
-        if (equipo) {
-          if (servicio.TipoServicio === 'INSTALACION') {
+        if (servicio.TipoServicio === 'INSTALACION') {
+          // Actualizar equipo físico si existe
+          if (equipo) {
             await tx.equipos.update({
               where: { EquipoID: equipo.EquipoID },
               data: {
@@ -976,16 +1055,31 @@ class ServiciosService {
                 FechaInstalacion: new Date(),
               },
             });
+          }
 
-            // Actualizar clientes_equipos
+          // SIEMPRE actualizar clientes_equipos (tenga o no equipo físico asociado)
+          if (servicioEquipo.ClienteEquipoID) {
             await tx.clientes_equipos.update({
-              where: { ClienteEquipoID: servicioEquipo.ClienteEquipoID! },
+              where: { ClienteEquipoID: servicioEquipo.ClienteEquipoID },
               data: {
                 Estatus: 'INSTALADO',
                 FechaInstalacion: new Date(),
               },
             });
-          } else if (servicio.TipoServicio === 'DESINSTALACION') {
+          }
+        } else if (servicio.TipoServicio === 'DESINSTALACION') {
+          if (!equipo) {
+            // Si no hay equipo físico, solo actualizar clientes_equipos
+            if (servicioEquipo.ClienteEquipoID) {
+              await tx.clientes_equipos.update({
+                where: { ClienteEquipoID: servicioEquipo.ClienteEquipoID },
+                data: {
+                  Estatus: 'RETIRADO',
+                  FechaRetiro: new Date(),
+                },
+              });
+            }
+          } else {
             const nuevoEstatus = servicioEquipo.AccionDesinstalacion === 'EQUIPO_COMPLETO' ? 'Reacondicionado' : 'Desmontado';
 
             await tx.equipos.update({
