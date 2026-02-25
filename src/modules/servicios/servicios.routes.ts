@@ -13,6 +13,7 @@ import {
   eliminarRefaccionEquipoServicioSchema,
   agregarInsumoSchema,
   modificarInsumoSchema,
+  toggleCobrarInsumoSchema,
   configurarDesinstalacionSchema,
   finalizarServicioSchema,
   servicioIdParamSchema,
@@ -24,6 +25,7 @@ import {
   autorizarServicioAdicionalSchema,
   actualizarServicioAdicionalAplicadoSchema,
   servicioAdicionalAplicadoIdParamSchema,
+  toggleCobrarAdicionalSchema,
 } from '../servicios-adicionales/servicios-adicionales.schema';
 import { z } from 'zod';
 
@@ -187,6 +189,21 @@ router.delete(
   (req, res) => serviciosController.eliminarInsumo(req, res)
 );
 
+// PATCH /servicios/:ServicioID/insumos/:ServicioInsumoID/cobrar - Toggle cobrar insumo
+router.patch(
+  '/:ServicioID/insumos/:ServicioInsumoID/cobrar',
+  validateParams(insumoIdParamSchema),
+  validateBody(toggleCobrarInsumoSchema),
+  (req, res) => serviciosController.toggleCobrarInsumo(req, res)
+);
+
+// POST /servicios/:ServicioID/insumos/:ServicioInsumoID/dividir - Dividir insumo en registros individuales
+router.post(
+  '/:ServicioID/insumos/:ServicioInsumoID/dividir',
+  validateParams(insumoIdParamSchema),
+  (req, res) => serviciosController.dividirInsumo(req, res)
+);
+
 // ═══════════════════════════════════════════════════════════════════════════
 // DESINSTALACIÓN
 // ═══════════════════════════════════════════════════════════════════════════
@@ -246,6 +263,14 @@ router.patch(
   '/adicionales-aplicados/:ServicioAdicionalAplicadoID/revocar',
   validateParams(servicioAdicionalAplicadoIdParamSchema),
   (req, res) => serviciosAdicionalesController.revocarAutorizacion(req, res)
+);
+
+// PATCH /servicios/adicionales-aplicados/:ServicioAdicionalAplicadoID/cobrar - Toggle cobrar
+router.patch(
+  '/adicionales-aplicados/:ServicioAdicionalAplicadoID/cobrar',
+  validateParams(servicioAdicionalAplicadoIdParamSchema),
+  validateBody(toggleCobrarAdicionalSchema),
+  (req, res) => serviciosAdicionalesController.toggleCobrar(req, res)
 );
 
 // DELETE /servicios/adicionales-aplicados/:ServicioAdicionalAplicadoID

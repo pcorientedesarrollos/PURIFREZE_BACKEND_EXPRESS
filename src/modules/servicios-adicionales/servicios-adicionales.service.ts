@@ -5,7 +5,8 @@ import {
   UpdateServicioAdicionalDto,
   AgregarServicioAdicionalAplicadoDto,
   AutorizarServicioAdicionalDto,
-  ActualizarServicioAdicionalAplicadoDto
+  ActualizarServicioAdicionalAplicadoDto,
+  ToggleCobrarAdicionalDto
 } from './servicios-adicionales.schema';
 
 export class ServiciosAdicionalesService {
@@ -203,7 +204,7 @@ export class ServiciosAdicionalesService {
       throw new HttpError('Este servicio adicional ya está agregado al servicio', 400);
     }
 
-    // Crear el registro
+    // Crear el registro (siempre autorizado por defecto)
     const aplicado = await prisma.servicios_adicionales_aplicados.create({
       data: {
         ServicioID: servicioId,
@@ -211,9 +212,12 @@ export class ServiciosAdicionalesService {
         NombreServicio: servicioAdicional.Nombre,
         CostoOriginal: servicioAdicional.Costo,
         CostoAplicado: data.CostoAplicado ?? servicioAdicional.Costo,
-        Autorizado: 0,
+        Autorizado: 1, // Siempre autorizado por defecto
+        FechaAutorizacion: new Date(),
+        NombreAutorizante: 'Auto',
         Observaciones: data.Observaciones || null,
         UsuarioAgregaID: usuarioId || null,
+        UsuarioAutorizaID: usuarioId || null,
         IsActive: 1,
       },
       include: {
@@ -408,6 +412,41 @@ export class ServiciosAdicionalesService {
     });
 
     return { message: 'Servicio adicional eliminado del servicio' };
+  }
+
+  /**
+   * Toggle Cobrar de un servicio adicional aplicado
+   */
+  async toggleCobrar(
+    servicioAdicionalAplicadoId: number,
+    data: ToggleCobrarAdicionalDto
+  ) {
+    const aplicado = await prisma.servicios_adicionales_aplicados.findFirst({
+      where: { ServicioAdicionalAplicadoID: servicioAdicionalAplicadoId, IsActive: 1 },
+      include: { servicio: true },
+    });
+
+    if (!aplicado) {
+      throw new HttpError('Servicio adicional aplicado no encontrado', 404);
+    }
+
+    if (['REALIZADO', 'CANCELADO'].includes(aplicado.servicio.Estatus)) {
+      throw new HttpError('No se puede modificar en un servicio finalizado o cancelado', 400);
+    }
+
+    if (aplicado.CobroGenerado === 1) {
+      throw new HttpError('No se puede modificar, ya se generó un cobro para este servicio', 400);
+    }
+
+    const actualizado = await prisma.servicios_adicionales_aplicados.update({
+      where: { ServicioAdicionalAplicadoID: servicioAdicionalAplicadoId },
+      data: { Cobrar: data.Cobrar ? 1 : 0 },
+      include: {
+        servicio_adicional: true,
+      },
+    });
+
+    return actualizado;
   }
 
   /**

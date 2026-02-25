@@ -14,6 +14,7 @@ import {
   modificarMontoSchema,
   generarCobrosSchema,
   pagarConDescuentoSchema,
+  pagarMultiplesSchema,
 } from './cobros.schema';
 import { z } from 'zod';
 
@@ -116,6 +117,13 @@ router.patch(
   validateParams(cobroIdParamSchema),
   validateBody(pagarConDescuentoSchema),
   (req, res) => cobrosController.pagarConDescuento(req, res)
+);
+
+/** Pagar múltiples cobros en una sola operación */
+router.patch(
+  '/pagar-multiples',
+  validateBody(pagarMultiplesSchema),
+  (req, res) => cobrosController.pagarMultiples(req, res)
 );
 
 /** Cancelar un cobro */

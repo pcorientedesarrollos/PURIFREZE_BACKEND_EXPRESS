@@ -112,6 +112,11 @@ class CobrosController {
     return success(res, result.message, result.data);
   }
 
+  async pagarMultiples(req: Request, res: Response) {
+    const result = await cobrosService.pagarMultiples(req.body);
+    return success(res, result.message, result.data);
+  }
+
   async marcarVencidos(req: Request, res: Response) {
     const result = await cobrosService.marcarVencidos();
     return success(res, result.message, result.data);

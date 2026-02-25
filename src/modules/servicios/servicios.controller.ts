@@ -192,6 +192,26 @@ class ServiciosController {
     return success(res, result.message, result.data);
   }
 
+  /**
+   * Toggle Cobrar de un insumo
+   * PATCH /servicios/:ServicioID/insumos/:ServicioInsumoID/cobrar
+   */
+  async toggleCobrarInsumo(req: Request, res: Response) {
+    const { ServicioID, ServicioInsumoID } = req.params as unknown as { ServicioID: number; ServicioInsumoID: number };
+    const result = await serviciosService.toggleCobrarInsumo(ServicioID, ServicioInsumoID, req.body);
+    return success(res, `Cobrar ${req.body.Cobrar ? 'activado' : 'desactivado'}`, result.data);
+  }
+
+  /**
+   * Dividir un insumo en registros individuales
+   * POST /servicios/:ServicioID/insumos/:ServicioInsumoID/dividir
+   */
+  async dividirInsumo(req: Request, res: Response) {
+    const { ServicioID, ServicioInsumoID } = req.params as unknown as { ServicioID: number; ServicioInsumoID: number };
+    const result = await serviciosService.dividirInsumo(ServicioID, ServicioInsumoID);
+    return success(res, 'Insumo dividido correctamente', result.data);
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // DESINSTALACIÓN
   // ═══════════════════════════════════════════════════════════════════════════

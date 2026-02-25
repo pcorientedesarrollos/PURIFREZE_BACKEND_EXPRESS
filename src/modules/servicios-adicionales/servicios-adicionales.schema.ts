@@ -40,6 +40,11 @@ export const actualizarServicioAdicionalAplicadoSchema = z.object({
   Observaciones: z.string().max(500).optional().nullable(),
 });
 
+// Toggle Cobrar para servicio adicional aplicado
+export const toggleCobrarAdicionalSchema = z.object({
+  Cobrar: z.boolean({ required_error: 'Cobrar es requerido' }),
+});
+
 // Parámetros de ruta
 export const servicioIdParamSchema = z.object({
   ServicioID: z.string().regex(/^\d+$/, 'ServicioID debe ser un número válido').transform(Number),
@@ -55,3 +60,4 @@ export type UpdateServicioAdicionalDto = z.infer<typeof updateServicioAdicionalS
 export type AgregarServicioAdicionalAplicadoDto = z.infer<typeof agregarServicioAdicionalAplicadoSchema>;
 export type AutorizarServicioAdicionalDto = z.infer<typeof autorizarServicioAdicionalSchema>;
 export type ActualizarServicioAdicionalAplicadoDto = z.infer<typeof actualizarServicioAdicionalAplicadoSchema>;
+export type ToggleCobrarAdicionalDto = z.infer<typeof toggleCobrarAdicionalSchema>;

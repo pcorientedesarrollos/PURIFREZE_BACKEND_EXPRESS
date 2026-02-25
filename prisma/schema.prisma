@@ -63,6 +63,8 @@ model clientes_sucursales {
   GiroNegocio       String?                    @db.VarChar(255)
   EsMatriz          Boolean                    @default(false)
   IsActive          Boolean?                   @default(true)
+  Latitud           Float?                     @db.Float
+  Longitud          Float?                     @db.Float
 
   cliente               catalogo_clientes          @relation(fields: [ClienteID], references: [ClienteID])
   empleados_sucursales  empleados_sucursales[]
@@ -126,10 +128,11 @@ model catalogo_puestosTrabajo {
 }
 
 model catalogo_giros_negocio {
-  GiroNegocioID Int      @id @default(autoincrement())
-  GiroNegocio   String?  @db.VarChar(255)
-  Observaciones String?  @db.VarChar(255)
-  IsActive      Boolean?
+  GiroNegocioID       Int      @id @default(autoincrement())
+  GiroNegocio         String?  @db.VarChar(255)
+  Observaciones       String?  @db.VarChar(255)
+  IsActive            Boolean?
+  MesesMantenimiento  Int?     @db.TinyInt
 }
 
 model catalogo_refacciones {
@@ -1092,6 +1095,9 @@ model servicios_insumos {
   CostoUnitario           Float                  @default(0) @db.Float
   Subtotal                Float                  @default(0) @db.Float
 
+  // Cobrar
+  Cobrar                  Int                    @default(1) @db.TinyInt
+
   // Observaciones
   Observaciones           String?                @db.VarChar(255)
 
@@ -1203,6 +1209,9 @@ model servicios_adicionales_aplicados {
   // Cobro generado
   CobroGenerado               Int                    @default(0) @db.TinyInt
   CobroID                     Int?                   // Referencia al cobro creado
+
+  // Cobrar
+  Cobrar                      Int                    @default(1) @db.TinyInt
 
   // Observaciones
   Observaciones               String?                @db.VarChar(500)

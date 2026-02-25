@@ -170,6 +170,22 @@ export const generarCobrosSchema = z.object({
 });
 
 // =============================================
+// PAGO MÚLTIPLE
+// =============================================
+
+export const pagarMultiplesSchema = z.object({
+  CobroIDs: z.array(z.number({ required_error: 'Los IDs de cobros son requeridos' }))
+    .min(1, 'Debe seleccionar al menos un cobro'),
+  MetodoPagoID: z.number({ required_error: 'El método de pago es requerido' }),
+  FechaPago: z.string().optional(),
+  Referencia: z.string().max(100).optional().nullable(),
+  Observaciones: z.string().max(500).optional().nullable(),
+  UsuarioID: z.number({ required_error: 'El UsuarioID es requerido' }),
+});
+
+export type PagarMultiplesDto = z.infer<typeof pagarMultiplesSchema>;
+
+// =============================================
 // TYPES EXPORTADOS
 // =============================================
 

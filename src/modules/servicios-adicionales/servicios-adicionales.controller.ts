@@ -6,7 +6,8 @@ import {
   UpdateServicioAdicionalDto,
   AgregarServicioAdicionalAplicadoDto,
   AutorizarServicioAdicionalDto,
-  ActualizarServicioAdicionalAplicadoDto
+  ActualizarServicioAdicionalAplicadoDto,
+  ToggleCobrarAdicionalDto
 } from './servicios-adicionales.schema';
 
 export class ServiciosAdicionalesController {
@@ -140,6 +141,17 @@ export class ServiciosAdicionalesController {
     const data = req.body as ActualizarServicioAdicionalAplicadoDto;
     const actualizado = await serviciosAdicionalesService.actualizarServicioAplicado(aplicadoId, data);
     return success(res, 'Servicio adicional actualizado', actualizado);
+  }
+
+  /**
+   * PATCH /servicios/adicionales-aplicados/:ServicioAdicionalAplicadoID/cobrar
+   * Toggle Cobrar de un servicio adicional aplicado
+   */
+  async toggleCobrar(req: Request, res: Response) {
+    const aplicadoId = Number(req.params.ServicioAdicionalAplicadoID);
+    const data = req.body as ToggleCobrarAdicionalDto;
+    const actualizado = await serviciosAdicionalesService.toggleCobrar(aplicadoId, data);
+    return success(res, `Cobrar ${data.Cobrar ? 'activado' : 'desactivado'}`, actualizado);
   }
 
   /**

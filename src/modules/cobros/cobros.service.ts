@@ -9,6 +9,7 @@ import {
   ModificarMontoDto,
   CobrosQueryDto,
   PagarConDescuentoDto,
+  PagarMultiplesDto,
 } from './cobros.schema';
 
 class CobrosService {
@@ -35,17 +36,19 @@ class CobrosService {
       throw new HttpError('Solo se pueden configurar cobros para contratos EN_REVISION o ACTIVO', 300);
     }
 
-    // Verificar si ya existen cobros generados (no se puede modificar si hay cobros)
-    const cobrosExistentes = await prisma.cobros.count({
+    // Verificar si ya existen cobros de RENTA generados (no se puede modificar si hay cobros de renta)
+    // Los cobros de servicios (con ServicioID) no afectan la configuración de cobros de renta
+    const cobrosRentaExistentes = await prisma.cobros.count({
       where: {
         ContratoID: contratoId,
         IsActive: 1,
+        ServicioID: null, // Solo contar cobros de renta (sin ServicioID)
       },
     });
 
-    if (cobrosExistentes > 0) {
+    if (cobrosRentaExistentes > 0) {
       throw new HttpError(
-        'No se puede modificar la configuración porque ya existen cobros generados. Use la opción de modificar montos de cobros pendientes.',
+        'No se puede modificar la configuración porque ya existen cobros de renta generados. Use la opción de modificar montos de cobros pendientes.',
         300
       );
     }
@@ -943,6 +946,96 @@ class CobrosService {
       data: {
         cobrosModificados: cobrosActualizados.length,
         nuevoMonto: data.MontoNuevo,
+        cobros: cobrosActualizados,
+      },
+    };
+  }
+
+  /**
+   * Pagar múltiples cobros en una sola operación
+   * Útil para pagar varios cobros pendientes de un contrato
+   */
+  async pagarMultiples(data: PagarMultiplesDto) {
+    const { CobroIDs, MetodoPagoID, FechaPago, Referencia, Observaciones, UsuarioID } = data;
+
+    // Obtener todos los cobros
+    const cobros = await prisma.cobros.findMany({
+      where: {
+        CobroID: { in: CobroIDs },
+        IsActive: 1,
+      },
+      include: {
+        contrato: {
+          select: { ContratoID: true, NumeroContrato: true },
+        },
+      },
+    });
+
+    // Validar que todos los cobros existan
+    if (cobros.length !== CobroIDs.length) {
+      const encontrados = cobros.map((c) => c.CobroID);
+      const noEncontrados = CobroIDs.filter((id) => !encontrados.includes(id));
+      throw new HttpError(`Los siguientes cobros no existen: ${noEncontrados.join(', ')}`, 404);
+    }
+
+    // Validar que todos los cobros puedan recibir pago
+    const estatusNoPermitidos = ['PAGADO', 'REGALADO', 'CANCELADO'];
+    const cobrosInvalidos = cobros.filter((c) => estatusNoPermitidos.includes(c.Estatus));
+
+    if (cobrosInvalidos.length > 0) {
+      const detalles = cobrosInvalidos.map((c) => `${c.NumeroCobro} (${c.Estatus})`);
+      throw new HttpError(
+        `Los siguientes cobros no pueden recibir pago: ${detalles.join(', ')}`,
+        300
+      );
+    }
+
+    // Calcular el total a pagar
+    const totalAPagar = cobros.reduce((sum, c) => sum + c.MontoFinal, 0);
+    const fechaPagoReal = FechaPago ? new Date(FechaPago) : new Date();
+
+    // Procesar pagos en transacción
+    const cobrosActualizados = await prisma.$transaction(async (tx) => {
+      const updated = [];
+
+      for (const cobro of cobros) {
+        // Actualizar cada cobro a PAGADO
+        const cobroUpdated = await tx.cobros.update({
+          where: { CobroID: cobro.CobroID },
+          data: {
+            Estatus: 'PAGADO',
+            FechaPago: fechaPagoReal,
+            MetodoPagoID: MetodoPagoID,
+            MontoPagado: cobro.MontoFinal,
+            Referencia: Referencia,
+            Observaciones: Observaciones,
+            UsuarioPagoID: UsuarioID,
+          },
+        });
+
+        // Registrar en historial
+        await tx.cobros_historial.create({
+          data: {
+            CobroID: cobro.CobroID,
+            TipoAccion: 'PAGO',
+            Descripcion: `Pago múltiple registrado por $${cobro.MontoFinal.toFixed(2)} (${cobros.length} cobros en total por $${totalAPagar.toFixed(2)})`,
+            ValorAnterior: JSON.stringify({ Estatus: cobro.Estatus }),
+            ValorNuevo: JSON.stringify({ Estatus: 'PAGADO', MontoPagado: cobro.MontoFinal }),
+            UsuarioID: UsuarioID,
+          },
+        });
+
+        updated.push(cobroUpdated);
+      }
+
+      return updated;
+    });
+
+    return {
+      message: `Se pagaron ${cobrosActualizados.length} cobro(s) exitosamente por un total de $${totalAPagar.toFixed(2)}`,
+      data: {
+        cobrosPagados: cobrosActualizados.length,
+        totalPagado: totalAPagar,
         cobros: cobrosActualizados,
       },
     };

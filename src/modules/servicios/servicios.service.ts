@@ -14,6 +14,7 @@ import {
   EliminarRefaccionEquipoServicioDto,
   AgregarInsumoDto,
   ModificarInsumoDto,
+  ToggleCobrarInsumoDto,
   ConfigurarDesinstalacionDto,
   FinalizarServicioDto,
   SearchServiciosQuery,
@@ -252,7 +253,18 @@ class ServiciosService {
             NumeroContrato: true,
             FrecuenciaMantenimiento: true,
             cliente: { select: { ClienteID: true, NombreComercio: true } },
-            sucursal: { select: { SucursalID: true, NombreSucursal: true, Direccion: true, Telefono: true, Contacto: true } },
+            sucursal: {
+              select: {
+                SucursalID: true,
+                NombreSucursal: true,
+                Direccion: true,
+                Telefono: true,
+                Contacto: true,
+                Latitud: true,
+                Longitud: true,
+                GiroNegocio: true,
+              }
+            },
           },
         },
         tecnico: {
@@ -351,7 +363,26 @@ class ServiciosService {
       throw new HttpError('Servicio no encontrado', 404);
     }
 
-    return { message: 'Servicio obtenido', data: this.formatearServicioCompleto(servicio) };
+    // Buscar info del giro de negocio si la sucursal tiene uno asignado
+    let giroInfo = null;
+    if (servicio.contrato?.sucursal?.GiroNegocio) {
+      giroInfo = await prisma.catalogo_giros_negocio.findFirst({
+        where: {
+          GiroNegocio: servicio.contrato.sucursal.GiroNegocio,
+          IsActive: true
+        },
+        select: {
+          GiroNegocioID: true,
+          GiroNegocio: true,
+          MesesMantenimiento: true
+        }
+      });
+    }
+
+    // Agregar info del giro al servicio para el formatter
+    const servicioConGiro = { ...servicio, _giroInfo: giroInfo };
+
+    return { message: 'Servicio obtenido', data: this.formatearServicioCompleto(servicioConGiro) };
   }
 
   async getAgenda(query: AgendaQuery) {
@@ -901,6 +932,82 @@ class ServiciosService {
     return await this.findOne(servicioId);
   }
 
+  /**
+   * Toggle Cobrar de un insumo
+   */
+  async toggleCobrarInsumo(servicioId: number, servicioInsumoId: number, dto: ToggleCobrarInsumoDto) {
+    await this.obtenerServicioValidado(servicioId, ['POR_CONFIRMAR', 'PENDIENTE', 'CONFIRMADO', 'EN_PROCESO']);
+
+    const insumo = await prisma.servicios_insumos.findFirst({
+      where: { ServicioInsumoID: servicioInsumoId, ServicioID: servicioId, IsActive: 1 },
+    });
+
+    if (!insumo) {
+      throw new HttpError('Insumo no encontrado en este servicio', 404);
+    }
+
+    await prisma.servicios_insumos.update({
+      where: { ServicioInsumoID: servicioInsumoId },
+      data: { Cobrar: dto.Cobrar ? 1 : 0 },
+    });
+
+    return await this.findOne(servicioId);
+  }
+
+  /**
+   * Dividir un insumo con cantidad > 1 en registros individuales
+   */
+  async dividirInsumo(servicioId: number, servicioInsumoId: number) {
+    await this.obtenerServicioValidado(servicioId, ['POR_CONFIRMAR', 'PENDIENTE', 'CONFIRMADO', 'EN_PROCESO']);
+
+    const insumo = await prisma.servicios_insumos.findFirst({
+      where: { ServicioInsumoID: servicioInsumoId, ServicioID: servicioId, IsActive: 1 },
+    });
+
+    if (!insumo) {
+      throw new HttpError('Insumo no encontrado en este servicio', 404);
+    }
+
+    if (insumo.Cantidad <= 1) {
+      throw new HttpError('El insumo ya tiene cantidad 1, no se puede dividir', 400);
+    }
+
+    const cantidadOriginal = insumo.Cantidad;
+
+    await prisma.$transaction(async (tx) => {
+      // Crear N-1 registros nuevos con cantidad=1
+      const nuevosInsumos = [];
+      for (let i = 1; i < cantidadOriginal; i++) {
+        nuevosInsumos.push({
+          ServicioID: insumo.ServicioID,
+          RefaccionID: insumo.RefaccionID,
+          Cantidad: 1,
+          OrigenInventario: insumo.OrigenInventario,
+          CostoUnitario: insumo.CostoUnitario,
+          Subtotal: insumo.CostoUnitario,
+          Observaciones: insumo.Observaciones,
+          IsActive: 1,
+          Cobrar: insumo.Cobrar,
+        });
+      }
+
+      await tx.servicios_insumos.createMany({
+        data: nuevosInsumos,
+      });
+
+      // Actualizar el original a cantidad=1
+      await tx.servicios_insumos.update({
+        where: { ServicioInsumoID: servicioInsumoId },
+        data: {
+          Cantidad: 1,
+          Subtotal: insumo.CostoUnitario,
+        },
+      });
+    });
+
+    return await this.findOne(servicioId);
+  }
+
   // ═══════════════════════════════════════════════════════════════════════════
   // DESINSTALACIÓN
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1185,45 +1292,67 @@ class ServiciosService {
         });
       }
 
-      // Generar cobros para servicios adicionales autorizados
-      const serviciosAdicionalesAutorizados = await tx.servicios_adicionales_aplicados.findMany({
-        where: {
-          ServicioID: id,
-          Autorizado: 1,
-          CobroGenerado: 0,
-          IsActive: 1,
-        },
+      // ═══════════════════════════════════════════════════════════════════════════
+      // GENERAR COBRO ÚNICO POR ITEMS MARCADOS PARA COBRAR
+      // ═══════════════════════════════════════════════════════════════════════════
+
+      // Calcular total de insumos marcados para cobrar
+      const insumosACobrar = await tx.servicios_insumos.findMany({
+        where: { ServicioID: id, IsActive: 1, Cobrar: 1 },
       });
+      const totalInsumos = insumosACobrar.reduce((sum, ins) => sum + (ins.Subtotal || 0), 0);
 
-      for (const adicional of serviciosAdicionalesAutorizados) {
-        // Generar número de cobro único
-        const numeroCobro = `SA-${id}-${adicional.ServicioAdicionalAplicadoID}`;
+      // Calcular total de servicios adicionales marcados para cobrar
+      const adicionalesACobrar = await tx.servicios_adicionales_aplicados.findMany({
+        where: { ServicioID: id, IsActive: 1, Cobrar: 1 },
+      });
+      const totalAdicionales = adicionalesACobrar.reduce((sum, sa) => sum + (sa.CostoAplicado || 0), 0);
 
-        // Crear el cobro
+      // Total general
+      const totalACobrar = totalInsumos + totalAdicionales;
+
+      // Solo generar cobro si hay algo que cobrar
+      if (totalACobrar > 0) {
+        // Generar número de cobro con formato SRV-AÑO-SERVICEID
+        const anio = new Date().getFullYear();
+        const numeroCobro = `SRV-${anio}-${id}`;
+
+        // Construir descripción del cobro
+        const detalles: string[] = [];
+        if (insumosACobrar.length > 0) {
+          detalles.push(`${insumosACobrar.length} insumo(s): $${totalInsumos.toFixed(2)}`);
+        }
+        if (adicionalesACobrar.length > 0) {
+          detalles.push(`${adicionalesACobrar.length} servicio(s) adicional(es): $${totalAdicionales.toFixed(2)}`);
+        }
+
+        // Crear cobro único
         const cobro = await tx.cobros.create({
           data: {
             ServicioID: id,
             ContratoID: servicio.ContratoID,
             NumeroCobro: numeroCobro,
-            NumeroPeriodo: 1, // Los servicios adicionales son cobros únicos
-            FechaVencimiento: new Date(), // Vence hoy
-            MontoOriginal: adicional.CostoAplicado,
-            MontoFinal: adicional.CostoAplicado,
+            NumeroPeriodo: 1,
+            FechaVencimiento: moment().add(30, 'days').toDate(),
+            MontoOriginal: totalACobrar,
+            MontoFinal: totalACobrar,
             Estatus: 'PENDIENTE',
-            Observaciones: `Servicio adicional: ${adicional.NombreServicio}`,
+            Observaciones: `Cobro por servicio #${id}: ${detalles.join(', ')}`,
             UsuarioCreadorID: usuarioId || null,
             IsActive: 1,
           },
         });
 
-        // Actualizar el registro de servicio adicional aplicado
-        await tx.servicios_adicionales_aplicados.update({
-          where: { ServicioAdicionalAplicadoID: adicional.ServicioAdicionalAplicadoID },
-          data: {
-            CobroGenerado: 1,
-            CobroID: cobro.CobroID,
-          },
-        });
+        // Marcar servicios adicionales como cobro generado
+        for (const adicional of adicionalesACobrar) {
+          await tx.servicios_adicionales_aplicados.update({
+            where: { ServicioAdicionalAplicadoID: adicional.ServicioAdicionalAplicadoID },
+            data: {
+              CobroGenerado: 1,
+              CobroID: cobro.CobroID,
+            },
+          });
+        }
       }
 
       // Crear notificación para próximo servicio si aplica
@@ -1535,6 +1664,10 @@ class ServiciosService {
         Direccion: servicio.contrato.sucursal.Direccion,
         Telefono: servicio.contrato.sucursal.Telefono,
         Contacto: servicio.contrato.sucursal.Contacto,
+        Latitud: servicio.contrato.sucursal.Latitud,
+        Longitud: servicio.contrato.sucursal.Longitud,
+        GiroNegocio: servicio.contrato.sucursal.GiroNegocio,
+        MesesMantenimiento: servicio._giroInfo?.MesesMantenimiento || null,
       } : null,
       Tecnico: servicio.tecnico ? {
         TecnicoID: servicio.tecnico.TecnicoID,
@@ -1595,6 +1728,7 @@ class ServiciosService {
         OrigenInventario: ins.OrigenInventario,
         CostoUnitario: ins.CostoUnitario,
         Subtotal: ins.Subtotal,
+        Cobrar: ins.Cobrar === 1,
         Observaciones: ins.Observaciones,
       })),
       Firmas: servicio.firmas.map((f: any) => ({
@@ -1613,6 +1747,7 @@ class ServiciosService {
         Autorizado: sa.Autorizado === 1,
         FechaAutorizacion: sa.FechaAutorizacion ? moment(sa.FechaAutorizacion).format('YYYY-MM-DD HH:mm') : null,
         NombreAutorizante: sa.NombreAutorizante,
+        Cobrar: sa.Cobrar === 1,
         CobroGenerado: sa.CobroGenerado === 1,
         CobroID: sa.CobroID,
         Observaciones: sa.Observaciones,

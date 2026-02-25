@@ -9,6 +9,8 @@ export const createClienteSucursalSchema = z.object({
   Contacto: z.string().max(255).optional(),
   Observaciones: z.string().max(255).optional(),
   GiroNegocio: z.string().max(255).optional(),
+  Latitud: z.number().min(-90).max(90).optional().nullable(),
+  Longitud: z.number().min(-180).max(180).optional().nullable(),
 });
 
 export const updateClienteSucursalSchema = z.object({
@@ -19,6 +21,8 @@ export const updateClienteSucursalSchema = z.object({
   Contacto: z.string().max(255).optional(),
   Observaciones: z.string().max(255).optional(),
   GiroNegocio: z.string().max(255).optional(),
+  Latitud: z.number().min(-90).max(90).optional().nullable(),
+  Longitud: z.number().min(-180).max(180).optional().nullable(),
 });
 
 export const sucursalIdParamSchema = z.object({

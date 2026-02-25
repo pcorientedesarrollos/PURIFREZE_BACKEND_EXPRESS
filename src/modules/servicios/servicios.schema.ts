@@ -136,6 +136,17 @@ export const eliminarInsumoSchema = z.object({
   ServicioInsumoID: z.number({ required_error: 'ServicioInsumoID es requerido' }),
 });
 
+// Toggle Cobrar para insumo
+export const toggleCobrarInsumoSchema = z.object({
+  Cobrar: z.boolean({ required_error: 'Cobrar es requerido' }),
+});
+
+// Dividir insumo en registros individuales
+export const dividirInsumoParamsSchema = z.object({
+  ServicioID: z.string().regex(/^\d+$/, 'ServicioID debe ser un número válido').transform(Number),
+  ServicioInsumoID: z.string().regex(/^\d+$/, 'ServicioInsumoID debe ser un número válido').transform(Number),
+});
+
 // ═══════════════════════════════════════════════════════════════════════════
 // SCHEMAS PARA DESINSTALACIÓN
 // ═══════════════════════════════════════════════════════════════════════════
@@ -226,6 +237,7 @@ export type EliminarRefaccionEquipoServicioDto = z.infer<typeof eliminarRefaccio
 export type AgregarInsumoDto = z.infer<typeof agregarInsumoSchema>;
 export type ModificarInsumoDto = z.infer<typeof modificarInsumoSchema>;
 export type EliminarInsumoDto = z.infer<typeof eliminarInsumoSchema>;
+export type ToggleCobrarInsumoDto = z.infer<typeof toggleCobrarInsumoSchema>;
 export type ConfigurarDesinstalacionDto = z.infer<typeof configurarDesinstalacionSchema>;
 export type FinalizarServicioDto = z.infer<typeof finalizarServicioSchema>;
 export type SearchServiciosQuery = z.infer<typeof searchServiciosQuerySchema>;
