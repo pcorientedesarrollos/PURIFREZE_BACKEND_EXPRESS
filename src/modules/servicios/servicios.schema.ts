@@ -123,6 +123,8 @@ export const agregarInsumoSchema = z.object({
   RefaccionID: z.number({ required_error: 'RefaccionID es requerido' }),
   Cantidad: z.number({ required_error: 'Cantidad es requerida' }).min(1, 'Cantidad mínima es 1'),
   OrigenInventario: OrigenInventarioEnum.optional(),
+  CostoUnitario: z.number().min(0, 'Costo mínimo es 0').optional(),  // Costo personalizado (opcional)
+  Cobrar: z.boolean().optional().default(false),  // Por default NO se cobra
   Observaciones: z.string().max(255, 'Observaciones máximo 255 caracteres').optional(),
 });
 

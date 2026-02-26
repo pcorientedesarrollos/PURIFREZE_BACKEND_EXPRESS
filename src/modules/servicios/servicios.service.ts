@@ -108,7 +108,7 @@ class ServiciosService {
           HoraProgramada: dto.HoraProgramada ? moment(dto.HoraProgramada, 'HH:mm').toDate() : null,
           TecnicoID: dto.TecnicoID || null,
           OrigenInventario: dto.OrigenInventario || 'TECNICO',
-          Estatus: dto.TecnicoID ? 'PENDIENTE' : 'POR_CONFIRMAR',
+          Estatus: dto.TecnicoID ? 'CONFIRMADO' : 'POR_CONFIRMAR',
           ObservacionesGenerales: dto.ObservacionesGenerales || null,
           UsuarioCreadorID: usuarioId || null,
           IsActive: 1,
@@ -507,12 +507,13 @@ class ServiciosService {
     const servicio = await this.obtenerServicioValidado(id);
     const estatusAnterior = servicio.Estatus;
 
-    // Validar transiciones permitidas
+    // Validar transiciones permitidas (incluyendo regresiones)
     const transicionesPermitidas: Record<string, string[]> = {
-      'POR_CONFIRMAR': ['PENDIENTE', 'CANCELADO'],
-      'PENDIENTE': ['CONFIRMADO', 'CANCELADO'],
-      'CONFIRMADO': ['EN_PROCESO', 'CANCELADO'],
-      'EN_PROCESO': ['REALIZADO', 'CANCELADO'],
+      'POR_CONFIRMAR': ['PENDIENTE', 'CONFIRMADO', 'CANCELADO'],
+      'PENDIENTE': ['POR_CONFIRMAR', 'CONFIRMADO', 'CANCELADO'],
+      'CONFIRMADO': ['POR_CONFIRMAR', 'PENDIENTE', 'EN_PROCESO', 'CANCELADO'],
+      'EN_PROCESO': ['CONFIRMADO', 'REALIZADO', 'CANCELADO'],
+      // REALIZADO y CANCELADO son estados finales - no permiten cambios
     };
 
     if (!transicionesPermitidas[estatusAnterior]?.includes(dto.Estatus)) {
@@ -856,7 +857,8 @@ class ServiciosService {
       throw new HttpError('Refacción no encontrada', 404);
     }
 
-    const costoUnitario = refaccion.CostoPromedio || 0;
+    // Permitir CostoUnitario personalizado o usar el del catálogo
+    const costoUnitario = dto.CostoUnitario ?? refaccion.CostoPromedio ?? 0;
     const subtotal = costoUnitario * dto.Cantidad;
 
     await prisma.servicios_insumos.create({
@@ -867,6 +869,7 @@ class ServiciosService {
         OrigenInventario: dto.OrigenInventario || servicio.OrigenInventario,
         CostoUnitario: costoUnitario,
         Subtotal: subtotal,
+        Cobrar: dto.Cobrar ?? 0,  // Default: NO cobrar (0)
         Observaciones: dto.Observaciones || null,
         IsActive: 1,
       },
@@ -1326,6 +1329,11 @@ class ServiciosService {
           detalles.push(`${adicionalesACobrar.length} servicio(s) adicional(es): $${totalAdicionales.toFixed(2)}`);
         }
 
+        // Usar la fecha del servicio para el cobro (FechaEjecucion o FechaProgramada)
+        // Normalizar a inicio del día para evitar problemas de timezone
+        const fechaServicio = servicio.FechaEjecucion || servicio.FechaProgramada;
+        const fechaVencimiento = moment(fechaServicio).startOf('day').toDate();
+
         // Crear cobro único
         const cobro = await tx.cobros.create({
           data: {
@@ -1333,7 +1341,7 @@ class ServiciosService {
             ContratoID: servicio.ContratoID,
             NumeroCobro: numeroCobro,
             NumeroPeriodo: 1,
-            FechaVencimiento: moment().add(30, 'days').toDate(),
+            FechaVencimiento: fechaVencimiento,  // Fecha del servicio (no +30 días)
             MontoOriginal: totalACobrar,
             MontoFinal: totalACobrar,
             Estatus: 'PENDIENTE',
@@ -1355,8 +1363,81 @@ class ServiciosService {
         }
       }
 
-      // Crear notificación para próximo servicio si aplica
-      if (dto.ProximoServicioMeses) {
+      // ═══════════════════════════════════════════════════════════════════════════
+      // VERIFICAR/GENERAR SERVICIOS FUTUROS AUTOMÁTICAMENTE
+      // ═══════════════════════════════════════════════════════════════════════════
+
+      // Verificar si existe servicio futuro para este contrato
+      let servicioFuturoExistente = null;
+      let servicioGenerado = null;
+
+      if (servicio.ContratoID) {
+        servicioFuturoExistente = await tx.servicios.findFirst({
+          where: {
+            ContratoID: servicio.ContratoID,
+            ServicioID: { not: id },
+            Estatus: { notIn: ['REALIZADO', 'CANCELADO'] },
+            FechaProgramada: { gte: new Date() },
+            IsActive: 1,
+          },
+          orderBy: { FechaProgramada: 'asc' },
+          select: {
+            ServicioID: true,
+            TipoServicio: true,
+            FechaProgramada: true,
+            Estatus: true,
+          },
+        });
+
+        // Si NO existe servicio futuro y se especificó ProximoServicioMeses → crear automáticamente
+        if (!servicioFuturoExistente && dto.ProximoServicioMeses) {
+          const fechaProximo = moment().add(dto.ProximoServicioMeses, 'months').toDate();
+
+          const nuevoServicio = await tx.servicios.create({
+            data: {
+              ContratoID: servicio.ContratoID,
+              TipoServicio: 'MANTENIMIENTO',
+              FechaProgramada: fechaProximo,
+              TecnicoID: servicio.TecnicoID,
+              OrigenInventario: servicio.OrigenInventario,
+              Estatus: servicio.TecnicoID ? 'CONFIRMADO' : 'POR_CONFIRMAR',
+              ObservacionesGenerales: `Servicio generado automáticamente desde servicio #${id}`,
+              UsuarioCreadorID: usuarioId || null,
+              IsActive: 1,
+            },
+          });
+
+          // Copiar equipos del servicio original al nuevo
+          const equiposOriginales = await tx.servicios_equipos.findMany({
+            where: { ServicioID: id, IsActive: 1 },
+            select: { ClienteEquipoID: true, EquipoID: true },
+          });
+
+          for (const equipo of equiposOriginales) {
+            await tx.servicios_equipos.create({
+              data: {
+                ServicioID: nuevoServicio.ServicioID,
+                ClienteEquipoID: equipo.ClienteEquipoID,
+                EquipoID: equipo.EquipoID,
+                IsActive: 1,
+              },
+            });
+          }
+
+          servicioGenerado = {
+            ServicioID: nuevoServicio.ServicioID,
+            TipoServicio: nuevoServicio.TipoServicio,
+            FechaProgramada: moment(nuevoServicio.FechaProgramada).format('YYYY-MM-DD'),
+            Estatus: nuevoServicio.Estatus,
+          };
+
+          // Registrar historial del nuevo servicio
+          await this.registrarHistorial(tx, nuevoServicio.ServicioID, TipoAccionServicio.CREACION, `Servicio generado automáticamente desde servicio #${id}`, null, null, usuarioId);
+        }
+      }
+
+      // Crear notificación para próximo servicio si aplica (y no se generó automáticamente)
+      if (dto.ProximoServicioMeses && !servicioGenerado) {
         const fechaProximo = moment().add(dto.ProximoServicioMeses, 'months').toDate();
         await tx.servicios_notificaciones.create({
           data: {
@@ -1374,7 +1455,19 @@ class ServiciosService {
 
       await this.registrarHistorial(tx, id, TipoAccionServicio.FINALIZACION, 'Servicio finalizado', null, JSON.stringify(dto), usuarioId);
 
-      return await this.findOneInternal(tx, id);
+      // Retornar servicio finalizado con info de servicio futuro
+      const servicioFinalizado = await this.findOneInternal(tx, id);
+
+      return {
+        ...servicioFinalizado,
+        servicioFuturoExistente: servicioFuturoExistente ? {
+          ServicioID: servicioFuturoExistente.ServicioID,
+          TipoServicio: servicioFuturoExistente.TipoServicio,
+          FechaProgramada: moment(servicioFuturoExistente.FechaProgramada).format('YYYY-MM-DD'),
+          Estatus: servicioFuturoExistente.Estatus,
+        } : null,
+        servicioGenerado: servicioGenerado,
+      };
     }, { timeout: 60000 }); // 60 segundos de timeout para finalizar
   }
 
