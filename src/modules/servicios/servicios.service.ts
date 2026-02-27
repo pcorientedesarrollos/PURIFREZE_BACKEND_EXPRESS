@@ -1459,14 +1459,17 @@ class ServiciosService {
       const servicioFinalizado = await this.findOneInternal(tx, id);
 
       return {
-        ...servicioFinalizado,
-        servicioFuturoExistente: servicioFuturoExistente ? {
-          ServicioID: servicioFuturoExistente.ServicioID,
-          TipoServicio: servicioFuturoExistente.TipoServicio,
-          FechaProgramada: moment(servicioFuturoExistente.FechaProgramada).format('YYYY-MM-DD'),
-          Estatus: servicioFuturoExistente.Estatus,
-        } : null,
-        servicioGenerado: servicioGenerado,
+        message: 'Servicio finalizado correctamente',
+        data: {
+          ...servicioFinalizado,
+          servicioFuturoExistente: servicioFuturoExistente ? {
+            ServicioID: servicioFuturoExistente.ServicioID,
+            TipoServicio: servicioFuturoExistente.TipoServicio,
+            FechaProgramada: moment(servicioFuturoExistente.FechaProgramada).format('YYYY-MM-DD'),
+            Estatus: servicioFuturoExistente.Estatus,
+          } : null,
+          servicioGenerado: servicioGenerado,
+        },
       };
     }, { timeout: 60000 }); // 60 segundos de timeout para finalizar
   }
