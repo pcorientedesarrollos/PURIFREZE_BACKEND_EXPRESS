@@ -869,7 +869,7 @@ class ServiciosService {
         OrigenInventario: dto.OrigenInventario || servicio.OrigenInventario,
         CostoUnitario: costoUnitario,
         Subtotal: subtotal,
-        Cobrar: dto.Cobrar ?? 0,  // Default: NO cobrar (0)
+        Cobrar: dto.Cobrar ? 1 : 0,
         Observaciones: dto.Observaciones || null,
         IsActive: 1,
       },
