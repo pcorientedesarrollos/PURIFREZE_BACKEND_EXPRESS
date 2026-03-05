@@ -364,7 +364,7 @@ class ComprasService {
     // Determinar estados iniciales
     const esContado = dto.FormaPago === 'CONTADO';
     const estadoPagoInicial: EstadoPagoCompra = esContado ? 'PAGADO' : 'PENDIENTE';
-    const estadoEntregaInicial: EstadoEntregaCompra = dto.Estatus === 'Finalizado' ? 'ENTREGADO' : 'NO_ENTREGADO';
+    const estadoEntregaInicial: EstadoEntregaCompra = dto.Estatus === 'Finalizado' ? 'ENTREGADO' : 'PEDIDO';
 
     return await tx.compras_encabezado.create({
       data: {
@@ -724,7 +724,7 @@ class ComprasService {
     } else if (totalCantidadRecibida > 0) {
       nuevoEstado = 'PARCIAL';
     } else {
-      nuevoEstado = 'NO_ENTREGADO';
+      nuevoEstado = 'PEDIDO';
     }
 
     // Actualizar compra

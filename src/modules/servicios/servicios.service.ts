@@ -195,10 +195,10 @@ class ServiciosService {
     if (query.fechaDesde || query.fechaHasta) {
       where.FechaProgramada = {};
       if (query.fechaDesde) {
-        where.FechaProgramada.gte = moment(query.fechaDesde).toDate();
+        where.FechaProgramada.gte = moment(query.fechaDesde).startOf('day').toDate();
       }
       if (query.fechaHasta) {
-        where.FechaProgramada.lte = moment(query.fechaHasta).toDate();
+        where.FechaProgramada.lte = moment(query.fechaHasta).endOf('day').toDate();
       }
     }
 
@@ -218,7 +218,7 @@ class ServiciosService {
             ContratoID: true,
             NumeroContrato: true,
             cliente: { select: { ClienteID: true, NombreComercio: true } },
-            sucursal: { select: { SucursalID: true, NombreSucursal: true, Direccion: true } },
+            sucursal: { select: { SucursalID: true, NombreSucursal: true, Direccion: true, Latitud: true, Longitud: true } },
           },
         },
         tecnico: {
@@ -388,7 +388,7 @@ class ServiciosService {
   async getAgenda(query: AgendaQuery) {
     const where: Prisma.serviciosWhereInput = {
       IsActive: 1,
-      Estatus: { in: ['POR_CONFIRMAR', 'PENDIENTE', 'CONFIRMADO', 'EN_PROCESO'] },
+      Estatus: { in: ['POR_CONFIRMAR', 'CONFIRMADO', 'EN_PROCESO'] },
     };
 
     if (query.tecnicoId) {
@@ -455,7 +455,7 @@ class ServiciosService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async update(id: number, dto: UpdateServicioDto, usuarioId?: number) {
-    const servicio = await this.obtenerServicioValidado(id, ['POR_CONFIRMAR', 'PENDIENTE', 'CONFIRMADO']);
+    const servicio = await this.obtenerServicioValidado(id, ['POR_CONFIRMAR', 'CONFIRMADO']);
 
     const dataUpdate: Prisma.serviciosUpdateInput = {};
 
@@ -468,10 +468,7 @@ class ServiciosService {
     if (dto.TecnicoID !== undefined) {
       if (dto.TecnicoID) {
         dataUpdate.tecnico = { connect: { TecnicoID: dto.TecnicoID } };
-        // Si se asigna técnico y está POR_CONFIRMAR, pasar a PENDIENTE
-        if (servicio.Estatus === 'POR_CONFIRMAR') {
-          dataUpdate.Estatus = 'PENDIENTE';
-        }
+        // NOTA: Ya no cambiamos automáticamente a PENDIENTE (fue eliminado del sistema)
       } else {
         dataUpdate.tecnico = { disconnect: true };
       }
@@ -508,22 +505,16 @@ class ServiciosService {
     const estatusAnterior = servicio.Estatus;
 
     // Validar transiciones permitidas (incluyendo regresiones)
+    // NOTA: PENDIENTE fue eliminado del sistema
     const transicionesPermitidas: Record<string, string[]> = {
-      'POR_CONFIRMAR': ['PENDIENTE', 'CONFIRMADO', 'CANCELADO'],
-      'PENDIENTE': ['POR_CONFIRMAR', 'CONFIRMADO', 'CANCELADO'],
-      'CONFIRMADO': ['POR_CONFIRMAR', 'PENDIENTE', 'EN_PROCESO', 'CANCELADO'],
+      'POR_CONFIRMAR': ['CONFIRMADO', 'CANCELADO'],
+      'CONFIRMADO': ['POR_CONFIRMAR', 'EN_PROCESO', 'CANCELADO'],
       'EN_PROCESO': ['CONFIRMADO', 'REALIZADO', 'CANCELADO'],
       // REALIZADO y CANCELADO son estados finales - no permiten cambios
     };
 
     if (!transicionesPermitidas[estatusAnterior]?.includes(dto.Estatus)) {
       throw new HttpError(`No se puede cambiar de ${estatusAnterior} a ${dto.Estatus}`, 400);
-    }
-
-    // Validaciones específicas - considerar si viene TecnicoID en el payload
-    const tecnicoIdFinal = dto.TecnicoID ?? servicio.TecnicoID;
-    if (dto.Estatus === 'PENDIENTE' && !tecnicoIdFinal) {
-      throw new HttpError('Debe asignar un técnico antes de pasar a PENDIENTE', 400);
     }
 
     await prisma.servicios.update({
@@ -540,7 +531,7 @@ class ServiciosService {
   }
 
   async cancelar(id: number, dto: CancelarServicioDto, usuarioId?: number) {
-    const servicio = await this.obtenerServicioValidado(id, ['POR_CONFIRMAR', 'PENDIENTE', 'CONFIRMADO', 'EN_PROCESO']);
+    const servicio = await this.obtenerServicioValidado(id, ['POR_CONFIRMAR', 'CONFIRMADO', 'EN_PROCESO']);
 
     await prisma.servicios.update({
       where: { ServicioID: id },
@@ -556,92 +547,74 @@ class ServiciosService {
   }
 
   async reagendar(id: number, dto: ReagendarServicioDto, usuarioId?: number) {
-    const servicioOriginal = await this.obtenerServicioValidado(id, ['POR_CONFIRMAR', 'PENDIENTE', 'CONFIRMADO']);
+    const servicioOriginal = await this.obtenerServicioValidado(id, ['POR_CONFIRMAR', 'CONFIRMADO']);
 
-    return await prisma.$transaction(async (tx) => {
-      // Cancelar el servicio original
-      await tx.servicios.update({
-        where: { ServicioID: id },
-        data: {
-          Estatus: 'CANCELADO',
-          MotivoReagendamiento: dto.MotivoReagendamiento,
-        },
-      });
+    // Guardar valores anteriores para historial
+    const valoresAnteriores = {
+      FechaProgramada: moment(servicioOriginal.FechaProgramada).format('YYYY-MM-DD'),
+      HoraProgramada: servicioOriginal.HoraProgramada ? moment(servicioOriginal.HoraProgramada).format('HH:mm') : null,
+      TecnicoID: servicioOriginal.TecnicoID,
+      TipoServicio: servicioOriginal.TipoServicio,
+    };
 
-      // Crear nuevo servicio con los mismos equipos
-      const equiposOriginales = await tx.servicios_equipos.findMany({
-        where: { ServicioID: id, IsActive: 1 },
-        select: { ClienteEquipoID: true },
-      });
+    // Construir datos de actualización
+    const dataUpdate: Prisma.serviciosUpdateInput = {
+      FechaProgramada: moment(dto.NuevaFechaProgramada).toDate(),
+      MotivoReagendamiento: dto.MotivoReagendamiento,
+    };
 
-      const nuevoServicio = await tx.servicios.create({
-        data: {
-          ContratoID: servicioOriginal.ContratoID,
-          TipoServicio: servicioOriginal.TipoServicio,
-          FechaProgramada: moment(dto.NuevaFechaProgramada).toDate(),
-          HoraProgramada: dto.NuevaHoraProgramada ? moment(dto.NuevaHoraProgramada, 'HH:mm').toDate() : servicioOriginal.HoraProgramada,
-          TecnicoID: dto.NuevoTecnicoID || servicioOriginal.TecnicoID,
-          OrigenInventario: servicioOriginal.OrigenInventario,
-          Estatus: (dto.NuevoTecnicoID || servicioOriginal.TecnicoID) ? 'PENDIENTE' : 'POR_CONFIRMAR',
-          ObservacionesGenerales: servicioOriginal.ObservacionesGenerales,
-          ServicioOrigenID: id,
-          UsuarioCreadorID: usuarioId || null,
-          IsActive: 1,
-        },
-      });
+    if (dto.NuevaHoraProgramada !== undefined) {
+      dataUpdate.HoraProgramada = dto.NuevaHoraProgramada ? moment(dto.NuevaHoraProgramada, 'HH:mm').toDate() : null;
+    }
 
-      // Copiar equipos al nuevo servicio
-      for (const equipo of equiposOriginales) {
-        if (!equipo.ClienteEquipoID) continue;
-
-        const nuevoServicioEquipo = await tx.servicios_equipos.create({
-          data: {
-            ServicioID: nuevoServicio.ServicioID,
-            ClienteEquipoID: equipo.ClienteEquipoID,
-            EquipoID: null, // Se cargará con las refacciones actuales
-            IsActive: 1,
-          },
-        });
-
-        // Obtener el equipo del cliente
-        const clienteEquipo = await tx.clientes_equipos.findUnique({
-          where: { ClienteEquipoID: equipo.ClienteEquipoID },
-          select: { EquipoID: true },
-        });
-
-        if (clienteEquipo?.EquipoID) {
-          await tx.servicios_equipos.update({
-            where: { ServicioEquipoID: nuevoServicioEquipo.ServicioEquipoID },
-            data: { EquipoID: clienteEquipo.EquipoID },
-          });
-
-          // Cargar refacciones actuales del equipo
-          const equipoDetalles = await tx.equipos_detalle.findMany({
-            where: { EquipoID: clienteEquipo.EquipoID, IsActive: 1 },
-          });
-
-          for (const detalle of equipoDetalles) {
-            await tx.servicios_equipos_refacciones.create({
-              data: {
-                ServicioEquipoID: nuevoServicioEquipo.ServicioEquipoID,
-                RefaccionID: detalle.RefaccionID,
-                CantidadEquipo: detalle.Cantidad,
-                CantidadTecnico: 0,
-                Cambio: 0,
-                Limpieza: 0,
-                Verificacion: 0,
-                IsActive: 1,
-              },
-            });
-          }
-        }
+    if (dto.NuevoTecnicoID !== undefined) {
+      if (dto.NuevoTecnicoID) {
+        dataUpdate.tecnico = { connect: { TecnicoID: dto.NuevoTecnicoID } };
+      } else {
+        dataUpdate.tecnico = { disconnect: true };
       }
+    }
 
-      await this.registrarHistorial(tx, id, TipoAccionServicio.REAGENDAMIENTO, `Reagendado a servicio ${nuevoServicio.ServicioID}`, null, dto.MotivoReagendamiento, usuarioId);
-      await this.registrarHistorial(tx, nuevoServicio.ServicioID, TipoAccionServicio.CREACION, `Servicio creado por reagendamiento desde ${id}`, null, null, usuarioId);
+    if (dto.NuevoTipoServicio !== undefined) {
+      dataUpdate.TipoServicio = dto.NuevoTipoServicio as TipoServicio;
+    }
 
-      return await this.findOneInternal(tx, nuevoServicio.ServicioID);
-    }, { timeout: 30000 }); // 30 segundos de timeout
+    // Actualizar el MISMO servicio (no crear uno nuevo)
+    await prisma.servicios.update({
+      where: { ServicioID: id },
+      data: dataUpdate,
+    });
+
+    // Construir descripción del cambio
+    const cambios: string[] = [];
+    cambios.push(`Fecha: ${valoresAnteriores.FechaProgramada} → ${dto.NuevaFechaProgramada}`);
+    if (dto.NuevaHoraProgramada) {
+      cambios.push(`Hora: ${valoresAnteriores.HoraProgramada || 'N/A'} → ${dto.NuevaHoraProgramada}`);
+    }
+    if (dto.NuevoTipoServicio && dto.NuevoTipoServicio !== valoresAnteriores.TipoServicio) {
+      cambios.push(`Tipo: ${valoresAnteriores.TipoServicio} → ${dto.NuevoTipoServicio}`);
+    }
+    if (dto.NuevoTecnicoID && dto.NuevoTecnicoID !== valoresAnteriores.TecnicoID) {
+      cambios.push(`Técnico cambiado`);
+    }
+
+    // Registrar en historial
+    await this.registrarHistorial(
+      prisma,
+      id,
+      TipoAccionServicio.REAGENDAMIENTO,
+      `Servicio reagendado: ${dto.MotivoReagendamiento}. Cambios: ${cambios.join(', ')}`,
+      JSON.stringify(valoresAnteriores),
+      JSON.stringify({
+        FechaProgramada: dto.NuevaFechaProgramada,
+        HoraProgramada: dto.NuevaHoraProgramada,
+        TecnicoID: dto.NuevoTecnicoID,
+        TipoServicio: dto.NuevoTipoServicio,
+      }),
+      usuarioId
+    );
+
+    return await this.findOne(id);
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
@@ -649,7 +622,7 @@ class ServiciosService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async actualizarRefaccion(servicioId: number, dto: ActualizarRefaccionDto, usuarioId?: number) {
-    await this.obtenerServicioValidado(servicioId, ['POR_CONFIRMAR', 'PENDIENTE', 'CONFIRMADO', 'EN_PROCESO']);
+    await this.obtenerServicioValidado(servicioId, ['POR_CONFIRMAR', 'CONFIRMADO', 'EN_PROCESO']);
 
     const refaccion = await prisma.servicios_equipos_refacciones.findFirst({
       where: {
@@ -690,7 +663,7 @@ class ServiciosService {
   }
 
   async agregarRefaccionEquipo(servicioId: number, dto: AgregarRefaccionEquipoServicioDto, usuarioId?: number) {
-    await this.obtenerServicioValidado(servicioId, ['POR_CONFIRMAR', 'PENDIENTE', 'CONFIRMADO', 'EN_PROCESO']);
+    await this.obtenerServicioValidado(servicioId, ['POR_CONFIRMAR', 'CONFIRMADO', 'EN_PROCESO']);
 
     // Verificar que el ServicioEquipoID pertenece al servicio
     const servicioEquipo = await prisma.servicios_equipos.findFirst({
@@ -807,7 +780,7 @@ class ServiciosService {
   }
 
   async eliminarRefaccionEquipo(servicioId: number, dto: EliminarRefaccionEquipoServicioDto, usuarioId?: number) {
-    await this.obtenerServicioValidado(servicioId, ['POR_CONFIRMAR', 'PENDIENTE', 'CONFIRMADO', 'EN_PROCESO']);
+    await this.obtenerServicioValidado(servicioId, ['POR_CONFIRMAR', 'CONFIRMADO', 'EN_PROCESO']);
 
     const refaccion = await prisma.servicios_equipos_refacciones.findFirst({
       where: {
@@ -845,7 +818,7 @@ class ServiciosService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async agregarInsumo(servicioId: number, dto: AgregarInsumoDto, usuarioId?: number) {
-    const servicio = await this.obtenerServicioValidado(servicioId, ['POR_CONFIRMAR', 'PENDIENTE', 'CONFIRMADO', 'EN_PROCESO']);
+    const servicio = await this.obtenerServicioValidado(servicioId, ['POR_CONFIRMAR', 'CONFIRMADO', 'EN_PROCESO']);
 
     // Obtener costo de la refacción
     const refaccion = await prisma.catalogo_refacciones.findUnique({
@@ -884,7 +857,7 @@ class ServiciosService {
   }
 
   async modificarInsumo(servicioId: number, dto: ModificarInsumoDto, usuarioId?: number) {
-    await this.obtenerServicioValidado(servicioId, ['POR_CONFIRMAR', 'PENDIENTE', 'CONFIRMADO', 'EN_PROCESO']);
+    await this.obtenerServicioValidado(servicioId, ['POR_CONFIRMAR', 'CONFIRMADO', 'EN_PROCESO']);
 
     const insumo = await prisma.servicios_insumos.findFirst({
       where: { ServicioInsumoID: dto.ServicioInsumoID, ServicioID: servicioId, IsActive: 1 },
@@ -915,7 +888,7 @@ class ServiciosService {
   }
 
   async eliminarInsumo(servicioId: number, servicioInsumoId: number, usuarioId?: number) {
-    await this.obtenerServicioValidado(servicioId, ['POR_CONFIRMAR', 'PENDIENTE', 'CONFIRMADO', 'EN_PROCESO']);
+    await this.obtenerServicioValidado(servicioId, ['POR_CONFIRMAR', 'CONFIRMADO', 'EN_PROCESO']);
 
     const insumo = await prisma.servicios_insumos.findFirst({
       where: { ServicioInsumoID: servicioInsumoId, ServicioID: servicioId, IsActive: 1 },
@@ -939,7 +912,7 @@ class ServiciosService {
    * Toggle Cobrar de un insumo
    */
   async toggleCobrarInsumo(servicioId: number, servicioInsumoId: number, dto: ToggleCobrarInsumoDto) {
-    await this.obtenerServicioValidado(servicioId, ['POR_CONFIRMAR', 'PENDIENTE', 'CONFIRMADO', 'EN_PROCESO']);
+    await this.obtenerServicioValidado(servicioId, ['POR_CONFIRMAR', 'CONFIRMADO', 'EN_PROCESO']);
 
     const insumo = await prisma.servicios_insumos.findFirst({
       where: { ServicioInsumoID: servicioInsumoId, ServicioID: servicioId, IsActive: 1 },
@@ -961,7 +934,7 @@ class ServiciosService {
    * Dividir un insumo con cantidad > 1 en registros individuales
    */
   async dividirInsumo(servicioId: number, servicioInsumoId: number) {
-    await this.obtenerServicioValidado(servicioId, ['POR_CONFIRMAR', 'PENDIENTE', 'CONFIRMADO', 'EN_PROCESO']);
+    await this.obtenerServicioValidado(servicioId, ['POR_CONFIRMAR', 'CONFIRMADO', 'EN_PROCESO']);
 
     const insumo = await prisma.servicios_insumos.findFirst({
       where: { ServicioInsumoID: servicioInsumoId, ServicioID: servicioId, IsActive: 1 },
@@ -1016,7 +989,7 @@ class ServiciosService {
   // ═══════════════════════════════════════════════════════════════════════════
 
   async configurarDesinstalacion(servicioId: number, dto: ConfigurarDesinstalacionDto, usuarioId?: number) {
-    const servicio = await this.obtenerServicioValidado(servicioId, ['POR_CONFIRMAR', 'PENDIENTE', 'CONFIRMADO', 'EN_PROCESO']);
+    const servicio = await this.obtenerServicioValidado(servicioId, ['POR_CONFIRMAR', 'CONFIRMADO', 'EN_PROCESO']);
 
     if (servicio.TipoServicio !== 'DESINSTALACION') {
       throw new HttpError('Esta operación solo está disponible para servicios de desinstalación', 400);
@@ -1713,6 +1686,8 @@ class ServiciosService {
         SucursalID: servicio.contrato.sucursal.SucursalID,
         NombreSucursal: servicio.contrato.sucursal.NombreSucursal,
         Direccion: servicio.contrato.sucursal.Direccion,
+        Latitud: servicio.contrato.sucursal.Latitud,
+        Longitud: servicio.contrato.sucursal.Longitud,
       } : null,
       Tecnico: servicio.tecnico ? {
         TecnicoID: servicio.tecnico.TecnicoID,

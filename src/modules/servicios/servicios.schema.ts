@@ -5,7 +5,7 @@ import { z } from 'zod';
 // ═══════════════════════════════════════════════════════════════════════════
 
 export const TipoServicioEnum = z.enum(['INSTALACION', 'MANTENIMIENTO', 'REPARACION', 'DESINSTALACION']);
-export const EstatusServicioEnum = z.enum(['POR_CONFIRMAR', 'PENDIENTE', 'CONFIRMADO', 'EN_PROCESO', 'REALIZADO', 'CANCELADO']);
+export const EstatusServicioEnum = z.enum(['POR_CONFIRMAR', 'CONFIRMADO', 'EN_PROCESO', 'REALIZADO', 'CANCELADO']);
 export const OrigenInventarioEnum = z.enum(['TECNICO', 'BODEGA']);
 export const AccionDesinstalacionEnum = z.enum(['PIEZAS_INDIVIDUALES', 'EQUIPO_COMPLETO']);
 export const DestinoRefaccionEnum = z.enum(['INVENTARIO', 'DANADA', 'PERMANECE']);
@@ -65,6 +65,7 @@ export const reagendarServicioSchema = z.object({
   NuevaHoraProgramada: z.string().optional(),
   MotivoReagendamiento: z.string({ required_error: 'Motivo de reagendamiento es requerido' }).max(255, 'Motivo máximo 255 caracteres'),
   NuevoTecnicoID: z.number().optional(),
+  NuevoTipoServicio: TipoServicioEnum.optional(), // Permite cambiar tipo (ej: MANTENIMIENTO → REPARACIÓN)
 });
 
 // ═══════════════════════════════════════════════════════════════════════════

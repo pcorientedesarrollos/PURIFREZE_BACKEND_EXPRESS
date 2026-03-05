@@ -103,6 +103,7 @@ model catalogo_proveedores {
   IsActive           Boolean?
   compras_encabezado compras_encabezado[]      @relation("ProveedorCompras")
   contactos          proveedores_contactos[]
+  notas_credito      notas_credito[]
 }
 
 model proveedores_contactos {
@@ -302,17 +303,19 @@ model compras_encabezado {
   // NUEVOS CAMPOS - Sistema de ejes independientes
   FormaPago                 FormaPagoCompra             @default(CREDITO)
   EstadoPago                EstadoPagoCompra            @default(PENDIENTE)
-  EstadoEntrega             EstadoEntregaCompra         @default(NO_ENTREGADO)
+  EstadoEntrega             EstadoEntregaCompra         @default(PEDIDO)
   TotalPagado               Float?                      @db.Float @default(0)
   TotalRecibido             Float?                      @db.Float @default(0)
   DiasCredito               Int?
   FechaVencimientoCredito   DateTime?                   @db.Date
+  TotalNotasCredito         Float?                      @db.Float @default(0)
 
   // Relaciones
   compras_detalle           compras_detalle[]           @relation("CompraDetalles")
   catalogo_proveedores      catalogo_proveedores?       @relation("ProveedorCompras", fields: [ProveedorID], references: [ProveedorID])
   compras_pagos             compras_pagos[]             @relation("CompraPagos")
   compras_recepciones       compras_recepciones_encabezado[] @relation("CompraRecepciones")
+  notas_credito_aplicaciones notas_credito_aplicaciones[]
 }
 
 model compras_recepciones_detalle {
@@ -626,7 +629,8 @@ enum EstadoPagoCompra {
 }
 
 enum EstadoEntregaCompra {
-  NO_ENTREGADO
+  PEDIDO
+  EN_ESPERA_DE_ENVIO
   PARCIAL
   ENTREGADO
 }
@@ -1748,4 +1752,51 @@ model refaccion_periodo_cambio {
   @@unique([RefaccionID, PeriodoContrato])
   @@index([RefaccionID])
   @@index([PeriodoContrato])
+}
+
+// =============================================
+// NOTAS DE CRÉDITO
+// =============================================
+
+model notas_credito {
+  NotaCreditoID     Int                          @id @default(autoincrement())
+  ProveedorID       Int
+  Monto             Float                        @db.Float
+  Fecha             DateTime                     @db.Date
+  NumeroReferencia  String?                      @db.VarChar(100)
+  Descripcion       String                       @db.VarChar(500)
+  Observaciones     String?                      @db.Text
+  Estado            notas_credito_Estado?        @default(DISPONIBLE)
+  UsuarioID         Int
+  FechaCreacion     DateTime?                    @default(now()) @db.DateTime(0)
+  FechaModificacion DateTime?                    @default(now()) @db.DateTime(0)
+  IsActive          Int?                         @default(1) @db.TinyInt
+
+  // Relaciones
+  proveedor         catalogo_proveedores         @relation(fields: [ProveedorID], references: [ProveedorID])
+  aplicaciones      notas_credito_aplicaciones[]
+
+  @@index([Estado], map: "idx_estado")
+  @@index([ProveedorID], map: "idx_proveedor")
+}
+
+model notas_credito_aplicaciones {
+  AplicacionID       Int                @id @default(autoincrement())
+  NotaCreditoID      Int
+  CompraEncabezadoID Int
+  MontoAplicado      Float              @db.Float
+  FechaAplicacion    DateTime?          @default(now()) @db.DateTime(0)
+  UsuarioID          Int
+
+  // Relaciones
+  nota_credito       notas_credito      @relation(fields: [NotaCreditoID], references: [NotaCreditoID])
+  compra             compras_encabezado @relation(fields: [CompraEncabezadoID], references: [CompraEncabezadoID])
+
+  @@index([CompraEncabezadoID], map: "idx_compra")
+  @@index([NotaCreditoID], map: "idx_nota")
+}
+
+enum notas_credito_Estado {
+  DISPONIBLE
+  APLICADO
 }

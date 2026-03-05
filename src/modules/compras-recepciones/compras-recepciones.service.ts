@@ -428,7 +428,7 @@ class ComprasRecepcionesService {
     } else if (totalCantidadRecibida > 0) {
       nuevoEstado = 'PARCIAL';
     } else {
-      nuevoEstado = 'NO_ENTREGADO';
+      nuevoEstado = 'PEDIDO';
     }
 
     // Actualizar compra
