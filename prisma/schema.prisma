@@ -309,6 +309,8 @@ model compras_encabezado {
   DiasCredito               Int?
   FechaVencimientoCredito   DateTime?                   @db.Date
   TotalNotasCredito         Float?                      @db.Float @default(0)
+  CotizacionCompraID        Int?
+  NumeroPedido              String?                     @db.VarChar(100)
 
   // Relaciones
   compras_detalle           compras_detalle[]           @relation("CompraDetalles")
@@ -316,6 +318,7 @@ model compras_encabezado {
   compras_pagos             compras_pagos[]             @relation("CompraPagos")
   compras_recepciones       compras_recepciones_encabezado[] @relation("CompraRecepciones")
   notas_credito_aplicaciones notas_credito_aplicaciones[]
+  cotizacion_compra         cotizaciones_compra_encabezado? @relation(fields: [CotizacionCompraID], references: [CotizacionCompraID])
 }
 
 model compras_recepciones_detalle {
@@ -335,6 +338,7 @@ model compras_recepciones_encabezado {
   MontoRecepcion                 Float?                        @db.Float
   UsuarioID                      Int?
   IsActive                       Int?                          @db.TinyInt
+  NumeroFactura                  String?                       @db.VarChar(100)
   compras_recepciones_detalle    compras_recepciones_detalle[] @relation("RecepcionDetalles")
   compra                         compras_encabezado?           @relation("CompraRecepciones", fields: [CompraEncabezadoID], references: [CompraEncabezadoID])
 
@@ -1799,4 +1803,61 @@ model notas_credito_aplicaciones {
 enum notas_credito_Estado {
   DISPONIBLE
   APLICADO
+}
+
+// =============================================
+// COTIZACIONES DE COMPRA
+// =============================================
+
+model cotizaciones_compra_encabezado {
+  CotizacionCompraID Int                              @id @default(autoincrement())
+  Folio              String?                          @db.VarChar(50)
+  FechaCotizacion    DateTime                         @db.Date
+  Observaciones      String?                          @db.VarChar(500)
+  Estado             cotizaciones_compra_Estado?      @default(PENDIENTE)
+  UsuarioID          Int?
+  FechaCreacion      DateTime?                        @default(now()) @db.DateTime(0)
+  IsActive           Boolean?                         @default(true)
+
+  detalles           cotizaciones_compra_detalle[]
+  envios             cotizaciones_compra_envios[]
+  compras            compras_encabezado[]
+
+  @@index([Estado], map: "idx_cotizacion_estado")
+}
+
+model cotizaciones_compra_detalle {
+  CotizacionDetalleID Int                              @id @default(autoincrement())
+  CotizacionCompraID  Int
+  RefaccionID         Int
+  Cantidad            Int
+  Observaciones       String?                          @db.VarChar(255)
+  IsActive            Boolean?                         @default(true)
+
+  encabezado          cotizaciones_compra_encabezado   @relation(fields: [CotizacionCompraID], references: [CotizacionCompraID])
+
+  @@index([CotizacionCompraID], map: "idx_cotizacion_detalle")
+  @@index([RefaccionID], map: "idx_refaccion_cotizacion")
+}
+
+model cotizaciones_compra_envios {
+  EnvioID            Int                              @id @default(autoincrement())
+  CotizacionCompraID Int
+  ProveedorID        Int
+  ContactoID         Int?
+  FechaEnvio         DateTime?                        @default(now()) @db.DateTime(0)
+  MedioEnvio         String                           @db.VarChar(50)
+  Telefono           String?                          @db.VarChar(20)
+
+  encabezado         cotizaciones_compra_encabezado   @relation(fields: [CotizacionCompraID], references: [CotizacionCompraID])
+
+  @@index([CotizacionCompraID], map: "idx_envio_cotizacion")
+  @@index([ProveedorID], map: "idx_envio_proveedor")
+}
+
+enum cotizaciones_compra_Estado {
+  PENDIENTE
+  ENVIADA
+  FINALIZADA
+  CANCELADA
 }

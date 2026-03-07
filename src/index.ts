@@ -51,6 +51,7 @@ import { girosNegocioRoutes } from './modules/giros-negocio';
 import { serviciosAdicionalesRoutes } from './modules/servicios-adicionales';
 import { refaccionPeriodoCambioRoutes } from './modules/refaccion-periodo-cambio';
 import { notasCreditoRoutes } from './modules/notas-credito';
+import { cotizacionesCompraRoutes } from './modules/cotizaciones-compra';
 
 const app = express();
 
@@ -122,6 +123,7 @@ app.use('/servicios-adicionales', serviciosAdicionalesRoutes);
 app.use('/catalogo-servicios-adicionales', serviciosAdicionalesRoutes);
 app.use('/refaccion-periodo-cambio', refaccionPeriodoCambioRoutes);
 app.use('/notas-credito', notasCreditoRoutes);
+app.use('/cotizaciones-compra', cotizacionesCompraRoutes);
 
 // Error handler (debe ir al final)
 app.use(errorHandler);

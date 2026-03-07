@@ -17,6 +17,7 @@ export const createRecepcionSchema = z.object({
   UsuarioID: z.number({ required_error: 'UsuarioID es requerido' }),
   MetodoPagoID: z.number().optional(), // Ahora opcional
   CuentaBancariaID: z.number().optional(), // Ahora opcional
+  NumeroFactura: z.string().max(100).optional(), // Número de factura de la entrega
   Detalles: z.array(createRecepcionDetalleSchema).min(1, 'Debe incluir al menos un detalle'),
 });
 

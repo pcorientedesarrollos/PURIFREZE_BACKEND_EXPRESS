@@ -87,6 +87,7 @@ class ComprasRecepcionesService {
           Observaciones: createDto.Observaciones || 'Recepción parcial de compra',
           MontoRecepcion,
           UsuarioID,
+          NumeroFactura: createDto.NumeroFactura || null,
           IsActive: 1,
         },
       });

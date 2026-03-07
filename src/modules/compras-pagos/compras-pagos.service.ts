@@ -238,6 +238,7 @@ class ComprasPagosService {
 
   /**
    * Actualiza el EstadoPago y TotalPagado de una compra
+   * También verifica si ambos ejes están completos para actualizar Estatus legacy
    */
   async actualizarEstadoPagoCompra(tx: Prisma.TransactionClient, compraEncabezadoID: number) {
     // Obtener suma de pagos activos
@@ -259,22 +260,28 @@ class ComprasPagosService {
 
     const totalNeto = compra.TotalNeto || 0;
 
-    // Determinar nuevo estado
-    let nuevoEstado: EstadoPagoCompra;
+    // Determinar nuevo estado de pago
+    let nuevoEstadoPago: EstadoPagoCompra;
     if (totalPagado >= totalNeto) {
-      nuevoEstado = 'PAGADO';
+      nuevoEstadoPago = 'PAGADO';
     } else if (totalPagado > 0) {
-      nuevoEstado = 'PARCIAL';
+      nuevoEstadoPago = 'PARCIAL';
     } else {
-      nuevoEstado = 'PENDIENTE';
+      nuevoEstadoPago = 'PENDIENTE';
     }
+
+    // Verificar si ambos ejes están completos para actualizar Estatus legacy
+    const entregaCompleta = compra.EstadoEntrega === 'ENTREGADO';
+    const pagoCompleto = nuevoEstadoPago === 'PAGADO';
+    const nuevoEstatus = (entregaCompleta && pagoCompleto) ? 'Finalizado' : compra.Estatus;
 
     // Actualizar compra
     await tx.compras_encabezado.update({
       where: { CompraEncabezadoID: compraEncabezadoID },
       data: {
         TotalPagado: totalPagado,
-        EstadoPago: nuevoEstado,
+        EstadoPago: nuevoEstadoPago,
+        Estatus: nuevoEstatus,
       },
     });
   }

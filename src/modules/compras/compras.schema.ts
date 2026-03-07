@@ -33,6 +33,8 @@ export const createCompraSchema = z.object({
   FormaPago: z.enum(['CONTADO', 'CREDITO']).default('CREDITO'),
   DiasCredito: z.number().optional(),
   FechaVencimientoCredito: z.string().optional().transform((val) => val ? new Date(val) : undefined),
+  // Número de pedido del proveedor (ingresado por usuario)
+  NumeroPedido: z.string().max(100).optional(),
 });
 
 // Schema para detalle de compra (actualizar)
@@ -70,6 +72,8 @@ export const updateCompraSchema = z.object({
   FormaPago: z.enum(['CONTADO', 'CREDITO']).optional(),
   DiasCredito: z.number().optional(),
   FechaVencimientoCredito: z.string().optional().transform((val) => val ? new Date(val) : undefined),
+  // Número de pedido del proveedor (ingresado por usuario)
+  NumeroPedido: z.string().max(100).optional(),
 });
 
 // Schema para params

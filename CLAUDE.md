@@ -356,6 +356,96 @@ z.string()
 
 ---
 
+## REGLA CRITICA: NO USAR MIGRACIONES NI DB PULL DE PRISMA
+
+### ⛔ PROHIBIDO usar (ROMPE TODO EL SISTEMA):
+- `prisma migrate` - NO USAR NUNCA
+- `prisma db push` - NO USAR NUNCA
+- `prisma db pull` - **PROHIBIDO TOTALMENTE** - Destruye TODAS las relaciones del schema
+
+### ✅ OBLIGATORIO:
+- **Editar schema.prisma MANUALMENTE** para agregar modelos/campos
+- **Solo agregar lo nuevo**, NO tocar modelos existentes
+- Usar `npx prisma generate` para regenerar el cliente (lo hace el usuario)
+
+### Ejemplo de flujo correcto:
+```bash
+# 1. Editar prisma/schema.prisma manualmente agregando el nuevo modelo
+# 2. El usuario ejecuta: npx prisma generate
+# 3. Si la tabla no existe en BD, el usuario la crea con SQL directo
+```
+
+### ⚠️ POR QUÉ NO USAR db pull:
+- **DESTRUYE todas las relaciones** (@relation) definidas manualmente
+- Elimina los campos calculados y relaciones entre modelos
+- Rompe TODOS los servicios que usan include/relaciones
+- El schema queda sin conexiones entre tablas
+- Requiere restaurar manualmente TODAS las relaciones (70+ modelos)
+
+**NUNCA ejecutar `prisma db pull` bajo ninguna circunstancia.**
+
+---
+
+## REGLA CRITICA: PRUEBAS DE API OBLIGATORIAS
+
+### Cada API nueva o modificacion DEBE pasar este filtro antes de considerarse TERMINADA:
+
+**El backend NO esta terminado hasta que se prueben TODOS los endpoints con flujo completo.**
+
+### 1. Prueba Individual de cada Endpoint
+```bash
+# Autenticacion primero
+curl -X POST http://localhost:3000/auth \
+  -H "Content-Type: application/json" \
+  -d '{"Usuario": "usuario", "Password": "password"}'
+
+# Luego probar cada endpoint:
+# - POST (crear)
+# - GET (listar/obtener)
+# - PUT/PATCH (actualizar)
+# - DELETE (eliminar)
+```
+
+### 2. Prueba de Flujo Completo (OBLIGATORIO)
+Probar el ciclo de vida completo del modulo. Ejemplo para Compras:
+
+```bash
+# 1. Crear compra
+POST /compras -> Verificar status 201, EstadoPago: PENDIENTE, EstadoEntrega: PEDIDO
+
+# 2. Recepcion parcial
+POST /compras-recepciones -> Verificar EstadoEntrega: PARCIAL
+
+# 3. Pago parcial
+POST /compras-pagos -> Verificar EstadoPago: PARCIAL
+
+# 4. Recepcion final
+POST /compras-recepciones -> Verificar EstadoEntrega: ENTREGADO
+
+# 5. Pago final
+POST /compras-pagos -> Verificar EstadoPago: PAGADO, Estatus: Finalizado
+
+# 6. Verificacion final
+GET /compras/{id} -> Confirmar todos los estados correctos
+```
+
+### 3. Checklist de Verificacion
+- [ ] Endpoint responde con status correcto (200, 201, 400, 404, etc.)
+- [ ] Formato ResponseApi correcto (`{ status, message, error, data }`)
+- [ ] Validaciones Zod funcionan (probar payload invalido)
+- [ ] Estados se actualizan correctamente en cada paso
+- [ ] Relaciones se mantienen integras
+- [ ] No hay errores en consola del backend
+- [ ] Campos calculados se actualizan (TotalPagado, TotalRecibido, etc.)
+
+### 4. Documentar Pruebas Realizadas
+Al terminar un modulo, agregar en este archivo o en docs/:
+- Endpoints probados
+- Flujos verificados
+- Casos edge probados
+
+---
+
 ## Reglas Importantes
 
 ### 1. NO Generar Código Frontend
@@ -511,3 +601,78 @@ Los IDs en las rutas usan el nombre del campo de la base de datos:
 ---
 
 **Esta guía debe seguirse estrictamente para mantener consistencia en toda la documentación.**
+
+---
+
+## MODULOS PROBADOS Y VERIFICADOS
+
+### Compras (100% Funcional - Probado 2026-03-06)
+| Endpoint | Estado | Notas |
+|----------|--------|-------|
+| POST /compras | OK | Crea compra con detalles |
+| GET /compras | OK | Lista todas las compras |
+| GET /compras/:id | OK | Obtiene compra con relaciones |
+| PUT /compras/:id | OK | Actualiza compra |
+| DELETE /compras/:id | OK | Soft delete |
+
+### Compras Recepciones (100% Funcional - Probado 2026-03-06)
+| Endpoint | Estado | Notas |
+|----------|--------|-------|
+| POST /compras-recepciones | OK | Crea recepcion, actualiza inventario/kardex |
+| GET /compras-recepciones | OK | Lista recepciones |
+| GET /compras-recepciones/compra/:id | OK | Por compra |
+| GET /compras-recepciones/compra/:id/with-pagos | OK | Resumen completo |
+
+### Compras Pagos (100% Funcional - Probado 2026-03-06)
+| Endpoint | Estado | Notas |
+|----------|--------|-------|
+| POST /compras-pagos | OK | Registra pago, actualiza saldo bancario |
+| GET /compras-pagos/compra/:id | OK | Pagos por compra |
+| DELETE /compras-pagos/:id | OK | Soft delete + revertir saldo |
+
+### Notas de Credito (100% Funcional - Probado 2026-03-06)
+| Endpoint | Estado | Notas |
+|----------|--------|-------|
+| POST /notas-credito | OK | Crea nota |
+| GET /notas-credito | OK | Lista todas |
+| GET /notas-credito/:id | OK | Por ID |
+| PUT /notas-credito/:id | OK | Solo si DISPONIBLE |
+| DELETE /notas-credito/:id | OK | Solo si DISPONIBLE |
+| GET /notas-credito/proveedor/:id | OK | Por proveedor |
+| POST /notas-credito/:id/aplicar | OK | Aplica a compra |
+
+---
+
+## Sistema de Ejes Independientes (Compras)
+
+Las compras usan dos ejes independientes para mayor flexibilidad:
+
+| Eje | Campo | Estados | Descripcion |
+|-----|-------|---------|-------------|
+| Entrega | `EstadoEntrega` | PEDIDO -> PARCIAL -> ENTREGADO | Recepciones de mercancia |
+| Pago | `EstadoPago` | PENDIENTE -> PARCIAL -> PAGADO | Pagos al proveedor |
+
+**Campo Legacy `Estatus`:**
+- Se actualiza automaticamente a "Finalizado" cuando AMBOS ejes estan completos
+- Verificado en `compras-pagos.service.ts` y `compras-recepciones.service.ts`
+
+**Correccion aplicada (2026-03-06):**
+- Bug: El campo `Estatus` no se actualizaba cuando el pago final se hacia despues de la recepcion final
+- Solucion: Se agrego verificacion de ambos ejes en `actualizarEstadoPagoCompra()`
+
+---
+
+## Notas de Credito - Estados
+
+| Estado | Descripcion | Restricciones |
+|--------|-------------|---------------|
+| DISPONIBLE | Nota creada, pendiente de aplicar | Puede editarse/eliminarse |
+| APLICADO | Nota aplicada a una compra | NO puede editarse/eliminarse |
+
+**Impacto en Compras:**
+- Al aplicar una nota, se incrementa `TotalNotasCredito` en la compra
+- Esto reduce el monto adeudado al proveedor
+
+---
+
+**Ultima actualizacion:** 2026-03-06

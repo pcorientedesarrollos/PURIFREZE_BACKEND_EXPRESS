@@ -389,6 +389,7 @@ class ComprasService {
         TotalRecibido: estadoEntregaInicial === 'ENTREGADO' ? dto.TotalNeto : 0,
         DiasCredito: dto.DiasCredito || null,
         FechaVencimientoCredito: fechaVencimientoCredito,
+        NumeroPedido: dto.NumeroPedido || null,
       },
     });
   }
