@@ -120,9 +120,8 @@ class CotizacionesCompraService {
           ? {
               RefaccionID: refaccion.RefaccionID,
               Codigo: refaccion.Codigo,
-              NombreRefaccion: refaccion.NombreRefaccion,
-              Descripcion: refaccion.Descripcion,
-              Unidad: refaccion.Unidad,
+              NombrePieza: refaccion.NombrePieza,
+              Observaciones: refaccion.Observaciones,
             }
           : null,
       };
@@ -474,9 +473,7 @@ class CotizacionesCompraService {
       const refaccion = refaccionesMap.get(detalle.RefaccionID);
       return {
         Codigo: refaccion?.Codigo || '',
-        NombreRefaccion: refaccion?.NombreRefaccion || 'Sin nombre',
-        Descripcion: refaccion?.Descripcion || '',
-        Unidad: refaccion?.Unidad || 'PZA',
+        NombrePieza: refaccion?.NombrePieza || 'Sin nombre',
         Cantidad: detalle.Cantidad,
         Observaciones: detalle.Observaciones || '',
       };
