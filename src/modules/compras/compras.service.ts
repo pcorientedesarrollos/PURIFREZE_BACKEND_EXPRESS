@@ -179,7 +179,7 @@ class ComprasService {
                 plantilla: {
                   select: {
                     PlantillaEquipoID: true,
-                    NombrePlantilla: true,
+                    NombreEquipo: true,
                   },
                 },
               },
@@ -611,27 +611,32 @@ class ComprasService {
     fecha: string,
   ): Promise<void> {
     for (const detalle of detalles) {
+      // Solo procesar si tiene RefaccionID (no equipos)
+      if (!detalle.RefaccionID) continue;
+
+      const refaccionID = detalle.RefaccionID;
+
       // Crear detalle de recepción
       await tx.compras_recepciones_detalle.create({
         data: {
           ComprasRecepcionesEncabezadoID: recepcionID,
-          RefaccionID: detalle.RefaccionID,
+          RefaccionID: refaccionID,
           CantidadEstablecida: detalle.Cantidad,
           IsActive: 1,
         },
       });
 
       // Actualizar inventario
-      await actualizarInventario(tx, detalle.RefaccionID, detalle.Cantidad, fecha);
+      await actualizarInventario(tx, refaccionID, detalle.Cantidad, fecha);
 
       // Registrar en Kardex
       await crearKardex(
-        tx, detalle.RefaccionID, detalle.Cantidad, detalle.PrecioUnitario,
+        tx, refaccionID, detalle.Cantidad, detalle.PrecioUnitario,
         usuarioID, 'Entrada_Compra', `Entrada por compra #${compraID}`, fecha,
       );
 
       // Actualizar costo promedio
-      await actualizarCostoPromedioRefaccion(tx, detalle.RefaccionID, detalle.PrecioUnitario, detalle.Cantidad);
+      await actualizarCostoPromedioRefaccion(tx, refaccionID, detalle.PrecioUnitario, detalle.Cantidad);
     }
   }
 

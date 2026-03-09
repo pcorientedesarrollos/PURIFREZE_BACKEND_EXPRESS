@@ -155,7 +155,7 @@ class ProveedoresService {
     }
 
     // Generar nombre de usuario basado en el nombre del proveedor
-    const nombreBase = proveedor.NombreProveedor
+    const nombreBase = (proveedor.NombreProveedor || 'proveedor')
       .toLowerCase()
       .replace(/[^a-z0-9]/g, '')
       .substring(0, 15);
