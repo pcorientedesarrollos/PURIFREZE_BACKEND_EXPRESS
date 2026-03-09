@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { comprasRecepcionesController } from './compras-recepciones.controller';
-import { validateBody, validateParams } from '../../middlewares/validateRequest';
-import { createRecepcionSchema, recepcionIdParamSchema, compraIdParamSchema } from './compras-recepciones.schema';
+import { validateBody, validateParams, validateQuery } from '../../middlewares/validateRequest';
+import { createRecepcionSchema, recepcionIdParamSchema, compraIdParamSchema, updateFacturaSchema, reporteQuerySchema } from './compras-recepciones.schema';
 
 const router = Router();
 
@@ -72,6 +72,41 @@ router.get('/', (req, res) => comprasRecepcionesController.findAll(req, res));
 router.get('/with-pagos', (req, res) => comprasRecepcionesController.findAllWithPagos(req, res));
 
 /** @swagger
+ * /compras-recepciones/reporte:
+ *   get:
+ *     summary: Obtener reporte de entregas con filtros
+ *     tags: [Compras - Recepciones]
+ *     parameters:
+ *       - in: query
+ *         name: fechaInicio
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha de inicio del filtro (YYYY-MM-DD)
+ *       - in: query
+ *         name: fechaFin
+ *         schema:
+ *           type: string
+ *           format: date
+ *         description: Fecha de fin del filtro (YYYY-MM-DD)
+ *       - in: query
+ *         name: proveedorId
+ *         schema:
+ *           type: integer
+ *         description: ID del proveedor para filtrar
+ *       - in: query
+ *         name: tieneFactura
+ *         schema:
+ *           type: string
+ *           enum: [si, no, todos]
+ *         description: Filtrar por presencia de factura
+ *     responses:
+ *       200:
+ *         description: Reporte de entregas
+ */
+router.get('/reporte', validateQuery(reporteQuerySchema), (req, res) => comprasRecepcionesController.getReporte(req, res));
+
+/** @swagger
  * /compras-recepciones/{ComprasRecepcionesEncabezadoID}:
  *   get:
  *     summary: Obtener recepción por ID
@@ -123,5 +158,35 @@ router.get('/compra/:CompraEncabezadoID', validateParams(compraIdParamSchema), (
  *         description: Recepciones de la compra con pagos
  */
 router.get('/compra/:CompraEncabezadoID/with-pagos', validateParams(compraIdParamSchema), (req, res) => comprasRecepcionesController.findByCompraWithPagos(req, res));
+
+/** @swagger
+ * /compras-recepciones/{ComprasRecepcionesEncabezadoID}/factura:
+ *   patch:
+ *     summary: Actualizar número de factura de una recepción
+ *     tags: [Compras - Recepciones]
+ *     parameters:
+ *       - in: path
+ *         name: ComprasRecepcionesEncabezadoID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [NumeroFactura]
+ *             properties:
+ *               NumeroFactura:
+ *                 type: string
+ *                 maxLength: 100
+ *     responses:
+ *       200:
+ *         description: Factura actualizada
+ *       404:
+ *         description: Recepción no encontrada
+ */
+router.patch('/:ComprasRecepcionesEncabezadoID/factura', validateParams(recepcionIdParamSchema), validateBody(updateFacturaSchema), (req, res) => comprasRecepcionesController.updateFactura(req, res));
 
 export default router;

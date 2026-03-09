@@ -126,7 +126,17 @@ class ComprasService {
   async findAll() {
     const compras = await prisma.compras_encabezado.findMany({
       include: {
-        compras_detalle: true,
+        compras_detalle: {
+          include: {
+            equipo: {
+              select: {
+                EquipoID: true,
+                NumeroSerie: true,
+                Estatus: true,
+              },
+            },
+          },
+        },
         catalogo_proveedores: true,
         compras_pagos: {
           where: { IsActive: 1 },
@@ -159,7 +169,23 @@ class ComprasService {
     const compra = await prisma.compras_encabezado.findUnique({
       where: { CompraEncabezadoID: id },
       include: {
-        compras_detalle: true,
+        compras_detalle: {
+          include: {
+            equipo: {
+              select: {
+                EquipoID: true,
+                NumeroSerie: true,
+                Estatus: true,
+                plantilla: {
+                  select: {
+                    PlantillaEquipoID: true,
+                    NombrePlantilla: true,
+                  },
+                },
+              },
+            },
+          },
+        },
         compras_pagos: {
           where: { IsActive: 1 },
           orderBy: { FechaPago: 'desc' },

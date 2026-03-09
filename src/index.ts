@@ -2,6 +2,7 @@ import 'express-async-errors';
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
+import * as path from 'path';
 import swaggerUi from 'swagger-ui-express';
 
 import { env } from './config/env';
@@ -52,6 +53,8 @@ import { serviciosAdicionalesRoutes } from './modules/servicios-adicionales';
 import { refaccionPeriodoCambioRoutes } from './modules/refaccion-periodo-cambio';
 import { notasCreditoRoutes } from './modules/notas-credito';
 import { cotizacionesCompraRoutes } from './modules/cotizaciones-compra';
+import { equiposVirtualesRoutes } from './modules/equipos-virtuales';
+import { cotizacionesProveedorRoutes } from './modules/cotizaciones-proveedor';
 
 const app = express();
 
@@ -59,6 +62,9 @@ const app = express();
 app.use(helmet());
 app.use(cors());
 app.use(express.json());
+
+// Servir archivos estáticos (PDFs temporales)
+app.use('/temp', express.static(path.join(process.cwd(), 'public', 'temp')));
 
 // Health check
 app.get('/health', (_req, res) => {
@@ -124,6 +130,8 @@ app.use('/catalogo-servicios-adicionales', serviciosAdicionalesRoutes);
 app.use('/refaccion-periodo-cambio', refaccionPeriodoCambioRoutes);
 app.use('/notas-credito', notasCreditoRoutes);
 app.use('/cotizaciones-compra', cotizacionesCompraRoutes);
+app.use('/equipos-virtuales', equiposVirtualesRoutes);
+app.use('/cotizaciones-proveedor', cotizacionesProveedorRoutes);
 
 // Error handler (debe ir al final)
 app.use(errorHandler);

@@ -42,6 +42,12 @@ export const convertirACompraSchema = z.object({
   DetallesSeleccionados: z.array(z.number().int().positive()).min(1, 'Debe seleccionar al menos una refacción'),
 });
 
+// Generar link de WhatsApp
+export const whatsappLinkSchema = z.object({
+  telefono: z.string().min(10, 'Teléfono debe tener al menos 10 dígitos').max(20),
+  frontendUrl: z.string().url().optional(),
+});
+
 // Types
 export type CreateCotizacionCompraInput = z.infer<typeof createCotizacionCompraSchema>;
 export type UpdateCotizacionCompraInput = z.infer<typeof updateCotizacionCompraSchema>;

@@ -8,6 +8,7 @@ import {
   EnviarCotizacionDto,
   ConvertirACompraDto,
 } from './cotizaciones-compra.schema';
+import { generateCotizacionPdf, getPdfUrl, cleanOldPdfs, CotizacionPdfData } from '../../utils/pdf-generator';
 
 class CotizacionesCompraService {
   /**
@@ -484,6 +485,83 @@ class CotizacionesCompraService {
       FechaCotizacion: moment(cotizacion.FechaCotizacion).format('DD/MM/YYYY'),
       Observaciones: cotizacion.Observaciones,
       Detalles: detallesConRefaccion,
+    };
+  }
+
+  /**
+   * Genera un PDF de la cotización y retorna la URL para compartir
+   */
+  async generarPdfUrl(id: number, baseUrl: string) {
+    // Limpiar PDFs antiguos
+    cleanOldPdfs();
+
+    // Obtener datos de la cotización
+    const datosParaPdf = await this.getDatosParaPdf(id);
+
+    // Generar el PDF
+    const filename = await generateCotizacionPdf(datosParaPdf as CotizacionPdfData);
+
+    // Obtener URL pública
+    const url = getPdfUrl(filename, baseUrl);
+
+    // Generar link de WhatsApp
+    const mensaje = encodeURIComponent(
+      `Cotización ${datosParaPdf.Folio}\n` +
+      `Fecha: ${datosParaPdf.FechaCotizacion}\n` +
+      `Total refacciones: ${datosParaPdf.Detalles.length}\n\n` +
+      `Ver documento: ${url}`
+    );
+
+    return {
+      message: 'PDF generado correctamente',
+      data: {
+        url,
+        folio: datosParaPdf.Folio,
+        whatsappLink: `https://wa.me/?text=${mensaje}`,
+        expira: moment().add(24, 'hours').format('YYYY-MM-DD HH:mm:ss'),
+      },
+    };
+  }
+
+  /**
+   * Genera link de WhatsApp con link directo a la cotización en el sistema
+   */
+  async generarWhatsappLink(id: number, telefono: string, frontendUrl: string) {
+    const cotizacion = await prisma.cotizaciones_compra_encabezado.findUnique({
+      where: { CotizacionCompraID: id },
+      include: {
+        detalles: {
+          where: { IsActive: true },
+        },
+      },
+    });
+
+    if (!cotizacion) {
+      throw new HttpError('Cotización no encontrada', 404);
+    }
+
+    // Limpiar número de teléfono
+    const telefonoLimpio = telefono.replace(/\D/g, '');
+
+    // Construir mensaje
+    const mensaje = encodeURIComponent(
+      `*Cotización de Compra*\n\n` +
+      `Folio: ${cotizacion.Folio}\n` +
+      `Fecha: ${moment(cotizacion.FechaCotizacion).format('DD/MM/YYYY')}\n` +
+      `Refacciones: ${cotizacion.detalles.length}\n\n` +
+      `${cotizacion.Observaciones ? `Observaciones: ${cotizacion.Observaciones}\n\n` : ''}` +
+      `Ver cotización: ${frontendUrl}/cotizaciones-compra/${id}`
+    );
+
+    const whatsappUrl = `https://wa.me/${telefonoLimpio}?text=${mensaje}`;
+
+    return {
+      message: 'Link de WhatsApp generado',
+      data: {
+        whatsappUrl,
+        telefono: telefonoLimpio,
+        folio: cotizacion.Folio,
+      },
     };
   }
 

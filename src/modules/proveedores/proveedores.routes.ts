@@ -143,4 +143,79 @@ router.patch('/baja/:ProveedorID', validateParams(proveedorIdParamSchema), (req,
  */
 router.patch('/activar/:ProveedorID', validateParams(proveedorIdParamSchema), (req, res) => proveedoresController.activar(req, res));
 
+// ═══════════════════════════════════════════════════════════════════════════
+// ENDPOINTS PARA GESTIÓN DE USUARIOS DE PROVEEDORES
+// ═══════════════════════════════════════════════════════════════════════════
+
+/** @swagger
+ * /proveedores/{ProveedorID}/usuario:
+ *   get:
+ *     summary: Obtener usuario asociado a un proveedor
+ *     tags: [Proveedores]
+ *     parameters:
+ *       - in: path
+ *         name: ProveedorID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Usuario encontrado o no tiene usuario
+ */
+router.get('/:ProveedorID/usuario', validateParams(proveedorIdParamSchema), (req, res) => proveedoresController.getUsuarioProveedor(req, res));
+
+/** @swagger
+ * /proveedores/{ProveedorID}/generar-usuario:
+ *   post:
+ *     summary: Generar usuario de tipo PROVEEDOR para un proveedor
+ *     tags: [Proveedores]
+ *     parameters:
+ *       - in: path
+ *         name: ProveedorID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               password:
+ *                 type: string
+ *                 description: Contraseña opcional (si no se envía, se genera automáticamente)
+ *     responses:
+ *       201:
+ *         description: Usuario creado
+ *       400:
+ *         description: Ya tiene usuario o proveedor inactivo
+ */
+router.post('/:ProveedorID/generar-usuario', validateParams(proveedorIdParamSchema), (req, res) => proveedoresController.generarUsuario(req, res));
+
+/** @swagger
+ * /proveedores/{ProveedorID}/restablecer-password:
+ *   post:
+ *     summary: Restablecer contraseña del usuario de un proveedor
+ *     tags: [Proveedores]
+ *     parameters:
+ *       - in: path
+ *         name: ProveedorID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               password:
+ *                 type: string
+ *                 description: Nueva contraseña (si no se envía, se genera automáticamente)
+ *     responses:
+ *       200:
+ *         description: Contraseña restablecida
+ */
+router.post('/:ProveedorID/restablecer-password', validateParams(proveedorIdParamSchema), (req, res) => proveedoresController.restablecerPassword(req, res));
+
 export default router;

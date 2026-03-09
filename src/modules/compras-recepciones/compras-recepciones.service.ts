@@ -2,7 +2,7 @@ import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import { compras_encabezado_Estatus, EstadoEntregaCompra, Prisma } from '@prisma/client';
 import moment from 'moment';
-import { CreateRecepcionDto } from './compras-recepciones.schema';
+import { CreateRecepcionDto, UpdateFacturaDto, ReporteQueryDto } from './compras-recepciones.schema';
 import {
   actualizarInventario,
   crearKardex,
@@ -440,6 +440,149 @@ class ComprasRecepcionesService {
         EstadoEntrega: nuevoEstado,
       },
     });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // REPORTE DE ENTREGAS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Obtiene reporte de entregas con filtros
+   */
+  async getReporte(query: ReporteQueryDto) {
+    const { fechaInicio, fechaFin, proveedorId, tieneFactura } = query;
+
+    // Construir condiciones de filtro
+    const where: Prisma.compras_recepciones_encabezadoWhereInput = {
+      IsActive: 1,
+    };
+
+    // Filtro por fecha
+    if (fechaInicio || fechaFin) {
+      where.FechaRecepcion = {};
+      if (fechaInicio) {
+        where.FechaRecepcion.gte = new Date(fechaInicio);
+      }
+      if (fechaFin) {
+        where.FechaRecepcion.lte = new Date(fechaFin + 'T23:59:59');
+      }
+    }
+
+    // Filtro por factura
+    if (tieneFactura === 'si') {
+      where.NumeroFactura = { not: null };
+    } else if (tieneFactura === 'no') {
+      where.NumeroFactura = null;
+    }
+
+    // Obtener recepciones
+    const recepciones = await prisma.compras_recepciones_encabezado.findMany({
+      where,
+      include: {
+        compras_recepciones_detalle: {
+          where: { IsActive: 1 },
+        },
+        compra: {
+          select: {
+            CompraEncabezadoID: true,
+            ProveedorID: true,
+            FechaCompra: true,
+            TotalNeto: true,
+            EstadoEntrega: true,
+            EstadoPago: true,
+            Estatus: true,
+            catalogo_proveedores: {
+              select: {
+                ProveedorID: true,
+                NombreProveedor: true,
+              },
+            },
+          },
+        },
+      },
+      orderBy: { FechaRecepcion: 'desc' },
+    });
+
+    // Filtrar por proveedor si se especifica
+    let recepcionesFiltradas = recepciones;
+    if (proveedorId) {
+      recepcionesFiltradas = recepciones.filter(
+        r => r.compra?.ProveedorID === proveedorId
+      );
+    }
+
+    // Formatear respuesta
+    const reporteFormateado = recepcionesFiltradas.map(recepcion => ({
+      RecepcionID: recepcion.ComprasRecepcionesEncabezadoID,
+      FechaRecepcion: recepcion.FechaRecepcion ? moment(recepcion.FechaRecepcion).format('YYYY-MM-DD') : null,
+      NumeroFactura: recepcion.NumeroFactura,
+      MontoRecepcion: recepcion.MontoRecepcion,
+      Observaciones: recepcion.Observaciones,
+      TotalRefacciones: recepcion.compras_recepciones_detalle.length,
+      Compra: recepcion.compra ? {
+        CompraEncabezadoID: recepcion.compra.CompraEncabezadoID,
+        FechaCompra: recepcion.compra.FechaCompra ? moment(recepcion.compra.FechaCompra).format('YYYY-MM-DD') : null,
+        TotalNeto: recepcion.compra.TotalNeto,
+        EstadoEntrega: recepcion.compra.EstadoEntrega,
+        EstadoPago: recepcion.compra.EstadoPago,
+        Estatus: recepcion.compra.Estatus,
+      } : null,
+      Proveedor: recepcion.compra?.catalogo_proveedores ? {
+        ProveedorID: recepcion.compra.catalogo_proveedores.ProveedorID,
+        NombreProveedor: recepcion.compra.catalogo_proveedores.NombreProveedor,
+      } : null,
+    }));
+
+    // Calcular totales
+    const totalRecepciones = reporteFormateado.length;
+    const conFactura = reporteFormateado.filter(r => r.NumeroFactura).length;
+    const sinFactura = totalRecepciones - conFactura;
+    const montoTotal = reporteFormateado.reduce((sum, r) => sum + (r.MontoRecepcion || 0), 0);
+
+    return {
+      message: 'Reporte de entregas obtenido',
+      data: {
+        recepciones: reporteFormateado,
+        resumen: {
+          totalRecepciones,
+          conFactura,
+          sinFactura,
+          montoTotal: Math.round(montoTotal * 100) / 100,
+        },
+      },
+    };
+  }
+
+  /**
+   * Actualiza el número de factura de una recepción
+   */
+  async updateFactura(id: number, dto: UpdateFacturaDto) {
+    const recepcion = await prisma.compras_recepciones_encabezado.findUnique({
+      where: { ComprasRecepcionesEncabezadoID: id },
+    });
+
+    if (!recepcion) {
+      throw new HttpError('Recepción no encontrada', 404);
+    }
+
+    if (recepcion.IsActive !== 1) {
+      throw new HttpError('La recepción no está activa', 400);
+    }
+
+    const recepcionActualizada = await prisma.compras_recepciones_encabezado.update({
+      where: { ComprasRecepcionesEncabezadoID: id },
+      data: {
+        NumeroFactura: dto.NumeroFactura,
+      },
+    });
+
+    return {
+      message: 'Número de factura actualizado correctamente',
+      data: {
+        RecepcionID: recepcionActualizada.ComprasRecepcionesEncabezadoID,
+        NumeroFactura: recepcionActualizada.NumeroFactura,
+      },
+    };
   }
 }
 

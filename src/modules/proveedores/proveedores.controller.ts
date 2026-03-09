@@ -36,6 +36,26 @@ class ProveedoresController {
     const result = await proveedoresService.activar(ProveedorID);
     return success(res, result.message, result.data);
   }
+
+  async generarUsuario(req: Request, res: Response) {
+    const { ProveedorID } = req.params as unknown as { ProveedorID: number };
+    const { password } = req.body;
+    const result = await proveedoresService.generarUsuario(ProveedorID, password);
+    return success(res, result.message, result.data, 201);
+  }
+
+  async getUsuarioProveedor(req: Request, res: Response) {
+    const { ProveedorID } = req.params as unknown as { ProveedorID: number };
+    const result = await proveedoresService.getUsuarioProveedor(ProveedorID);
+    return success(res, result.message, result.data);
+  }
+
+  async restablecerPassword(req: Request, res: Response) {
+    const { ProveedorID } = req.params as unknown as { ProveedorID: number };
+    const { password } = req.body;
+    const result = await proveedoresService.restablecerPassword(ProveedorID, password);
+    return success(res, result.message, result.data);
+  }
 }
 
 export const proveedoresController = new ProveedoresController();

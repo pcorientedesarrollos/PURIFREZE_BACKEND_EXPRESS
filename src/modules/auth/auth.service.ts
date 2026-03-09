@@ -48,6 +48,9 @@ export class AuthService {
           UsuarioID: usuario.UsuarioID,
           SessionID: existingSession.SessionID,
           Token,
+          TipoUsuario: usuario.TipoUsuario || 'INTERNO',
+          ProveedorID: usuario.ProveedorID || null,
+          IsAdmin: usuario.IsAdmin,
         };
       }
     }
@@ -83,6 +86,9 @@ export class AuthService {
       UsuarioID: usuario.UsuarioID,
       SessionID,
       Token,
+      TipoUsuario: usuario.TipoUsuario || 'INTERNO',
+      ProveedorID: usuario.ProveedorID || null,
+      IsAdmin: usuario.IsAdmin,
     };
   }
 
@@ -140,6 +146,9 @@ export class AuthService {
       UsuarioID: usuario.UsuarioID,
       SessionID,
       Token: newToken,
+      TipoUsuario: usuario.TipoUsuario || 'INTERNO',
+      ProveedorID: usuario.ProveedorID || null,
+      IsAdmin: usuario.IsAdmin,
     };
   }
 
@@ -237,6 +246,9 @@ export class AuthService {
       UsuarioID: usuario.UsuarioID,
       SessionID,
       Token,
+      TipoUsuario: usuario.TipoUsuario || 'INTERNO',
+      ProveedorID: usuario.ProveedorID || null,
+      IsAdmin: usuario.IsAdmin,
     };
   }
 

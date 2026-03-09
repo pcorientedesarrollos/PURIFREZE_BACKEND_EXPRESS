@@ -7,6 +7,7 @@ import {
   enviarCotizacionSchema,
   convertirACompraSchema,
   cotizacionIdParamSchema,
+  whatsappLinkSchema,
 } from './cotizaciones-compra.schema';
 
 const router = Router();
@@ -95,6 +96,67 @@ router.get('/:CotizacionCompraID', validateParams(cotizacionIdParamSchema), (req
  *         description: Datos para PDF
  */
 router.get('/:CotizacionCompraID/pdf', validateParams(cotizacionIdParamSchema), (req, res) => cotizacionesCompraController.getPdf(req, res));
+
+/** @swagger
+ * /cotizaciones-compra/{CotizacionCompraID}/pdf-url:
+ *   get:
+ *     summary: Generar URL pública del PDF de cotización (válida por 24h)
+ *     tags: [Cotizaciones Compra]
+ *     parameters:
+ *       - in: path
+ *         name: CotizacionCompraID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: URL del PDF y link de WhatsApp generados
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 url:
+ *                   type: string
+ *                 folio:
+ *                   type: string
+ *                 whatsappLink:
+ *                   type: string
+ *                 expira:
+ *                   type: string
+ */
+router.get('/:CotizacionCompraID/pdf-url', validateParams(cotizacionIdParamSchema), (req, res) => cotizacionesCompraController.generarPdfUrl(req, res));
+
+/** @swagger
+ * /cotizaciones-compra/{CotizacionCompraID}/whatsapp:
+ *   post:
+ *     summary: Generar link de WhatsApp con datos de la cotización
+ *     tags: [Cotizaciones Compra]
+ *     parameters:
+ *       - in: path
+ *         name: CotizacionCompraID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [telefono]
+ *             properties:
+ *               telefono:
+ *                 type: string
+ *                 description: Número de teléfono del proveedor
+ *               frontendUrl:
+ *                 type: string
+ *                 description: URL base del frontend (default https://purifreeze.com)
+ *     responses:
+ *       200:
+ *         description: Link de WhatsApp generado
+ */
+router.post('/:CotizacionCompraID/whatsapp', validateParams(cotizacionIdParamSchema), validateBody(whatsappLinkSchema), (req, res) => cotizacionesCompraController.generarWhatsappLink(req, res));
 
 /** @swagger
  * /cotizaciones-compra/{CotizacionCompraID}:

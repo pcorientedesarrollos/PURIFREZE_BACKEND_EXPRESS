@@ -48,6 +48,27 @@ class CotizacionesCompraController {
     const datos = await cotizacionesCompraService.getDatosParaPdf(CotizacionCompraID);
     return success(res, 'Datos para PDF obtenidos', datos);
   }
+
+  async generarPdfUrl(req: Request, res: Response) {
+    const { CotizacionCompraID } = req.params as unknown as { CotizacionCompraID: number };
+    // Construir base URL del servidor
+    const protocol = req.protocol;
+    const host = req.get('host');
+    const baseUrl = `${protocol}://${host}`;
+    const result = await cotizacionesCompraService.generarPdfUrl(CotizacionCompraID, baseUrl);
+    return success(res, result.message, result.data);
+  }
+
+  async generarWhatsappLink(req: Request, res: Response) {
+    const { CotizacionCompraID } = req.params as unknown as { CotizacionCompraID: number };
+    const { telefono, frontendUrl } = req.body;
+    const result = await cotizacionesCompraService.generarWhatsappLink(
+      CotizacionCompraID,
+      telefono,
+      frontendUrl || 'https://purifreeze.com'
+    );
+    return success(res, result.message, result.data);
+  }
 }
 
 export const cotizacionesCompraController = new CotizacionesCompraController();

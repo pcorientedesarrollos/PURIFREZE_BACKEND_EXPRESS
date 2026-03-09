@@ -2,7 +2,8 @@ import { z } from 'zod';
 
 // Schema para detalle de compra (crear)
 export const createCompraDetalleSchema = z.object({
-  RefaccionID: z.number({ required_error: 'RefaccionID es requerido' }),
+  RefaccionID: z.number().optional().nullable(),
+  EquipoID: z.number().optional().nullable(),
   Cantidad: z.number({ required_error: 'Cantidad es requerida' }),
   PrecioUnitario: z.number({ required_error: 'PrecioUnitario es requerido' }),
   DescuentoPorcentaje: z.number({ required_error: 'DescuentoPorcentaje es requerido' }),
@@ -11,7 +12,10 @@ export const createCompraDetalleSchema = z.object({
   GastosImportacion: z.number({ required_error: 'GastosImportacion es requerido' }),
   SubTotal: z.number({ required_error: 'SubTotal es requerido' }),
   Total: z.number({ required_error: 'Total es requerido' }),
-});
+}).refine(
+  (data) => data.RefaccionID || data.EquipoID,
+  { message: 'Debe especificar RefaccionID o EquipoID', path: ['RefaccionID'] }
+);
 
 // Schema para encabezado de compra (crear)
 export const createCompraSchema = z.object({
@@ -40,7 +44,8 @@ export const createCompraSchema = z.object({
 // Schema para detalle de compra (actualizar)
 export const updateCompraDetalleSchema = z.object({
   CompraDetalleID: z.number().optional(),
-  RefaccionID: z.number({ required_error: 'RefaccionID es requerido' }),
+  RefaccionID: z.number().optional().nullable(),
+  EquipoID: z.number().optional().nullable(),
   Cantidad: z.number({ required_error: 'Cantidad es requerida' }),
   PrecioUnitario: z.number({ required_error: 'PrecioUnitario es requerido' }),
   DescuentoPorcentaje: z.number({ required_error: 'DescuentoPorcentaje es requerido' }),
@@ -49,7 +54,10 @@ export const updateCompraDetalleSchema = z.object({
   GastosImportacion: z.number({ required_error: 'GastosImportacion es requerido' }),
   SubTotal: z.number({ required_error: 'SubTotal es requerido' }),
   Total: z.number({ required_error: 'Total es requerido' }),
-});
+}).refine(
+  (data) => data.RefaccionID || data.EquipoID,
+  { message: 'Debe especificar RefaccionID o EquipoID', path: ['RefaccionID'] }
+);
 
 // Schema para encabezado de compra (actualizar)
 export const updateCompraSchema = z.object({

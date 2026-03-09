@@ -35,6 +35,18 @@ class ComprasRecepcionesController {
     const result = await comprasRecepcionesService.findByCompraWithPagos(CompraEncabezadoID);
     return success(res, result.message, result.data);
   }
+
+  async getReporte(req: Request, res: Response) {
+    const query = req.query as any;
+    const result = await comprasRecepcionesService.getReporte(query);
+    return success(res, result.message, result.data);
+  }
+
+  async updateFactura(req: Request, res: Response) {
+    const { ComprasRecepcionesEncabezadoID } = req.params as unknown as { ComprasRecepcionesEncabezadoID: number };
+    const result = await comprasRecepcionesService.updateFactura(ComprasRecepcionesEncabezadoID, req.body);
+    return success(res, result.message, result.data);
+  }
 }
 
 export const comprasRecepcionesController = new ComprasRecepcionesController();

@@ -30,6 +30,21 @@ export const compraIdParamSchema = z.object({
   CompraEncabezadoID: z.string().regex(/^\d+$/, 'ID debe ser un número válido').transform(Number),
 });
 
+// Schema para actualizar número de factura
+export const updateFacturaSchema = z.object({
+  NumeroFactura: z.string().max(100, 'Número de factura máximo 100 caracteres'),
+});
+
+// Schema para filtros del reporte
+export const reporteQuerySchema = z.object({
+  fechaInicio: z.string().optional(),
+  fechaFin: z.string().optional(),
+  proveedorId: z.string().regex(/^\d+$/, 'ProveedorID debe ser un número').transform(Number).optional(),
+  tieneFactura: z.enum(['si', 'no', 'todos']).optional(),
+});
+
 // Types
 export type CreateRecepcionDetalleDto = z.infer<typeof createRecepcionDetalleSchema>;
 export type CreateRecepcionDto = z.infer<typeof createRecepcionSchema>;
+export type UpdateFacturaDto = z.infer<typeof updateFacturaSchema>;
+export type ReporteQueryDto = z.infer<typeof reporteQuerySchema>;

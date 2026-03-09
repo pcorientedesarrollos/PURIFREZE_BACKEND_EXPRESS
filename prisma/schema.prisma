@@ -104,6 +104,8 @@ model catalogo_proveedores {
   compras_encabezado compras_encabezado[]      @relation("ProveedorCompras")
   contactos          proveedores_contactos[]
   notas_credito      notas_credito[]
+  usuarios           usuarios[]
+  respuestas_cotizaciones cotizaciones_compra_respuestas[]
 }
 
 model proveedores_contactos {
@@ -164,6 +166,8 @@ model catalogo_refacciones {
   servicios_insumos                  servicios_insumos[]
   ventas_detalle                     ventas_detalle[]
   periodos_cambio                    refaccion_periodo_cambio[]
+  equipos_virtuales_detalle          equipos_virtuales_detalle[]
+  cotizaciones_compra_detalle        cotizaciones_compra_detalle[]
 }
 
 model catalogo_unidades {
@@ -270,6 +274,7 @@ model compras_detalle {
   CompraDetalleID     Int                 @id @default(autoincrement())
   CompraEncabezadoID  Int?
   RefaccionID         Int?
+  EquipoID            Int?
   Cantidad            Int?
   PrecioUnitario      Float?              @db.Float
   DescuentoPorcentaje Int?
@@ -280,6 +285,9 @@ model compras_detalle {
   Total               Float?              @db.Float
   IsActive            Boolean?
   compras_encabezado  compras_encabezado? @relation("CompraDetalles", fields: [CompraEncabezadoID], references: [CompraEncabezadoID])
+  equipo              equipos?            @relation(fields: [EquipoID], references: [EquipoID])
+
+  @@index([EquipoID])
 }
 
 model compras_encabezado {
@@ -463,9 +471,15 @@ model usuarios {
   NombreCompleto       String?                @db.VarChar(255)
   IsActive             Boolean
   IsAdmin              Boolean
+  ProveedorID          Int?
+  TipoUsuario          TipoUsuario?           @default(INTERNO)
   Permisos             permisos[]
   catalogo_tecnicos    catalogo_tecnicos?
   contratos_historial  contratos_historial[]
+  proveedor            catalogo_proveedores?  @relation(fields: [ProveedorID], references: [ProveedorID])
+
+  @@index([ProveedorID], map: "idx_usuario_proveedor")
+  @@index([TipoUsuario], map: "idx_usuario_tipo")
 }
 
 model catalogo_tecnicos {
@@ -746,6 +760,7 @@ model equipos {
   servicios_equipos  servicios_equipos[]
   clientes_equipos   clientes_equipos[]
   ventas_detalle     ventas_detalle[]
+  compras_detalle    compras_detalle[]
 }
 
 model equipos_detalle {
@@ -1822,6 +1837,7 @@ model cotizaciones_compra_encabezado {
   detalles           cotizaciones_compra_detalle[]
   envios             cotizaciones_compra_envios[]
   compras            compras_encabezado[]
+  respuestas         cotizaciones_compra_respuestas[]
 
   @@index([Estado], map: "idx_cotizacion_estado")
 }
@@ -1835,6 +1851,7 @@ model cotizaciones_compra_detalle {
   IsActive            Boolean?                         @default(true)
 
   encabezado          cotizaciones_compra_encabezado   @relation(fields: [CotizacionCompraID], references: [CotizacionCompraID])
+  refaccion           catalogo_refacciones             @relation(fields: [RefaccionID], references: [RefaccionID])
 
   @@index([CotizacionCompraID], map: "idx_cotizacion_detalle")
   @@index([RefaccionID], map: "idx_refaccion_cotizacion")
@@ -1858,6 +1875,114 @@ model cotizaciones_compra_envios {
 enum cotizaciones_compra_Estado {
   PENDIENTE
   ENVIADA
+  EN_ESPERA
   FINALIZADA
   CANCELADA
+}
+
+// ============================================================================
+// TIPO DE USUARIO
+// ============================================================================
+
+enum TipoUsuario {
+  INTERNO
+  PROVEEDOR
+}
+
+// ============================================================================
+// SISTEMA MULTI-PROVEEDOR PARA COTIZACIONES
+// ============================================================================
+
+model cotizaciones_compra_respuestas {
+  RespuestaID         Int                              @id @default(autoincrement())
+  CotizacionCompraID  Int
+  ProveedorID         Int
+  Estado              EstadoRespuestaCotizacion?       @default(PENDIENTE)
+  DescuentoGlobal     Decimal?                         @default(0) @db.Decimal(5, 2)
+  Observaciones       String?                          @db.VarChar(500)
+  FechaRespuesta      DateTime?                        @db.DateTime(0)
+  FechaCreacion       DateTime?                        @default(now()) @db.DateTime(0)
+  IsActive            Boolean?                         @default(true)
+
+  encabezado          cotizaciones_compra_encabezado   @relation(fields: [CotizacionCompraID], references: [CotizacionCompraID])
+  proveedor           catalogo_proveedores             @relation(fields: [ProveedorID], references: [ProveedorID])
+  detalles            cotizaciones_compra_respuestas_detalle[]
+
+  @@unique([CotizacionCompraID, ProveedorID], map: "unique_cotizacion_proveedor")
+  @@index([CotizacionCompraID], map: "idx_respuesta_cotizacion")
+  @@index([ProveedorID], map: "idx_respuesta_proveedor")
+  @@index([Estado], map: "idx_respuesta_estado")
+}
+
+model cotizaciones_compra_respuestas_detalle {
+  RespuestaDetalleID  Int                              @id @default(autoincrement())
+  RespuestaID         Int
+  CotizacionDetalleID Int
+  PrecioUnitario      Decimal?                         @default(0) @db.Decimal(12, 2)
+  Descuento           Decimal?                         @default(0) @db.Decimal(5, 2)
+  TieneStock          Boolean?                         @default(true)
+  DiasEntrega         Int?                             @default(0)
+  Observaciones       String?                          @db.VarChar(255)
+  IsActive            Boolean?                         @default(true)
+
+  respuesta           cotizaciones_compra_respuestas   @relation(fields: [RespuestaID], references: [RespuestaID], onDelete: Cascade)
+
+  @@index([RespuestaID], map: "idx_respuesta_detalle")
+  @@index([CotizacionDetalleID], map: "idx_respuesta_cotizacion_detalle")
+}
+
+enum EstadoRespuestaCotizacion {
+  PENDIENTE
+  EN_PROCESO
+  COMPLETADA
+  RECHAZADA
+}
+
+// ============================================================================
+// EQUIPOS VIRTUALES
+// ============================================================================
+
+model equipos_virtuales {
+  EquipoVirtualID     Int                              @id @default(autoincrement())
+  Nombre              String                           @db.VarChar(255)
+  Descripcion         String?                          @db.VarChar(500)
+  TotalCosto          Decimal?                         @default(0) @db.Decimal(12, 2)
+  TotalConIVA         Decimal?                         @default(0) @db.Decimal(12, 2)
+  IsActive            Boolean?                         @default(true)
+  FechaCreacion       DateTime?                        @default(now()) @db.DateTime(0)
+  FechaActualizacion  DateTime?                        @updatedAt @db.DateTime(0)
+  UsuarioCreadorID    Int?
+
+  detalles            equipos_virtuales_detalle[]
+
+  @@index([Nombre], map: "idx_equipo_virtual_nombre")
+  @@index([IsActive], map: "idx_equipo_virtual_activo")
+}
+
+model equipos_virtuales_detalle {
+  DetalleID               Int                          @id @default(autoincrement())
+  EquipoVirtualID         Int
+  RefaccionID             Int
+  Cantidad                Int?                         @default(1)
+  CostoUnitario           Decimal?                     @default(0) @db.Decimal(12, 2)
+  Descuento               Decimal?                     @default(0) @db.Decimal(5, 2)
+  TotalUnitario           Decimal?                     @default(0) @db.Decimal(12, 2)
+  Otros                   Decimal?                     @default(0) @db.Decimal(12, 2)
+  TotalOtros              Decimal?                     @default(0) @db.Decimal(12, 2)
+  CostoImportacion        Decimal?                     @default(0) @db.Decimal(12, 2)
+  TotalUnidad             Decimal?                     @default(0) @db.Decimal(12, 2)
+  TotalFinal              Decimal?                     @default(0) @db.Decimal(12, 2)
+  IVA                     Decimal?                     @default(0) @db.Decimal(5, 2)
+  CantidadPiezasPorEquipo Int?                         @default(1)
+  NumeroEquipos           Int?                         @default(1)
+  CostoAnterior           Decimal?                     @default(0) @db.Decimal(12, 2)
+  CostoActual             Decimal?                     @default(0) @db.Decimal(12, 2)
+  Diferencia              Decimal?                     @default(0) @db.Decimal(12, 2)
+  IsActive                Boolean?                     @default(true)
+
+  equipoVirtual           equipos_virtuales            @relation(fields: [EquipoVirtualID], references: [EquipoVirtualID], onDelete: Cascade)
+  refaccion               catalogo_refacciones         @relation(fields: [RefaccionID], references: [RefaccionID])
+
+  @@index([EquipoVirtualID], map: "idx_detalle_equipo")
+  @@index([RefaccionID], map: "idx_detalle_refaccion")
 }
