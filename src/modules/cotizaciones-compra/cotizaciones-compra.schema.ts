@@ -5,6 +5,7 @@ const detalleSchema = z.object({
   RefaccionID: z.number().int().positive('RefaccionID debe ser un número positivo'),
   Cantidad: z.number().int().min(1, 'La cantidad mínima es 1'),
   Observaciones: z.string().max(255).optional().nullable(),
+  EquipoVirtualID: z.number().int().positive().optional().nullable(),
 });
 
 // Parámetro ID de cotización
@@ -12,13 +13,23 @@ export const cotizacionIdParamSchema = z.object({
   CotizacionCompraID: z.string().regex(/^\d+$/, 'ID debe ser un número').transform(Number),
 });
 
+// Equipo virtual para agregar a cotización
+const equipoVirtualItemSchema = z.object({
+  EquipoVirtualID: z.number().int().positive('EquipoVirtualID es requerido'),
+  PrecioFinal: z.number().min(0, 'El precio debe ser positivo'),
+});
+
 // Crear cotización
 export const createCotizacionCompraSchema = z.object({
   FechaCotizacion: z.string().transform((val) => new Date(val)),
   Observaciones: z.string().max(500).optional().nullable(),
   UsuarioID: z.number().int().positive().optional().nullable(),
-  Detalles: z.array(detalleSchema).min(1, 'Debe agregar al menos una refacción'),
-});
+  Detalles: z.array(detalleSchema).optional().default([]),
+  EquiposVirtuales: z.array(equipoVirtualItemSchema).optional().default([]),
+}).refine(
+  (data) => (data.Detalles?.length ?? 0) > 0 || (data.EquiposVirtuales?.length ?? 0) > 0,
+  { message: 'Debe agregar al menos una refacción o un equipo virtual' }
+);
 
 // Actualizar cotización
 export const updateCotizacionCompraSchema = z.object({
@@ -48,6 +59,23 @@ export const whatsappLinkSchema = z.object({
   frontendUrl: z.string().url().optional(),
 });
 
+// Parámetro ID de equipo virtual en cotización
+export const equipoVirtualIdParamSchema = z.object({
+  CotizacionCompraID: z.string().regex(/^\d+$/, 'CotizacionCompraID debe ser un número').transform(Number),
+  EquipoVirtualID: z.string().regex(/^\d+$/, 'EquipoVirtualID debe ser un número').transform(Number),
+});
+
+// Agregar equipo virtual a cotización
+export const agregarEquipoVirtualSchema = z.object({
+  EquipoVirtualID: z.number().int().positive('EquipoVirtualID es requerido'),
+  PrecioFinal: z.number().min(0, 'El precio debe ser positivo'),
+});
+
+// Actualizar precio de equipo virtual en cotización
+export const actualizarPrecioEquipoVirtualSchema = z.object({
+  PrecioFinal: z.number().min(0, 'El precio debe ser positivo'),
+});
+
 // Types
 export type CreateCotizacionCompraInput = z.infer<typeof createCotizacionCompraSchema>;
 export type UpdateCotizacionCompraInput = z.infer<typeof updateCotizacionCompraSchema>;
@@ -59,3 +87,5 @@ export type CreateCotizacionCompraDto = CreateCotizacionCompraInput;
 export type UpdateCotizacionCompraDto = UpdateCotizacionCompraInput;
 export type EnviarCotizacionDto = EnviarCotizacionInput;
 export type ConvertirACompraDto = ConvertirACompraInput;
+export type AgregarEquipoVirtualDto = z.infer<typeof agregarEquipoVirtualSchema>;
+export type ActualizarPrecioEquipoVirtualDto = z.infer<typeof actualizarPrecioEquipoVirtualSchema>;

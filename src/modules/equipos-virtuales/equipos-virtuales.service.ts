@@ -29,6 +29,7 @@ class EquiposVirtualesService {
         data: {
           Nombre: dto.Nombre,
           Descripcion: dto.Descripcion || null,
+          Codigo: dto.Codigo || null,
           TotalCosto: this.redondear(totalCosto),
           IsActive: true,
           FechaCreacion: new Date(),
@@ -106,6 +107,7 @@ class EquiposVirtualesService {
       EquipoVirtualID: equipo.EquipoVirtualID,
       Nombre: equipo.Nombre,
       Descripcion: equipo.Descripcion,
+      Codigo: equipo.Codigo,
       TotalCosto: equipo.TotalCosto,
       TotalRefacciones: equipo.detalles.length,
       FechaCreacion: equipo.FechaCreacion ? moment(equipo.FechaCreacion).format('YYYY-MM-DD') : null,
@@ -151,6 +153,7 @@ class EquiposVirtualesService {
       EquipoVirtualID: equipo.EquipoVirtualID,
       Nombre: equipo.Nombre,
       Descripcion: equipo.Descripcion,
+      Codigo: equipo.Codigo,
       TotalCosto: equipo.TotalCosto,
       IsActive: equipo.IsActive,
       FechaCreacion: equipo.FechaCreacion ? moment(equipo.FechaCreacion).format('YYYY-MM-DD') : null,
@@ -323,6 +326,7 @@ class EquiposVirtualesService {
         data: {
           Nombre: dto.Nombre || equipoExistente.Nombre,
           Descripcion: dto.Descripcion !== undefined ? dto.Descripcion : equipoExistente.Descripcion,
+          Codigo: dto.Codigo !== undefined ? dto.Codigo : equipoExistente.Codigo,
           TotalCosto: this.redondear(totalCosto),
           FechaActualizacion: new Date(),
         },
@@ -460,6 +464,59 @@ class EquiposVirtualesService {
     };
 
     return { message: 'Resumen de equipo virtual', data: resumen };
+  }
+
+  /**
+   * Obtiene el historial de cambios de precio de un equipo virtual
+   */
+  async getHistorial(id: number) {
+    const equipo = await prisma.equipos_virtuales.findFirst({
+      where: { EquipoVirtualID: id },
+    });
+
+    if (!equipo) {
+      throw new HttpError('Equipo virtual no encontrado', 404);
+    }
+
+    const historial = await prisma.equipos_virtuales_historial.findMany({
+      where: { EquipoVirtualID: id },
+      include: {
+        cotizacion: {
+          select: {
+            CotizacionCompraID: true,
+            Folio: true,
+            FechaCotizacion: true,
+          },
+        },
+      },
+      orderBy: { FechaCambio: 'desc' },
+    });
+
+    const historialFormateado = historial.map(h => ({
+      HistorialID: h.HistorialID,
+      FechaCambio: moment(h.FechaCambio).format('YYYY-MM-DD HH:mm:ss'),
+      PrecioAnterior: h.PrecioAnterior,
+      PrecioNuevo: h.PrecioNuevo,
+      Diferencia: h.Diferencia,
+      DetallesCambio: h.DetallesCambio,
+      Observaciones: h.Observaciones,
+      Cotizacion: h.cotizacion ? {
+        CotizacionCompraID: h.cotizacion.CotizacionCompraID,
+        Folio: h.cotizacion.Folio,
+        FechaCotizacion: moment(h.cotizacion.FechaCotizacion).format('YYYY-MM-DD'),
+      } : null,
+    }));
+
+    return {
+      message: 'Historial de equipo virtual',
+      data: {
+        EquipoVirtualID: equipo.EquipoVirtualID,
+        Nombre: equipo.Nombre,
+        Codigo: equipo.Codigo,
+        TotalCosto: equipo.TotalCosto,
+        historial: historialFormateado,
+      },
+    };
   }
 
   // ═══════════════════════════════════════════════════════════════════════════

@@ -22,6 +22,9 @@ router.get('/:EquipoVirtualID', validateParams(equipoVirtualIdParamSchema), (req
 // GET /equipos-virtuales/:EquipoVirtualID/resumen - Obtener resumen para compras
 router.get('/:EquipoVirtualID/resumen', validateParams(equipoVirtualIdParamSchema), (req, res) => equiposVirtualesController.getResumen(req, res));
 
+// GET /equipos-virtuales/:EquipoVirtualID/historial - Obtener historial de cambios de precio
+router.get('/:EquipoVirtualID/historial', validateParams(equipoVirtualIdParamSchema), (req, res) => equiposVirtualesController.getHistorial(req, res));
+
 // PUT /equipos-virtuales/:EquipoVirtualID - Actualizar equipo
 router.put('/:EquipoVirtualID', validateParams(equipoVirtualIdParamSchema), validateBody(updateEquipoVirtualSchema), (req, res) => equiposVirtualesController.update(req, res));
 

@@ -6,6 +6,7 @@ import {
   respuestaProveedorSchema,
   cotizacionIdParamSchema,
   respuestaIdParamSchema,
+  generarComprasSchema,
 } from './cotizaciones-proveedor.schema';
 import { z } from 'zod';
 
@@ -40,6 +41,14 @@ router.get(
   '/:CotizacionCompraID/comparar',
   validateParams(cotizacionIdParamSchema),
   (req, res) => cotizacionesProveedorController.compararRespuestas(req, res)
+);
+
+// POST /cotizaciones-proveedor/:CotizacionCompraID/generar-compras - Generar múltiples compras
+router.post(
+  '/:CotizacionCompraID/generar-compras',
+  validateParams(cotizacionIdParamSchema),
+  validateBody(generarComprasSchema),
+  (req, res) => cotizacionesProveedorController.generarComprasMultiples(req, res)
 );
 
 // ═══════════════════════════════════════════════════════════════════════════

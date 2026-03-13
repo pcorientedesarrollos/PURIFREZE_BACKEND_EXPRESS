@@ -8,6 +8,9 @@ import {
   convertirACompraSchema,
   cotizacionIdParamSchema,
   whatsappLinkSchema,
+  agregarEquipoVirtualSchema,
+  actualizarPrecioEquipoVirtualSchema,
+  equipoVirtualIdParamSchema,
 } from './cotizaciones-compra.schema';
 
 const router = Router();
@@ -273,5 +276,92 @@ router.post('/:CotizacionCompraID/enviar', validateParams(cotizacionIdParamSchem
  *         description: Compra creada a partir de la cotización
  */
 router.post('/:CotizacionCompraID/convertir', validateParams(cotizacionIdParamSchema), validateBody(convertirACompraSchema), (req, res) => cotizacionesCompraController.convertirACompra(req, res));
+
+// =============================================
+// EQUIPOS VIRTUALES EN COTIZACIÓN
+// =============================================
+
+/** @swagger
+ * /cotizaciones-compra/{CotizacionCompraID}/equipos-virtuales:
+ *   post:
+ *     summary: Agregar equipo virtual a cotización
+ *     tags: [Cotizaciones Compra]
+ *     parameters:
+ *       - in: path
+ *         name: CotizacionCompraID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [EquipoVirtualID, PrecioFinal]
+ *             properties:
+ *               EquipoVirtualID:
+ *                 type: integer
+ *               PrecioFinal:
+ *                 type: number
+ *     responses:
+ *       201:
+ *         description: Equipo virtual agregado
+ */
+router.post('/:CotizacionCompraID/equipos-virtuales', validateParams(cotizacionIdParamSchema), validateBody(agregarEquipoVirtualSchema), (req, res) => cotizacionesCompraController.agregarEquipoVirtual(req, res));
+
+/** @swagger
+ * /cotizaciones-compra/{CotizacionCompraID}/equipos-virtuales/{EquipoVirtualID}:
+ *   put:
+ *     summary: Actualizar precio de equipo virtual en cotización
+ *     tags: [Cotizaciones Compra]
+ *     parameters:
+ *       - in: path
+ *         name: CotizacionCompraID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: EquipoVirtualID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [PrecioFinal]
+ *             properties:
+ *               PrecioFinal:
+ *                 type: number
+ *     responses:
+ *       200:
+ *         description: Precio actualizado
+ */
+router.put('/:CotizacionCompraID/equipos-virtuales/:EquipoVirtualID', validateParams(equipoVirtualIdParamSchema), validateBody(actualizarPrecioEquipoVirtualSchema), (req, res) => cotizacionesCompraController.actualizarPrecioEquipoVirtual(req, res));
+
+/** @swagger
+ * /cotizaciones-compra/{CotizacionCompraID}/equipos-virtuales/{EquipoVirtualID}:
+ *   delete:
+ *     summary: Eliminar equipo virtual de cotización
+ *     tags: [Cotizaciones Compra]
+ *     parameters:
+ *       - in: path
+ *         name: CotizacionCompraID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *       - in: path
+ *         name: EquipoVirtualID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Equipo virtual eliminado de la cotización
+ */
+router.delete('/:CotizacionCompraID/equipos-virtuales/:EquipoVirtualID', validateParams(equipoVirtualIdParamSchema), (req, res) => cotizacionesCompraController.eliminarEquipoVirtual(req, res));
 
 export default router;

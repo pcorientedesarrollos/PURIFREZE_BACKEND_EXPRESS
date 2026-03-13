@@ -18,6 +18,7 @@ export const createEquipoVirtualDetalleSchema = z.object({
 export const createEquipoVirtualSchema = z.object({
   Nombre: z.string({ required_error: 'Nombre es requerido' }).max(255, 'Nombre máximo 255 caracteres'),
   Descripcion: z.string().max(500, 'Descripción máximo 500 caracteres').optional(),
+  Codigo: z.string().max(50, 'Código máximo 50 caracteres').optional(),
   Detalles: z.array(createEquipoVirtualDetalleSchema).min(1, 'Debe incluir al menos una refacción'),
 });
 
@@ -40,6 +41,7 @@ export const updateEquipoVirtualDetalleSchema = z.object({
 export const updateEquipoVirtualSchema = z.object({
   Nombre: z.string().max(255, 'Nombre máximo 255 caracteres').optional(),
   Descripcion: z.string().max(500, 'Descripción máximo 500 caracteres').optional().nullable(),
+  Codigo: z.string().max(50, 'Código máximo 50 caracteres').optional().nullable(),
   Detalles: z.array(updateEquipoVirtualDetalleSchema).optional(),
   DetallesEliminar: z.array(z.number()).optional(),
 });

@@ -83,6 +83,16 @@ class CotizacionesProveedorController {
     const result = await cotizacionesProveedorService.eliminarAsignacion(RespuestaID);
     return success(res, result.message, result.data);
   }
+
+  /**
+   * Genera múltiples compras basado en selecciones
+   * POST /cotizaciones-proveedor/:CotizacionCompraID/generar-compras
+   */
+  async generarComprasMultiples(req: Request, res: Response) {
+    const { CotizacionCompraID } = req.params as unknown as { CotizacionCompraID: number };
+    const result = await cotizacionesProveedorService.generarComprasMultiples(CotizacionCompraID, req.body);
+    return success(res, result.message, result.data, 201);
+  }
 }
 
 export const cotizacionesProveedorController = new CotizacionesProveedorController();

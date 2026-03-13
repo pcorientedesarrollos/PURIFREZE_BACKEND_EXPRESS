@@ -69,6 +69,38 @@ class CotizacionesCompraController {
     );
     return success(res, result.message, result.data);
   }
+
+  // =============================================
+  // EQUIPOS VIRTUALES
+  // =============================================
+
+  async agregarEquipoVirtual(req: Request, res: Response) {
+    const { CotizacionCompraID } = req.params as unknown as { CotizacionCompraID: number };
+    const result = await cotizacionesCompraService.agregarEquipoVirtual(CotizacionCompraID, req.body);
+    return success(res, result.message, result.data, 201);
+  }
+
+  async actualizarPrecioEquipoVirtual(req: Request, res: Response) {
+    const { CotizacionCompraID, EquipoVirtualID } = req.params as unknown as {
+      CotizacionCompraID: number;
+      EquipoVirtualID: number;
+    };
+    const result = await cotizacionesCompraService.actualizarPrecioEquipoVirtual(
+      CotizacionCompraID,
+      EquipoVirtualID,
+      req.body.PrecioFinal
+    );
+    return success(res, result.message, result.data);
+  }
+
+  async eliminarEquipoVirtual(req: Request, res: Response) {
+    const { CotizacionCompraID, EquipoVirtualID } = req.params as unknown as {
+      CotizacionCompraID: number;
+      EquipoVirtualID: number;
+    };
+    const result = await cotizacionesCompraService.eliminarEquipoVirtual(CotizacionCompraID, EquipoVirtualID);
+    return success(res, result.message, result.data);
+  }
 }
 
 export const cotizacionesCompraController = new CotizacionesCompraController();

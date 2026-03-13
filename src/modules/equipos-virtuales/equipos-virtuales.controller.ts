@@ -49,6 +49,12 @@ class EquiposVirtualesController {
     const result = await equiposVirtualesService.getResumen(EquipoVirtualID);
     return success(res, result.message, result.data);
   }
+
+  async getHistorial(req: Request, res: Response) {
+    const { EquipoVirtualID } = req.params as unknown as { EquipoVirtualID: number };
+    const result = await equiposVirtualesService.getHistorial(EquipoVirtualID);
+    return success(res, result.message, result.data);
+  }
 }
 
 export const equiposVirtualesController = new EquiposVirtualesController();

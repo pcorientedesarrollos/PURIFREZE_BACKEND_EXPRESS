@@ -7,17 +7,20 @@ import {
   UpdateCotizacionCompraDto,
   EnviarCotizacionDto,
   ConvertirACompraDto,
+  AgregarEquipoVirtualDto,
 } from './cotizaciones-compra.schema';
 import { generateCotizacionPdf, getPdfUrl, cleanOldPdfs, CotizacionPdfData } from '../../utils/pdf-generator';
 
 class CotizacionesCompraService {
   /**
-   * Crea una nueva cotización de compra con sus detalles
+   * Crea una nueva cotización de compra con sus detalles y equipos virtuales
    */
   async create(dto: CreateCotizacionCompraDto) {
     const result = await prisma.$transaction(async (tx) => {
-      // Validar que todas las refacciones existan
-      await this.validarRefaccionesExisten(tx, dto.Detalles.map((d) => d.RefaccionID));
+      // Validar que las refacciones individuales existan
+      if (dto.Detalles && dto.Detalles.length > 0) {
+        await this.validarRefaccionesExisten(tx, dto.Detalles.map((d) => d.RefaccionID));
+      }
 
       // Generar folio automático
       const folio = await this.generarFolio(tx);
@@ -34,22 +37,59 @@ class CotizacionesCompraService {
         },
       });
 
-      // Crear detalles
-      const detalles = await Promise.all(
-        dto.Detalles.map((detalle) =>
-          tx.cotizaciones_compra_detalle.create({
+      // Crear detalles de refacciones individuales
+      const detalles = dto.Detalles && dto.Detalles.length > 0
+        ? await Promise.all(
+            dto.Detalles.map((detalle) =>
+              tx.cotizaciones_compra_detalle.create({
+                data: {
+                  CotizacionCompraID: encabezado.CotizacionCompraID,
+                  RefaccionID: detalle.RefaccionID,
+                  Cantidad: detalle.Cantidad,
+                  Observaciones: detalle.Observaciones || null,
+                  IsActive: true,
+                },
+              })
+            )
+          )
+        : [];
+
+      // Crear equipos virtuales
+      const equiposVirtuales = [];
+      if (dto.EquiposVirtuales && dto.EquiposVirtuales.length > 0) {
+        for (const equipoDto of dto.EquiposVirtuales) {
+          // Obtener el equipo virtual
+          const equipoVirtual = await tx.equipos_virtuales.findUnique({
+            where: { EquipoVirtualID: equipoDto.EquipoVirtualID },
+          });
+
+          if (!equipoVirtual) {
+            throw new HttpError(`Equipo virtual ${equipoDto.EquipoVirtualID} no encontrado`, 404);
+          }
+
+          if (!equipoVirtual.IsActive) {
+            throw new HttpError(`Equipo virtual ${equipoVirtual.Nombre} no está activo`, 400);
+          }
+
+          // Crear registro de linking
+          const registro = await tx.cotizaciones_compra_equipos_virtuales.create({
             data: {
               CotizacionCompraID: encabezado.CotizacionCompraID,
-              RefaccionID: detalle.RefaccionID,
-              Cantidad: detalle.Cantidad,
-              Observaciones: detalle.Observaciones || null,
-              IsActive: true,
+              EquipoVirtualID: equipoDto.EquipoVirtualID,
+              PrecioOriginal: equipoVirtual.TotalCosto || 0,
+              PrecioFinal: equipoDto.PrecioFinal,
             },
-          })
-        )
-      );
+          });
 
-      return { encabezado, detalles };
+          equiposVirtuales.push({
+            ...registro,
+            Nombre: equipoVirtual.Nombre,
+            Codigo: equipoVirtual.Codigo,
+          });
+        }
+      }
+
+      return { encabezado, detalles, equiposVirtuales };
     });
 
     return { message: 'Cotización creada correctamente', data: result };
@@ -63,9 +103,17 @@ class CotizacionesCompraService {
       where: { IsActive: true },
       include: {
         detalles: {
-          where: { IsActive: true },
+          where: { IsActive: true, EquipoVirtualID: null }, // Solo refacciones individuales
         },
+        equiposVirtuales: true,
         envios: true,
+        respuestas: {
+          where: { IsActive: true },
+          select: {
+            RespuestaID: true,
+            Estado: true,
+          },
+        },
       },
       orderBy: { FechaCreacion: 'desc' },
     });
@@ -75,21 +123,44 @@ class CotizacionesCompraService {
       FechaCotizacion: moment(cot.FechaCotizacion).format('YYYY-MM-DD'),
       FechaCreacion: moment(cot.FechaCreacion).format('YYYY-MM-DD HH:mm:ss'),
       TotalRefacciones: cot.detalles.length,
+      TotalEquiposVirtuales: cot.equiposVirtuales.length,
       TotalEnvios: cot.envios.length,
+      TotalProveedoresAsignados: cot.respuestas.length,
+      TotalProveedoresRespondidos: cot.respuestas.filter((r) => r.Estado === 'COMPLETADA').length,
     }));
 
     return { message: 'Cotizaciones obtenidas', data: formateadas };
   }
 
   /**
-   * Obtiene una cotización por ID con todos sus detalles
+   * Obtiene una cotización por ID con todos sus detalles y equipos virtuales
    */
   async findOne(id: number) {
     const cotizacion = await prisma.cotizaciones_compra_encabezado.findUnique({
       where: { CotizacionCompraID: id },
       include: {
         detalles: {
-          where: { IsActive: true },
+          where: { IsActive: true, EquipoVirtualID: null }, // Solo refacciones individuales
+        },
+        equiposVirtuales: {
+          include: {
+            equipoVirtual: {
+              include: {
+                detalles: {
+                  where: { IsActive: true },
+                  include: {
+                    refaccion: {
+                      select: {
+                        RefaccionID: true,
+                        Codigo: true,
+                        NombrePieza: true,
+                      },
+                    },
+                  },
+                },
+              },
+            },
+          },
         },
         envios: {
           orderBy: { FechaEnvio: 'desc' },
@@ -105,11 +176,13 @@ class CotizacionesCompraService {
       throw new HttpError('La cotización no está activa', 400);
     }
 
-    // Obtener información de refacciones
+    // Obtener información de refacciones para detalles individuales
     const refaccionIds = cotizacion.detalles.map((d) => d.RefaccionID);
-    const refacciones = await prisma.catalogo_refacciones.findMany({
-      where: { RefaccionID: { in: refaccionIds } },
-    });
+    const refacciones = refaccionIds.length > 0
+      ? await prisma.catalogo_refacciones.findMany({
+          where: { RefaccionID: { in: refaccionIds } },
+        })
+      : [];
 
     const refaccionesMap = new Map(refacciones.map((r) => [r.RefaccionID, r]));
 
@@ -128,11 +201,37 @@ class CotizacionesCompraService {
       };
     });
 
+    // Formatear equipos virtuales
+    const equiposVirtualesFormateados = cotizacion.equiposVirtuales.map((ev) => ({
+      ID: ev.ID,
+      EquipoVirtualID: ev.EquipoVirtualID,
+      PrecioOriginal: Number(ev.PrecioOriginal),
+      PrecioFinal: Number(ev.PrecioFinal),
+      FechaCreacion: moment(ev.FechaCreacion).format('YYYY-MM-DD HH:mm:ss'),
+      equipoVirtual: {
+        EquipoVirtualID: ev.equipoVirtual.EquipoVirtualID,
+        Nombre: ev.equipoVirtual.Nombre,
+        Codigo: ev.equipoVirtual.Codigo,
+        Descripcion: ev.equipoVirtual.Descripcion,
+        TotalRefacciones: ev.equipoVirtual.detalles.length,
+        detalles: ev.equipoVirtual.detalles.map((d) => ({
+          DetalleID: d.DetalleID,
+          RefaccionID: d.RefaccionID,
+          Cantidad: d.Cantidad,
+          CostoUnitario: Number(d.CostoUnitario),
+          TotalFinal: Number(d.TotalFinal),
+          Refaccion: d.refaccion,
+        })),
+      },
+    }));
+
     // Obtener información de proveedores para los envíos
     const proveedorIds = cotizacion.envios.map((e) => e.ProveedorID);
-    const proveedores = await prisma.catalogo_proveedores.findMany({
-      where: { ProveedorID: { in: proveedorIds } },
-    });
+    const proveedores = proveedorIds.length > 0
+      ? await prisma.catalogo_proveedores.findMany({
+          where: { ProveedorID: { in: proveedorIds } },
+        })
+      : [];
 
     const proveedoresMap = new Map(proveedores.map((p) => [p.ProveedorID, p]));
 
@@ -155,6 +254,7 @@ class CotizacionesCompraService {
       FechaCotizacion: moment(cotizacion.FechaCotizacion).format('YYYY-MM-DD'),
       FechaCreacion: moment(cotizacion.FechaCreacion).format('YYYY-MM-DD HH:mm:ss'),
       detalles: detallesConRefaccion,
+      equiposVirtuales: equiposVirtualesFormateados,
       envios: enviosConProveedor,
     };
 
@@ -430,6 +530,9 @@ class CotizacionesCompraService {
         data: { Estado: 'FINALIZADA' },
       });
 
+      // Procesar equipos virtuales y ajustar precios proporcionalmente
+      await this.procesarEquiposVirtuales(tx, id, cotizacion.UsuarioID);
+
       return {
         compra,
         detallesCompra,
@@ -566,8 +669,225 @@ class CotizacionesCompraService {
   }
 
   // ═══════════════════════════════════════════════════════════════════════════
+  // EQUIPOS VIRTUALES
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Agrega un equipo virtual a la cotización con todas sus refacciones
+   */
+  async agregarEquipoVirtual(cotizacionId: number, dto: AgregarEquipoVirtualDto) {
+    return await prisma.$transaction(async (tx) => {
+      // 1. Verificar que la cotización existe y está en estado editable
+      const cotizacion = await tx.cotizaciones_compra_encabezado.findUnique({
+        where: { CotizacionCompraID: cotizacionId },
+      });
+
+      if (!cotizacion) throw new HttpError('Cotización no encontrada', 404);
+      if (!cotizacion.IsActive) throw new HttpError('La cotización no está activa', 400);
+      if (cotizacion.Estado !== 'PENDIENTE') {
+        throw new HttpError('Solo se pueden agregar equipos a cotizaciones pendientes', 400);
+      }
+
+      // 2. Obtener el equipo virtual con sus detalles
+      const equipoVirtual = await tx.equipos_virtuales.findUnique({
+        where: { EquipoVirtualID: dto.EquipoVirtualID },
+        include: { detalles: { where: { IsActive: true } } },
+      });
+
+      if (!equipoVirtual) throw new HttpError('Equipo virtual no encontrado', 404);
+      if (!equipoVirtual.IsActive) throw new HttpError('El equipo virtual no está activo', 400);
+
+      // 3. Verificar que no esté ya agregado
+      const existente = await tx.cotizaciones_compra_equipos_virtuales.findFirst({
+        where: {
+          CotizacionCompraID: cotizacionId,
+          EquipoVirtualID: dto.EquipoVirtualID,
+        },
+      });
+
+      if (existente) throw new HttpError('Este equipo virtual ya está en la cotización', 400);
+
+      // 4. Crear registro en tabla de linking
+      await tx.cotizaciones_compra_equipos_virtuales.create({
+        data: {
+          CotizacionCompraID: cotizacionId,
+          EquipoVirtualID: dto.EquipoVirtualID,
+          PrecioOriginal: equipoVirtual.TotalCosto || 0,
+          PrecioFinal: dto.PrecioFinal,
+        },
+      });
+
+      // 5. Agregar cada refacción del equipo como detalle de cotización
+      for (const detalle of equipoVirtual.detalles) {
+        await tx.cotizaciones_compra_detalle.create({
+          data: {
+            CotizacionCompraID: cotizacionId,
+            RefaccionID: detalle.RefaccionID,
+            Cantidad: detalle.Cantidad || 1,
+            EquipoVirtualID: dto.EquipoVirtualID,
+            IsActive: true,
+          },
+        });
+      }
+
+      return {
+        message: 'Equipo virtual agregado a la cotización',
+        data: {
+          EquipoVirtualID: dto.EquipoVirtualID,
+          Nombre: equipoVirtual.Nombre,
+          Codigo: equipoVirtual.Codigo,
+          RefaccionesAgregadas: equipoVirtual.detalles.length,
+          PrecioOriginal: equipoVirtual.TotalCosto,
+          PrecioFinal: dto.PrecioFinal,
+        },
+      };
+    });
+  }
+
+  /**
+   * Actualiza el precio final de un equipo virtual en la cotización
+   */
+  async actualizarPrecioEquipoVirtual(cotizacionId: number, equipoVirtualId: number, precioFinal: number) {
+    const registro = await prisma.cotizaciones_compra_equipos_virtuales.findFirst({
+      where: {
+        CotizacionCompraID: cotizacionId,
+        EquipoVirtualID: equipoVirtualId,
+      },
+    });
+
+    if (!registro) throw new HttpError('Equipo virtual no encontrado en esta cotización', 404);
+
+    await prisma.cotizaciones_compra_equipos_virtuales.update({
+      where: { ID: registro.ID },
+      data: { PrecioFinal: precioFinal },
+    });
+
+    return { message: 'Precio actualizado', data: { PrecioFinal: precioFinal } };
+  }
+
+  /**
+   * Elimina un equipo virtual y sus refacciones de la cotización
+   */
+  async eliminarEquipoVirtual(cotizacionId: number, equipoVirtualId: number) {
+    return await prisma.$transaction(async (tx) => {
+      // Verificar que la cotización está en estado editable
+      const cotizacion = await tx.cotizaciones_compra_encabezado.findUnique({
+        where: { CotizacionCompraID: cotizacionId },
+      });
+
+      if (!cotizacion) throw new HttpError('Cotización no encontrada', 404);
+      if (cotizacion.Estado !== 'PENDIENTE') {
+        throw new HttpError('Solo se pueden modificar cotizaciones pendientes', 400);
+      }
+
+      // Eliminar detalles de la cotización que pertenecen a este equipo
+      await tx.cotizaciones_compra_detalle.deleteMany({
+        where: {
+          CotizacionCompraID: cotizacionId,
+          EquipoVirtualID: equipoVirtualId,
+        },
+      });
+
+      // Eliminar registro de linking
+      await tx.cotizaciones_compra_equipos_virtuales.deleteMany({
+        where: {
+          CotizacionCompraID: cotizacionId,
+          EquipoVirtualID: equipoVirtualId,
+        },
+      });
+
+      return {
+        message: 'Equipo virtual eliminado de la cotización',
+        data: { CotizacionCompraID: cotizacionId, EquipoVirtualID: equipoVirtualId },
+      };
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
   // MÉTODOS PRIVADOS
   // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Procesa equipos virtuales y ajusta precios proporcionalmente
+   */
+  private async procesarEquiposVirtuales(
+    tx: Prisma.TransactionClient,
+    cotizacionId: number,
+    usuarioId: number | null
+  ): Promise<void> {
+    // Obtener equipos virtuales de la cotización
+    const equiposCotizacion = await tx.cotizaciones_compra_equipos_virtuales.findMany({
+      where: { CotizacionCompraID: cotizacionId },
+      include: {
+        equipoVirtual: {
+          include: { detalles: { where: { IsActive: true } } },
+        },
+      },
+    });
+
+    for (const registro of equiposCotizacion) {
+      const precioOriginal = Number(registro.PrecioOriginal);
+      const precioNuevo = Number(registro.PrecioFinal);
+      const diferencia = precioNuevo - precioOriginal;
+
+      // Solo procesar si hay diferencia significativa
+      if (Math.abs(diferencia) < 0.01) continue;
+
+      const equipoVirtual = registro.equipoVirtual;
+
+      // Calcular ajuste proporcional para cada refacción
+      const detallesCambio = equipoVirtual.detalles.map((d) => {
+        const totalFinal = Number(d.TotalFinal || 0);
+        const porcentaje = precioOriginal > 0 ? totalFinal / precioOriginal : 0;
+        const ajuste = diferencia * porcentaje;
+        const nuevoTotal = totalFinal + ajuste;
+
+        return {
+          DetalleID: d.DetalleID,
+          RefaccionID: d.RefaccionID,
+          PrecioAnterior: Math.round(totalFinal * 100) / 100,
+          Porcentaje: Math.round(porcentaje * 10000) / 100,
+          Ajuste: Math.round(ajuste * 100) / 100,
+          PrecioNuevo: Math.round(nuevoTotal * 100) / 100,
+        };
+      });
+
+      // Guardar historial
+      await tx.equipos_virtuales_historial.create({
+        data: {
+          EquipoVirtualID: equipoVirtual.EquipoVirtualID,
+          CotizacionCompraID: cotizacionId,
+          PrecioAnterior: precioOriginal,
+          PrecioNuevo: precioNuevo,
+          Diferencia: diferencia,
+          DetallesCambio: detallesCambio,
+          UsuarioID: usuarioId,
+          Observaciones: `Ajuste por cotización de compra #${cotizacionId}`,
+        },
+      });
+
+      // Actualizar precios de cada detalle del equipo virtual
+      for (const cambio of detallesCambio) {
+        await tx.equipos_virtuales_detalle.update({
+          where: { DetalleID: cambio.DetalleID },
+          data: {
+            CostoAnterior: cambio.PrecioAnterior,
+            TotalFinal: cambio.PrecioNuevo,
+            CostoActual: cambio.PrecioNuevo,
+          },
+        });
+      }
+
+      // Actualizar total del equipo virtual
+      await tx.equipos_virtuales.update({
+        where: { EquipoVirtualID: equipoVirtual.EquipoVirtualID },
+        data: {
+          TotalCosto: precioNuevo,
+          FechaActualizacion: new Date(),
+        },
+      });
+    }
+  }
 
   private async generarFolio(tx: Prisma.TransactionClient): Promise<string> {
     const año = new Date().getFullYear();

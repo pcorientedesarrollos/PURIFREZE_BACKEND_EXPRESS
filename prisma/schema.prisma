@@ -275,6 +275,7 @@ model compras_detalle {
   CompraEncabezadoID  Int?
   RefaccionID         Int?
   EquipoID            Int?
+  EquipoVirtualID     Int?
   Cantidad            Int?
   PrecioUnitario      Float?              @db.Float
   DescuentoPorcentaje Int?
@@ -286,8 +287,10 @@ model compras_detalle {
   IsActive            Boolean?
   compras_encabezado  compras_encabezado? @relation("CompraDetalles", fields: [CompraEncabezadoID], references: [CompraEncabezadoID])
   equipo              equipos?            @relation(fields: [EquipoID], references: [EquipoID])
+  equipoVirtual       equipos_virtuales?  @relation(fields: [EquipoVirtualID], references: [EquipoVirtualID])
 
   @@index([EquipoID])
+  @@index([EquipoVirtualID])
 }
 
 model compras_encabezado {
@@ -1838,6 +1841,8 @@ model cotizaciones_compra_encabezado {
   envios             cotizaciones_compra_envios[]
   compras            compras_encabezado[]
   respuestas         cotizaciones_compra_respuestas[]
+  equiposVirtuales   cotizaciones_compra_equipos_virtuales[]
+  historialEquipos   equipos_virtuales_historial[]
 
   @@index([Estado], map: "idx_cotizacion_estado")
 }
@@ -1848,13 +1853,16 @@ model cotizaciones_compra_detalle {
   RefaccionID         Int
   Cantidad            Int
   Observaciones       String?                          @db.VarChar(255)
+  EquipoVirtualID     Int?
   IsActive            Boolean?                         @default(true)
 
   encabezado          cotizaciones_compra_encabezado   @relation(fields: [CotizacionCompraID], references: [CotizacionCompraID])
   refaccion           catalogo_refacciones             @relation(fields: [RefaccionID], references: [RefaccionID])
+  equipoVirtual       equipos_virtuales?               @relation(fields: [EquipoVirtualID], references: [EquipoVirtualID])
 
   @@index([CotizacionCompraID], map: "idx_cotizacion_detalle")
   @@index([RefaccionID], map: "idx_refaccion_cotizacion")
+  @@index([EquipoVirtualID], map: "idx_equipo_virtual_cotizacion")
 }
 
 model cotizaciones_compra_envios {
@@ -1907,6 +1915,7 @@ model cotizaciones_compra_respuestas {
   encabezado          cotizaciones_compra_encabezado   @relation(fields: [CotizacionCompraID], references: [CotizacionCompraID])
   proveedor           catalogo_proveedores             @relation(fields: [ProveedorID], references: [ProveedorID])
   detalles            cotizaciones_compra_respuestas_detalle[]
+  equipos             cotizaciones_compra_respuestas_equipos[]
 
   @@unique([CotizacionCompraID, ProveedorID], map: "unique_cotizacion_proveedor")
   @@index([CotizacionCompraID], map: "idx_respuesta_cotizacion")
@@ -1931,6 +1940,23 @@ model cotizaciones_compra_respuestas_detalle {
   @@index([CotizacionDetalleID], map: "idx_respuesta_cotizacion_detalle")
 }
 
+model cotizaciones_compra_respuestas_equipos {
+  RespuestaEquipoID         Int                              @id @default(autoincrement())
+  RespuestaID               Int
+  CotizacionEquipoVirtualID Int
+  PrecioCotizado            Decimal                          @default(0) @db.Decimal(12, 2)
+  Disponible                Boolean?                         @default(true)
+  TiempoEntrega             String?                          @db.VarChar(50)
+  Observaciones             String?                          @db.VarChar(255)
+  IsActive                  Boolean?                         @default(true)
+
+  respuesta                 cotizaciones_compra_respuestas   @relation(fields: [RespuestaID], references: [RespuestaID], onDelete: Cascade)
+  cotizacionEquipoVirtual   cotizaciones_compra_equipos_virtuales @relation(fields: [CotizacionEquipoVirtualID], references: [ID])
+
+  @@index([RespuestaID], map: "idx_respuesta_equipo")
+  @@index([CotizacionEquipoVirtualID], map: "idx_respuesta_cotizacion_equipo")
+}
+
 enum EstadoRespuestaCotizacion {
   PENDIENTE
   EN_PROCESO
@@ -1946,6 +1972,7 @@ model equipos_virtuales {
   EquipoVirtualID     Int                              @id @default(autoincrement())
   Nombre              String                           @db.VarChar(255)
   Descripcion         String?                          @db.VarChar(500)
+  Codigo              String?                          @db.VarChar(50)
   TotalCosto          Decimal?                         @default(0) @db.Decimal(12, 2)
   TotalConIVA         Decimal?                         @default(0) @db.Decimal(12, 2)
   IsActive            Boolean?                         @default(true)
@@ -1953,7 +1980,11 @@ model equipos_virtuales {
   FechaActualizacion  DateTime?                        @updatedAt @db.DateTime(0)
   UsuarioCreadorID    Int?
 
-  detalles            equipos_virtuales_detalle[]
+  detalles                        equipos_virtuales_detalle[]
+  historial                       equipos_virtuales_historial[]
+  cotizaciones_compra_detalle     cotizaciones_compra_detalle[]
+  cotizaciones_compra_equipos     cotizaciones_compra_equipos_virtuales[]
+  compras_detalle                 compras_detalle[]
 
   @@index([Nombre], map: "idx_equipo_virtual_nombre")
   @@index([IsActive], map: "idx_equipo_virtual_activo")
@@ -1985,4 +2016,40 @@ model equipos_virtuales_detalle {
 
   @@index([EquipoVirtualID], map: "idx_detalle_equipo")
   @@index([RefaccionID], map: "idx_detalle_refaccion")
+}
+
+model equipos_virtuales_historial {
+  HistorialID         Int                                @id @default(autoincrement())
+  EquipoVirtualID     Int
+  CotizacionCompraID  Int?
+  FechaCambio         DateTime                           @default(now()) @db.DateTime(0)
+  PrecioAnterior      Decimal                            @db.Decimal(12, 2)
+  PrecioNuevo         Decimal                            @db.Decimal(12, 2)
+  Diferencia          Decimal                            @db.Decimal(12, 2)
+  DetallesCambio      Json?
+  UsuarioID           Int?
+  Observaciones       String?                            @db.VarChar(500)
+
+  equipoVirtual       equipos_virtuales                  @relation(fields: [EquipoVirtualID], references: [EquipoVirtualID])
+  cotizacion          cotizaciones_compra_encabezado?    @relation(fields: [CotizacionCompraID], references: [CotizacionCompraID])
+
+  @@index([EquipoVirtualID], map: "idx_historial_equipo")
+  @@index([CotizacionCompraID], map: "idx_historial_cotizacion")
+}
+
+model cotizaciones_compra_equipos_virtuales {
+  ID                  Int                              @id @default(autoincrement())
+  CotizacionCompraID  Int
+  EquipoVirtualID     Int
+  PrecioOriginal      Decimal                          @db.Decimal(12, 2)
+  PrecioFinal         Decimal                          @db.Decimal(12, 2)
+  FechaCreacion       DateTime                         @default(now()) @db.DateTime(0)
+
+  cotizacion          cotizaciones_compra_encabezado   @relation(fields: [CotizacionCompraID], references: [CotizacionCompraID])
+  equipoVirtual       equipos_virtuales                @relation(fields: [EquipoVirtualID], references: [EquipoVirtualID])
+  respuestasProveedores cotizaciones_compra_respuestas_equipos[]
+
+  @@unique([CotizacionCompraID, EquipoVirtualID], map: "uk_cotizacion_equipo")
+  @@index([CotizacionCompraID], map: "idx_ccev_cotizacion")
+  @@index([EquipoVirtualID], map: "idx_ccev_equipo")
 }
