@@ -169,6 +169,7 @@ model catalogo_refacciones {
   periodos_cambio                    refaccion_periodo_cambio[]
   equipos_virtuales_detalle          equipos_virtuales_detalle[]
   cotizaciones_compra_detalle        cotizaciones_compra_detalle[]
+  compras_detalle                    compras_detalle[]
 }
 
 model catalogo_unidades {
@@ -289,9 +290,11 @@ model compras_detalle {
   compras_encabezado  compras_encabezado? @relation("CompraDetalles", fields: [CompraEncabezadoID], references: [CompraEncabezadoID])
   equipo              equipos?            @relation(fields: [EquipoID], references: [EquipoID])
   equipoVirtual       equipos_virtuales?  @relation(fields: [EquipoVirtualID], references: [EquipoVirtualID])
+  refaccion           catalogo_refacciones? @relation(fields: [RefaccionID], references: [RefaccionID])
 
   @@index([EquipoID])
   @@index([EquipoVirtualID])
+  @@index([RefaccionID])
 }
 
 model compras_encabezado {
