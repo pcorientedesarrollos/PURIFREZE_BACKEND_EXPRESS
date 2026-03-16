@@ -128,6 +128,13 @@ class ComprasService {
       include: {
         compras_detalle: {
           include: {
+            refaccion: {
+              select: {
+                RefaccionID: true,
+                NombrePieza: true,
+                Codigo: true,
+              },
+            },
             equipo: {
               select: {
                 EquipoID: true,
@@ -171,6 +178,14 @@ class ComprasService {
       include: {
         compras_detalle: {
           include: {
+            refaccion: {
+              select: {
+                RefaccionID: true,
+                NombrePieza: true,
+                Codigo: true,
+                NombreCorto: true,
+              },
+            },
             equipo: {
               select: {
                 EquipoID: true,
@@ -196,6 +211,12 @@ class ComprasService {
             compras_recepciones_detalle: {
               where: { IsActive: 1 },
             },
+          },
+        },
+        catalogo_proveedores: {
+          select: {
+            ProveedorID: true,
+            NombreProveedor: true,
           },
         },
       },

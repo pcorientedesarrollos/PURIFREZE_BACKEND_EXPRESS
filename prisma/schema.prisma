@@ -30,49 +30,34 @@ model catalogo_bancos {
 }
 
 model catalogo_clasificacion_refacciones {
-  ClasificacionRefaccionID Int                   @id @default(autoincrement())
-  Codigo                   String?               @db.VarChar(10)
-  NombreClasificacion      String?               @db.VarChar(255)
-  Observaciones            String?               @db.VarChar(255)
-  IsActive                 Int?                  @db.TinyInt
-  refacciones              catalogo_refacciones[] @relation("ClasificacionRefacciones")
+  ClasificacionRefaccionID Int     @id @default(autoincrement())
+  Codigo                   String? @db.VarChar(10)
+  NombreClasificacion      String? @db.VarChar(255)
+  Observaciones            String? @db.VarChar(255)
+  IsActive                 Int?    @db.TinyInt
 }
 
 model catalogo_clientes {
-  ClienteID         Int                        @id @default(autoincrement())
-  NombreComercio    String?                    @db.VarChar(500)
-  Observaciones     String?                    @db.VarChar(500)
-  IsActive          Boolean?
-  sucursales        clientes_sucursales[]
-  presupuestos      presupuestos_encabezado[]
-  equipos           equipos[]
-  contratos         contratos[]
-  clientes_equipos  clientes_equipos[]
-  ventas            ventas_encabezado[]
+  ClienteID      Int      @id @default(autoincrement())
+  NombreComercio String?  @db.VarChar(500)
+  Observaciones  String?  @db.VarChar(500)
+  IsActive       Boolean?
 }
 
 model clientes_sucursales {
-  SucursalID        Int                        @id @default(autoincrement())
-  ClienteID         Int
-  NombreSucursal    String                     @db.VarChar(255)
-  Direccion         String?                    @db.VarChar(255)
-  Ubicacion         String?                    @db.VarChar(255)
-  Telefono          String?                    @db.VarChar(50)
-  Contacto          String?                    @db.VarChar(255)
-  Observaciones     String?                    @db.VarChar(255)
-  GiroNegocio       String?                    @db.VarChar(255)
-  EsMatriz          Boolean                    @default(false)
-  IsActive          Boolean?                   @default(true)
-  Latitud           Float?                     @db.Float
-  Longitud          Float?                     @db.Float
-
-  cliente               catalogo_clientes          @relation(fields: [ClienteID], references: [ClienteID])
-  empleados_sucursales  empleados_sucursales[]
-  presupuestos          presupuestos_encabezado[]
-  equipos               equipos[]
-  contratos             contratos[]
-  clientes_equipos      clientes_equipos[]
-  ventas                ventas_encabezado[]
+  SucursalID     Int      @id @default(autoincrement())
+  ClienteID      Int
+  NombreSucursal String   @db.VarChar(255)
+  Direccion      String?  @db.VarChar(255)
+  Ubicacion      String?  @db.VarChar(255)
+  Telefono       String?  @db.VarChar(50)
+  Contacto       String?  @db.VarChar(255)
+  Observaciones  String?  @db.VarChar(255)
+  GiroNegocio    String?  @db.VarChar(255)
+  EsMatriz       Boolean  @default(false)
+  IsActive       Boolean? @default(true)
+  Latitud        Float?   @db.Float
+  Longitud       Float?   @db.Float
 }
 
 model catalogo_cuentasBancarias {
@@ -92,106 +77,79 @@ model catalogo_metodos_pago {
 }
 
 model catalogo_proveedores {
-  ProveedorID        Int                       @id @default(autoincrement())
-  NombreProveedor    String?                   @db.VarChar(255)
-  Direccion          String?                   @db.VarChar(255)
-  Telefono           String?                   @db.VarChar(255)
-  Contacto           String?                   @db.VarChar(255)
-  Pais               String?                   @db.VarChar(255)
-  Correo             String?                   @db.VarChar(255)
-  Observaciones      String?                   @db.VarChar(255)
-  IsActive           Boolean?
-  compras_encabezado compras_encabezado[]      @relation("ProveedorCompras")
-  contactos          proveedores_contactos[]
-  notas_credito      notas_credito[]
-  usuarios           usuarios[]
+  ProveedorID             Int                              @id @default(autoincrement())
+  NombreProveedor         String?                          @db.VarChar(255)
+  Direccion               String?                          @db.VarChar(255)
+  Telefono                String?                          @db.VarChar(255)
+  Contacto                String?                          @db.VarChar(255)
+  Pais                    String?                          @db.VarChar(255)
+  Correo                  String?                          @db.VarChar(255)
+  Observaciones           String?                          @db.VarChar(255)
+  IsActive                Boolean?
   respuestas_cotizaciones cotizaciones_compra_respuestas[]
+  usuarios                usuarios[]
 }
 
 model proveedores_contactos {
-  ContactoID      Int                   @id @default(autoincrement())
-  ProveedorID     Int
-  NombreContacto  String                @db.VarChar(255)
-  Celular         String?               @db.VarChar(50)
-  Correo          String?               @db.VarChar(255)
-  Observaciones   String?               @db.VarChar(500)
-  IsActive        Boolean?              @default(true)
+  ContactoID     Int      @id @default(autoincrement())
+  ProveedorID    Int
+  NombreContacto String   @db.VarChar(255)
+  Puesto         String?  @db.VarChar(100)
+  Celular        String?  @db.VarChar(50)
+  Correo         String?  @db.VarChar(255)
+  Observaciones  String?  @db.VarChar(500)
+  IsActive       Boolean? @default(true)
 
-  proveedor       catalogo_proveedores  @relation(fields: [ProveedorID], references: [ProveedorID])
-
-  @@index([ProveedorID])
+  @@index([ProveedorID], map: "idx_proveedores_contactos_ProveedorID")
 }
 
 model catalogo_puestosTrabajo {
-  PuestoTrabajoID   Int                 @id @default(autoincrement())
-  PuestoTrabajo     String?             @db.VarChar(255)
-  Observaciones     String?             @db.VarChar(255)
-  IsActive          Boolean?
-  empleados_puestos empleados_puestos[]
+  PuestoTrabajoID Int      @id @default(autoincrement())
+  PuestoTrabajo   String?  @db.VarChar(255)
+  Observaciones   String?  @db.VarChar(255)
+  IsActive        Boolean?
 }
 
 model catalogo_giros_negocio {
-  GiroNegocioID       Int      @id @default(autoincrement())
-  GiroNegocio         String?  @db.VarChar(255)
-  Observaciones       String?  @db.VarChar(255)
-  IsActive            Boolean?
-  MesesMantenimiento  Int?     @db.TinyInt
+  GiroNegocioID      Int      @id @default(autoincrement())
+  GiroNegocio        String?  @db.VarChar(255)
+  Observaciones      String?  @db.VarChar(255)
+  IsActive           Boolean?
+  MesesMantenimiento Int?     @db.TinyInt
 }
 
 model catalogo_refacciones {
-  RefaccionID                        Int                                   @id @default(autoincrement())
-  ClasificacionID                    Int?
-  UnidadID                           Int?
-  NombrePieza                        String?                               @db.VarChar(255)
-  NombreCorto                        String?                               @db.VarChar(255)
-  Modelo                             String?                               @db.VarChar(255)
-  Codigo                             String?                               @db.VarChar(255)
-  Observaciones                      String?                               @db.VarChar(255)
-  IsActive                           Boolean?
-  CostoPromedio                      Float?                                @db.Float
-  PrecioVenta                        Float?                                @db.Float
-  PorcentajeUtilidad                 Int?
-  catalogo_unidades                  catalogo_unidades?                    @relation("UnidadRefacciones", fields: [UnidadID], references: [UnidadID])
-  catalogo_clasificacion_refacciones catalogo_clasificacion_refacciones?   @relation("ClasificacionRefacciones", fields: [ClasificacionID], references: [ClasificacionRefaccionID])
-  inventario_tecnico                 inventario_tecnico[]
-  traspasos_detalle                  traspasos_detalle[]
-  refacciones_danadas                refacciones_danadas[]
-  ajustes_inventario                 ajustes_inventario[]
-  plantillas_equipo_detalle          plantillas_equipo_detalle[]
-  equipos_detalle                    equipos_detalle[]
-  presupuestos_detalle               presupuestos_detalle[]
-  contratos_equipos                  contratos_equipos[]
-  servicios_equipos_refacciones      servicios_equipos_refacciones[] @relation("RefaccionOriginal")
-  servicios_equipos_refacciones_nueva servicios_equipos_refacciones[] @relation("RefaccionNueva")
-  servicios_insumos                  servicios_insumos[]
-  ventas_detalle                     ventas_detalle[]
-  periodos_cambio                    refaccion_periodo_cambio[]
-  equipos_virtuales_detalle          equipos_virtuales_detalle[]
-  cotizaciones_compra_detalle        cotizaciones_compra_detalle[]
+  RefaccionID               Int                         @id @default(autoincrement())
+  ClasificacionID           Int?
+  UnidadID                  Int?
+  NombrePieza               String?                     @db.VarChar(255)
+  NombreCorto               String?                     @db.VarChar(255)
+  Modelo                    String?                     @db.VarChar(255)
+  Codigo                    String?                     @db.VarChar(255)
+  Observaciones             String?                     @db.VarChar(255)
+  IsActive                  Boolean?
+  CostoPromedio             Float?                      @db.Float
+  PrecioVenta               Float?                      @db.Float
+  PorcentajeUtilidad        Int?
+  equipos_detalle           equipos_detalle[]
+  equipos_virtuales_detalle equipos_virtuales_detalle[]
+  plantillas_equipo_detalle plantillas_equipo_detalle[]
 }
 
 model catalogo_unidades {
-  UnidadID       Int                    @id @default(autoincrement())
-  DesUnidad      String?                @db.VarChar(255)
-  EsFraccionable Int?                   @db.TinyInt
-  DecUnidad      String?                @db.VarChar(255)
-  Observaciones  String?                @db.VarChar(255)
+  UnidadID       Int      @id @default(autoincrement())
+  DesUnidad      String?  @db.VarChar(255)
+  EsFraccionable Int?     @db.TinyInt
+  DecUnidad      String?  @db.VarChar(255)
+  Observaciones  String?  @db.VarChar(255)
   IsActive       Boolean?
-  refacciones    catalogo_refacciones[] @relation("UnidadRefacciones")
 }
 
-// =============================================
-// CATALOGO SERVICIOS ADICIONALES
-// =============================================
-
 model catalogo_servicios_adicionales {
-  ServicioAdicionalID  Int                    @id @default(autoincrement())
-  Nombre               String                 @db.VarChar(255)
-  Costo                Float                  @db.Float
-  IsActive             Int                    @default(1) @db.TinyInt
-
-  presupuestos_detalle presupuestos_detalle[]
-  servicios_aplicados  servicios_adicionales_aplicados[]
+  ServicioAdicionalID Int    @id @default(autoincrement())
+  Nombre              String @db.VarChar(255)
+  Costo               Float  @db.Float
+  IsActive            Int    @default(1) @db.TinyInt
 }
 
 model clientes_correos {
@@ -226,38 +184,28 @@ model clientes_direcciones {
 }
 
 model clientes_empleados {
-  EmpleadoID        Int                    @id @default(autoincrement())
-  ClienteID         Int?
-  NombreEmpleado    String?                @db.VarChar(255)
-  Observaciones     String?                @db.VarChar(255)
-  IsActive          Boolean?
-
-  empleados_puestos     empleados_puestos[]
-  empleados_sucursales  empleados_sucursales[]
+  EmpleadoID     Int      @id @default(autoincrement())
+  ClienteID      Int?
+  NombreEmpleado String?  @db.VarChar(255)
+  Observaciones  String?  @db.VarChar(255)
+  IsActive       Boolean?
 }
 
 model empleados_sucursales {
-  EmpleadoSucursalID Int                  @id @default(autoincrement())
+  EmpleadoSucursalID Int      @id @default(autoincrement())
   EmpleadoID         Int
   SucursalID         Int
-  IsActive           Boolean?             @default(true)
+  IsActive           Boolean? @default(true)
 
-  empleado           clientes_empleados   @relation(fields: [EmpleadoID], references: [EmpleadoID])
-  sucursal           clientes_sucursales  @relation(fields: [SucursalID], references: [SucursalID])
-
-  @@unique([EmpleadoID, SucursalID])
-  @@index([EmpleadoID])
-  @@index([SucursalID])
+  @@unique([EmpleadoID, SucursalID], map: "unique_empleado_sucursal")
+  @@index([SucursalID], map: "fk_empleados_sucursales_sucursal")
 }
 
 model empleados_puestos {
-  EmpleadoPuestoID Int                      @id @default(autoincrement())
+  EmpleadoPuestoID Int      @id @default(autoincrement())
   EmpleadoID       Int
   PuestoTrabajoID  Int
-  IsActive         Boolean?                 @default(true)
-
-  empleado         clientes_empleados       @relation(fields: [EmpleadoID], references: [EmpleadoID])
-  puesto           catalogo_puestosTrabajo  @relation(fields: [PuestoTrabajoID], references: [PuestoTrabajoID])
+  IsActive         Boolean? @default(true)
 
   @@unique([EmpleadoID, PuestoTrabajoID])
 }
@@ -271,111 +219,88 @@ model clientes_telefonos {
 }
 
 model compras_detalle {
-  CompraDetalleID     Int                 @id @default(autoincrement())
+  CompraDetalleID     Int                @id @default(autoincrement())
   CompraEncabezadoID  Int?
   RefaccionID         Int?
+  Cantidad            Int?
+  PrecioUnitario      Float?             @db.Float
+  DescuentoPorcentaje Int?
+  DescuentoEfectivo   Float?             @db.Float
+  GastosOperativos    Float?             @db.Float
+  GastosImportacion   Float?             @db.Float
+  SubTotal            Float?             @db.Float
+  Total               Float?             @db.Float
+  IsActive            Int?               @db.TinyInt
   EquipoID            Int?
   EquipoVirtualID     Int?
-  Cantidad            Int?
-  PrecioUnitario      Float?              @db.Float
-  DescuentoPorcentaje Int?
-  DescuentoEfectivo   Float?              @db.Float
-  GastosOperativos    Float?              @db.Float
-  GastosImportacion   Float?              @db.Float
-  SubTotal            Float?              @db.Float
-  Total               Float?              @db.Float
-  IsActive            Boolean?
-  compras_encabezado  compras_encabezado? @relation("CompraDetalles", fields: [CompraEncabezadoID], references: [CompraEncabezadoID])
-  equipo              equipos?            @relation(fields: [EquipoID], references: [EquipoID])
-  equipoVirtual       equipos_virtuales?  @relation(fields: [EquipoVirtualID], references: [EquipoVirtualID])
+  equipoVirtual       equipos_virtuales? @relation(fields: [EquipoVirtualID], references: [EquipoVirtualID], onDelete: NoAction, onUpdate: NoAction, map: "fk_compras_detalle_equipo_virtual")
 
-  @@index([EquipoID])
-  @@index([EquipoVirtualID])
+  @@index([EquipoID], map: "idx_compra_detalle_equipo")
+  @@index([EquipoVirtualID], map: "idx_compras_detalle_equipo_virtual")
 }
 
 model compras_encabezado {
-  CompraEncabezadoID        Int                         @id @default(autoincrement())
+  CompraEncabezadoID        Int                               @id @default(autoincrement())
   ProveedorID               Int?
-  FechaCompra               DateTime?                   @db.Date
-  TotalBruto                Float?                      @db.Float
-  TotalDescuentosPorcentaje Float?                      @db.Float
-  TotalDescuentoEfectivo    Float?                      @db.Float
-  TotalGastosOperativos     Float?                      @db.Float
-  TotalGastosImportacion    Float?                      @db.Float
-  TotalIVA                  Float?                      @db.Float
-  TotalNeto                 Float?                      @db.Float
-  FechaAlta                 String?                     @db.VarChar(255)
-  IsActive                  Boolean?
-  UsuarioID                 Int?
-
-  // DEPRECADO - Mantener para compatibilidad
+  FechaCompra               DateTime?                         @db.Date
+  TotalBruto                Float?                            @db.Float
+  TotalDescuentosPorcentaje Float?                            @db.Float
+  TotalDescuentoEfectivo    Float?                            @db.Float
+  TotalGastosOperativos     Float?                            @db.Float
+  TotalGastosImportacion    Float?                            @db.Float
+  TotalIVA                  Float?                            @db.Float
+  TotalNeto                 Float?                            @db.Float
+  TotalNotasCredito         Float?                            @default(0) @db.Float
+  FechaAlta                 String?                           @db.VarChar(255)
+  IsActive                  Int?                              @db.TinyInt
   Estatus                   compras_encabezado_Estatus?
-
-  // NUEVOS CAMPOS - Sistema de ejes independientes
-  FormaPago                 FormaPagoCompra             @default(CREDITO)
-  EstadoPago                EstadoPagoCompra            @default(PENDIENTE)
-  EstadoEntrega             EstadoEntregaCompra         @default(PEDIDO)
-  TotalPagado               Float?                      @db.Float @default(0)
-  TotalRecibido             Float?                      @db.Float @default(0)
+  UsuarioID                 Int?
+  FormaPago                 FormaPagoCompra?                  @default(CREDITO)
+  EstadoPago                EstadoPagoCompra?                 @default(PENDIENTE)
+  EstadoEntrega             compras_encabezado_EstadoEntrega? @default(NO_ENTREGADO)
+  TotalPagado               Float?                            @default(0) @db.Float
+  TotalRecibido             Float?                            @default(0) @db.Float
   DiasCredito               Int?
-  FechaVencimientoCredito   DateTime?                   @db.Date
-  TotalNotasCredito         Float?                      @db.Float @default(0)
+  FechaVencimientoCredito   DateTime?                         @db.Date
   CotizacionCompraID        Int?
-  NumeroPedido              String?                     @db.VarChar(100)
+  NumeroPedido              String?                           @db.VarChar(100)
 
-  // Relaciones
-  compras_detalle           compras_detalle[]           @relation("CompraDetalles")
-  catalogo_proveedores      catalogo_proveedores?       @relation("ProveedorCompras", fields: [ProveedorID], references: [ProveedorID])
-  compras_pagos             compras_pagos[]             @relation("CompraPagos")
-  compras_recepciones       compras_recepciones_encabezado[] @relation("CompraRecepciones")
-  notas_credito_aplicaciones notas_credito_aplicaciones[]
-  cotizacion_compra         cotizaciones_compra_encabezado? @relation(fields: [CotizacionCompraID], references: [CotizacionCompraID])
+  @@index([CotizacionCompraID], map: "idx_cotizacion_origen")
 }
 
 model compras_recepciones_detalle {
-  ComprasRecepcionesDetalleID    Int                           @id @default(autoincrement())
+  ComprasRecepcionesDetalleID    Int    @id @default(autoincrement())
   ComprasRecepcionesEncabezadoID Int?
   RefaccionID                    Int?
-  CantidadEstablecida            Float?                        @db.Float
-  IsActive                       Int?                          @db.TinyInt
-  compras_recepciones_encabezado compras_recepciones_encabezado? @relation("RecepcionDetalles", fields: [ComprasRecepcionesEncabezadoID], references: [ComprasRecepcionesEncabezadoID])
+  CantidadEstablecida            Float? @db.Float
+  IsActive                       Int?   @db.TinyInt
 }
 
 model compras_recepciones_encabezado {
-  ComprasRecepcionesEncabezadoID Int                           @id @default(autoincrement())
-  CompraEncabezadoID             Int?
-  FechaRecepcion                 DateTime?                     @db.Date
-  Observaciones                  String?                       @db.VarChar(255)
-  MontoRecepcion                 Float?                        @db.Float
+  ComprasRecepcionesEncabezadoID Int       @id @default(autoincrement())
+  CompraEncabezadoID             String?   @db.VarChar(255)
+  FechaRecepcion                 DateTime? @db.Date
+  Observaciones                  String?   @db.VarChar(255)
+  MontoRecepcion                 Float?    @db.Float
   UsuarioID                      Int?
-  IsActive                       Int?                          @db.TinyInt
-  NumeroFactura                  String?                       @db.VarChar(100)
-  compras_recepciones_detalle    compras_recepciones_detalle[] @relation("RecepcionDetalles")
-  compra                         compras_encabezado?           @relation("CompraRecepciones", fields: [CompraEncabezadoID], references: [CompraEncabezadoID])
-
-  @@index([CompraEncabezadoID])
+  IsActive                       Int?      @db.TinyInt
+  NumeroFactura                  String?   @db.VarChar(100)
 }
 
-// =============================================
-// PAGOS DE COMPRAS (Sistema de ejes independientes)
-// =============================================
-
 model compras_pagos {
-  CompraPagoID        Int                  @id @default(autoincrement())
-  CompraEncabezadoID  Int
-  MetodoPagoID        Int
-  CuentaBancariaID    Int?
-  Monto               Float                @db.Float
-  FechaPago           DateTime             @db.Date
-  Referencia          String?              @db.VarChar(100)
-  Observaciones       String?              @db.VarChar(255)
-  UsuarioID           Int
-  FechaRegistro       DateTime             @default(now())
-  IsActive            Int?                 @db.TinyInt @default(1)
+  CompraPagoID       Int       @id @default(autoincrement())
+  CompraEncabezadoID Int
+  MetodoPagoID       Int
+  CuentaBancariaID   Int?
+  Monto              Float     @db.Float
+  FechaPago          DateTime  @db.Date
+  Referencia         String?   @db.VarChar(100)
+  Observaciones      String?   @db.VarChar(255)
+  UsuarioID          Int
+  FechaRegistro      DateTime? @default(now()) @db.DateTime(0)
+  IsActive           Int?      @default(1) @db.TinyInt
 
-  compra              compras_encabezado   @relation("CompraPagos", fields: [CompraEncabezadoID], references: [CompraEncabezadoID])
-
-  @@index([CompraEncabezadoID])
+  @@index([CompraEncabezadoID], map: "CompraEncabezadoID")
 }
 
 model historial_movimientos_bancarios {
@@ -411,9 +336,8 @@ model kardex_inventario {
 }
 
 model modulos {
-  ModuloID     Int          @id @default(autoincrement())
-  NombreModulo String       @db.VarChar(255)
-  Submodulos   submodulos[]
+  ModuloID     Int    @id @default(autoincrement())
+  NombreModulo String @db.VarChar(255)
 }
 
 model pagos {
@@ -430,12 +354,10 @@ model pagos {
 }
 
 model permisos {
-  PermisoID   Int        @id @default(autoincrement())
+  PermisoID   Int     @id @default(autoincrement())
   UsuarioID   Int
   SubmoduloID Int
   IsActive    Boolean
-  Usuario     usuarios   @relation(fields: [UsuarioID], references: [UsuarioID])
-  Submodulo   submodulos @relation(fields: [SubmoduloID], references: [SubmoduloID])
 }
 
 model sesiones {
@@ -452,12 +374,10 @@ model sesiones {
 }
 
 model submodulos {
-  SubmoduloID     Int        @id @default(autoincrement())
-  NombreSubmodulo String     @db.VarChar(255)
+  SubmoduloID     Int    @id @default(autoincrement())
+  NombreSubmodulo String @db.VarChar(255)
   ModuloID        Int
-  Ruta            String     @db.VarChar(255)
-  Modulo          modulos    @relation(fields: [ModuloID], references: [ModuloID])
-  Permisos        permisos[]
+  Ruta            String @db.VarChar(255)
 }
 
 model ubicaciones_inventario {
@@ -468,36 +388,29 @@ model ubicaciones_inventario {
 }
 
 model usuarios {
-  UsuarioID            Int                    @id @default(autoincrement())
-  Usuario              String?                @db.VarChar(255)
-  Password             String?                @db.VarChar(255)
-  NombreCompleto       String?                @db.VarChar(255)
-  IsActive             Boolean
-  IsAdmin              Boolean
-  ProveedorID          Int?
-  TipoUsuario          TipoUsuario?           @default(INTERNO)
-  Permisos             permisos[]
-  catalogo_tecnicos    catalogo_tecnicos?
-  contratos_historial  contratos_historial[]
-  proveedor            catalogo_proveedores?  @relation(fields: [ProveedorID], references: [ProveedorID])
+  UsuarioID           Int                   @id @default(autoincrement())
+  Usuario             String?               @db.VarChar(255)
+  Password            String?               @db.VarChar(255)
+  NombreCompleto      String?               @db.VarChar(255)
+  IsActive            Boolean
+  IsAdmin             Boolean
+  ProveedorID         Int?
+  TipoUsuario         TipoUsuario?          @default(INTERNO)
+  contratos_historial contratos_historial[]
+  proveedor           catalogo_proveedores? @relation(fields: [ProveedorID], references: [ProveedorID], map: "fk_usuario_proveedor")
 
   @@index([ProveedorID], map: "idx_usuario_proveedor")
   @@index([TipoUsuario], map: "idx_usuario_tipo")
 }
 
 model catalogo_tecnicos {
-  TecnicoID          Int                  @id @default(autoincrement())
-  UsuarioID          Int                  @unique
-  Codigo             String?              @db.VarChar(20)
-  Telefono           String?              @db.VarChar(20)
-  Observaciones      String?              @db.VarChar(255)
-  IsActive           Boolean?
-  FechaAlta          DateTime?            @db.Date
-
-  usuario            usuarios             @relation(fields: [UsuarioID], references: [UsuarioID])
-  inventario_tecnico inventario_tecnico[]
-  servicios          servicios[]
-  notificaciones     servicios_notificaciones[]
+  TecnicoID     Int       @id @default(autoincrement())
+  UsuarioID     Int       @unique(map: "UsuarioID_UNIQUE")
+  Codigo        String?   @db.VarChar(20)
+  Telefono      String?   @db.VarChar(20)
+  Observaciones String?   @db.VarChar(255)
+  IsActive      Boolean?
+  FechaAlta     DateTime? @db.Date
 }
 
 model inventario_tecnico {
@@ -507,16 +420,13 @@ model inventario_tecnico {
   StockNuevo          Int       @default(0)
   StockUsado          Int       @default(0)
   FechaUltimoMov      DateTime? @db.Date
-  IsActive            Int?      @db.TinyInt @default(1)
+  IsActive            Boolean?  @default(true)
 
-  tecnico             catalogo_tecnicos    @relation(fields: [TecnicoID], references: [TecnicoID])
-  refaccion           catalogo_refacciones @relation(fields: [RefaccionID], references: [RefaccionID])
-
-  @@unique([TecnicoID, RefaccionID])
+  @@unique([TecnicoID, RefaccionID], map: "TecnicoID_RefaccionID_UNIQUE")
 }
 
 model traspasos_encabezado {
-  TraspasoEncabezadoID Int                  @id @default(autoincrement())
+  TraspasoEncabezadoID Int               @id @default(autoincrement())
   TipoTraspaso         TipoTraspaso
   OrigenTipo           OrigenDestinoTipo
   OrigenID             Int?
@@ -524,29 +434,24 @@ model traspasos_encabezado {
   DestinoID            Int?
   UsuarioSolicitaID    Int
   UsuarioAutorizaID    Int?
-  FechaSolicitud       DateTime             @db.Date
-  FechaAutorizacion    DateTime?            @db.Date
-  Estatus              EstatusSolicitud     @default(Pendiente)
-  Observaciones        String?              @db.VarChar(255)
-  IsActive             Int?                 @db.TinyInt @default(1)
-
-  traspasos_detalle    traspasos_detalle[]
+  FechaSolicitud       DateTime          @db.Date
+  FechaAutorizacion    DateTime?         @db.Date
+  Estatus              EstatusSolicitud  @default(Pendiente)
+  Observaciones        String?           @db.VarChar(255)
+  IsActive             Boolean?          @default(true)
 }
 
 model traspasos_detalle {
-  TraspasoDetalleID    Int                   @id @default(autoincrement())
+  TraspasoDetalleID    Int      @id @default(autoincrement())
   TraspasoEncabezadoID Int
   RefaccionID          Int
-  CantidadNuevo        Int                   @default(0)
-  CantidadUsado        Int                   @default(0)
-  IsActive             Int?                  @db.TinyInt @default(1)
-
-  encabezado           traspasos_encabezado  @relation(fields: [TraspasoEncabezadoID], references: [TraspasoEncabezadoID])
-  refaccion            catalogo_refacciones  @relation(fields: [RefaccionID], references: [RefaccionID])
+  CantidadNuevo        Int      @default(0)
+  CantidadUsado        Int      @default(0)
+  IsActive             Boolean? @default(true)
 }
 
 model refacciones_danadas {
-  RefaccionDanadaID  Int           @id @default(autoincrement())
+  RefaccionDanadaID  Int        @id @default(autoincrement())
   RefaccionID        Int
   TecnicoID          Int?
   ProveedorID        Int?
@@ -554,35 +459,765 @@ model refacciones_danadas {
   EquipoID           Int?
   Cantidad           Int
   MotivoDano         MotivoDano
-  Observaciones      String?       @db.VarChar(255)
-  FechaRegistro      DateTime      @db.Date
+  Observaciones      String?    @db.VarChar(255)
+  FechaRegistro      DateTime   @db.Date
   UsuarioID          Int
-  IsActive           Int?          @db.TinyInt @default(1)
+  IsActive           Boolean?   @default(true)
+  equipo             equipos?   @relation(fields: [EquipoID], references: [EquipoID])
 
-  refaccion          catalogo_refacciones  @relation(fields: [RefaccionID], references: [RefaccionID])
-  equipo             equipos?              @relation(fields: [EquipoID], references: [EquipoID])
+  @@index([EquipoID])
 }
 
 model ajustes_inventario {
-  AjusteID           Int            @id @default(autoincrement())
-  TecnicoID          Int
-  RefaccionID        Int
-  StockSistemaNuevo  Int
-  StockSistemaUsado  Int
-  StockRealNuevo     Int
-  StockRealUsado     Int
-  DiferenciaNuevo    Int
-  DiferenciaUsado    Int
-  MotivoAjuste       MotivoAjuste
-  Observaciones      String?        @db.VarChar(255)
-  UsuarioSolicitaID  Int
-  UsuarioAutorizaID  Int?
-  FechaSolicitud     DateTime       @db.Date
-  FechaAutorizacion  DateTime?      @db.Date
-  Estatus            EstatusAjuste  @default(Pendiente)
-  IsActive           Int?           @db.TinyInt @default(1)
+  AjusteID          Int           @id @default(autoincrement())
+  TecnicoID         Int
+  RefaccionID       Int
+  StockSistemaNuevo Int
+  StockSistemaUsado Int
+  StockRealNuevo    Int
+  StockRealUsado    Int
+  DiferenciaNuevo   Int
+  DiferenciaUsado   Int
+  MotivoAjuste      MotivoAjuste
+  Observaciones     String?       @db.VarChar(255)
+  UsuarioSolicitaID Int
+  UsuarioAutorizaID Int?
+  FechaSolicitud    DateTime      @db.Date
+  FechaAutorizacion DateTime?     @db.Date
+  Estatus           EstatusAjuste @default(Pendiente)
+  IsActive          Int?          @default(1) @db.TinyInt
+}
 
+model plantillas_equipo {
+  PlantillaEquipoID Int       @id @default(autoincrement())
+  Codigo            String?   @unique @db.VarChar(50)
+  NombreEquipo      String    @db.VarChar(255)
+  Observaciones     String?   @db.VarChar(500)
+  EsExterno         Int       @default(0) @db.TinyInt
+  PorcentajeVenta   Float     @default(35) @db.Float
+  PorcentajeRenta   Float     @default(15) @db.Float
+  IsActive          Int?      @default(1) @db.TinyInt
+  FechaCreacion     DateTime  @default(dbgenerated("(curdate())")) @db.Date
+  FechaModificacion DateTime? @db.Date
+  PrecioRenta       Float?    @db.Float
+  equipos           equipos[]
+}
+
+model plantillas_equipo_detalle {
+  PlantillaDetalleID Int                  @id @default(autoincrement())
+  PlantillaEquipoID  Int
+  RefaccionID        Int
+  Cantidad           Int                  @default(1)
+  IsActive           Int?                 @default(1) @db.TinyInt
   refaccion          catalogo_refacciones @relation(fields: [RefaccionID], references: [RefaccionID])
+
+  @@unique([PlantillaEquipoID, RefaccionID])
+  @@index([RefaccionID])
+}
+
+model equipos {
+  EquipoID                 Int                   @id @default(autoincrement())
+  PlantillaEquipoID        Int
+  NumeroSerie              String                @unique @db.VarChar(50)
+  EsExterno                Int                   @default(0) @db.TinyInt
+  Estatus                  EstatusEquipo?        @default(Armado)
+  Observaciones            String?               @db.VarChar(500)
+  FechaCreacion            DateTime              @default(dbgenerated("(curdate())")) @db.Date
+  FechaInstalacion         DateTime?             @db.Date
+  FechaDesmontaje          DateTime?             @db.Date
+  FechaReacondicionamiento DateTime?             @db.Date
+  VecesReacondicionado     Int                   @default(0)
+  UsuarioCreadorID         Int?
+  IsActive                 Int?                  @default(1) @db.TinyInt
+  ClienteID                Int?
+  SucursalID               Int?
+  ContratoID               Int?
+  plantilla                plantillas_equipo     @relation(fields: [PlantillaEquipoID], references: [PlantillaEquipoID])
+  refacciones_danadas      refacciones_danadas[]
+
+  @@index([PlantillaEquipoID])
+}
+
+model equipos_detalle {
+  EquipoDetalleID Int                  @id @default(autoincrement())
+  EquipoID        Int
+  RefaccionID     Int
+  Cantidad        Int                  @default(1)
+  IsActive        Int?                 @default(1) @db.TinyInt
+  refaccion       catalogo_refacciones @relation(fields: [RefaccionID], references: [RefaccionID])
+
+  @@unique([EquipoID, RefaccionID])
+  @@index([RefaccionID])
+}
+
+model equipos_historial {
+  EquipoHistorialID Int              @id @default(autoincrement())
+  EquipoID          Int
+  TipoAccion        TipoAccionEquipo
+  EstatusAnterior   EstatusEquipo?
+  EstatusNuevo      EstatusEquipo?
+  Descripcion       String           @db.VarChar(500)
+  DetalleJSON       String?          @db.Text
+  UsuarioID         Int?
+  FechaAccion       DateTime         @default(now()) @db.DateTime(0)
+
+  @@index([EquipoID], map: "idx_equipos_historial_equipo")
+  @@index([FechaAccion], map: "idx_equipos_historial_fecha")
+}
+
+model presupuestos_encabezado {
+  PresupuestoID       Int                @id @default(autoincrement())
+  NumeroPresupuesto   String?            @unique(map: "NumeroPresupuesto") @db.VarChar(20)
+  ClienteID           Int
+  SucursalID          Int?
+  FechaCreacion       DateTime           @default(dbgenerated("(curdate())")) @db.Date
+  FechaVigencia       DateTime           @db.Date
+  Estatus             EstatusPresupuesto @default(Pendiente)
+  Observaciones       String?            @db.VarChar(500)
+  UsuarioID           Int
+  Subtotal            Float              @default(0) @db.Float
+  DescuentoPorcentaje Float?             @db.Float
+  DescuentoEfectivo   Float?             @db.Float
+  GastosAdicionales   Float?             @db.Float
+  IVA                 Float              @default(0) @db.Float
+  Total               Float              @default(0) @db.Float
+  IsActive            Boolean?           @default(true)
+}
+
+model presupuestos_detalle {
+  DetalleID           Int                           @id @default(autoincrement())
+  PresupuestoID       Int
+  TipoItem            presupuestos_detalle_TipoItem
+  Modalidad           ModalidadPresupuesto?
+  PlantillaEquipoID   Int?
+  RefaccionID         Int?
+  Descripcion         String?                       @db.VarChar(500)
+  Cantidad            Int                           @default(1)
+  PeriodoRenta        Int?
+  PrecioUnitario      Float                         @default(0) @db.Float
+  DescuentoPorcentaje Float?                        @db.Float
+  DescuentoEfectivo   Float?                        @db.Float
+  Subtotal            Float                         @default(0) @db.Float
+  IsActive            Boolean?                      @default(true)
+  ServicioAdicionalID Int?
+  EquipoVirtualID     Int?
+  PrecioFinalEquipo   Float?                        @db.Float
+  equipos_virtuales   equipos_virtuales?            @relation(fields: [EquipoVirtualID], references: [EquipoVirtualID], onDelete: NoAction, onUpdate: NoAction, map: "presupuestos_detalle_ibfk_1")
+
+  @@index([EquipoVirtualID], map: "idx_detalle_equipo_virtual")
+}
+
+model contratos {
+  ContratoID              Int             @id @default(autoincrement())
+  NumeroContrato          String          @unique(map: "NumeroContrato_UNIQUE") @db.VarChar(20)
+  PresupuestoID           Int
+  ClienteID               Int
+  SucursalID              Int?
+  FechaInicio             DateTime        @db.Date
+  FechaFin                DateTime        @db.Date
+  Estatus                 EstatusContrato @default(EN_REVISION)
+  CondicionesPago         CondicionesPago @default(MENSUAL)
+  DiaPago                 Int             @default(1)
+  MontoTotal              Float           @default(0) @db.Float
+  FrecuenciaMantenimiento Int?
+  PenalizacionCancelacion Float?          @db.Float
+  MotivosCancelacion      String?         @db.VarChar(500)
+  Observaciones           String?         @db.VarChar(500)
+  ContratoOrigenID        Int?
+  UsuarioID               Int
+  FechaCreacion           DateTime        @default(dbgenerated("(curdate())")) @db.Date
+  IsActive                Int?            @default(1) @db.TinyInt
+}
+
+model contratos_equipos {
+  ContratoEquipoID  Int                   @id @default(autoincrement())
+  ContratoID        Int
+  EquipoID          Int?
+  ItemPendienteID   Int?
+  Modalidad         ModalidadContrato
+  PrecioUnitario    Float                 @default(0) @db.Float
+  PeriodoMeses      Int?
+  FechaAsignacion   DateTime              @default(dbgenerated("(curdate())")) @db.Date
+  FechaInstalacion  DateTime?             @db.Date
+  FechaRetiro       DateTime?             @db.Date
+  Estatus           EstatusContratoEquipo @default(PENDIENTE)
+  Observaciones     String?               @db.VarChar(500)
+  IsActive          Int?                  @default(1) @db.TinyInt
+  PlantillaEquipoID Int?
+  RefaccionID       Int?
+  TipoItem          String?               @db.VarChar(50)
+  Descripcion       String?               @db.VarChar(500)
+  CantidadRequerida Int                   @default(1)
+  CantidadAsignada  Int                   @default(0)
+
+  @@index([ContratoID], map: "fk_contratos_equipos_contrato_idx")
+  @@index([EquipoID], map: "fk_contratos_equipos_equipo_idx")
+}
+
+model servicios {
+  ServicioID             Int                       @id @default(autoincrement())
+  ContratoID             Int?
+  ClienteEquipoID        Int?
+  TipoServicio           TipoServicio
+  FechaProgramada        DateTime                  @db.Date
+  HoraProgramada         DateTime?                 @db.Time(0)
+  FechaEjecucion         DateTime?                 @db.Date
+  HoraInicio             DateTime?                 @db.Time(0)
+  HoraFin                DateTime?                 @db.Time(0)
+  TecnicoID              Int?
+  Estatus                servicios_Estatus?        @default(POR_CONFIRMAR)
+  OrigenInventario       OrigenInventarioServicio? @default(TECNICO)
+  ObservacionesAntes     String?                   @db.VarChar(500)
+  ObservacionesDespues   String?                   @db.VarChar(500)
+  ObservacionesGenerales String?                   @db.Text
+  ProximoServicioMeses   Int?
+  ServicioOrigenID       Int?
+  MotivoReagendamiento   String?                   @db.VarChar(255)
+  MotivoCancelacion      String?                   @db.VarChar(255)
+  CostoServicio          Float?                    @default(0) @db.Float
+  CostoRefacciones       Float?                    @default(0) @db.Float
+  CostoTotal             Float?                    @default(0) @db.Float
+  UsuarioCreadorID       Int?
+  UsuarioFinalizaID      Int?
+  FechaCreacion          DateTime?                 @default(now()) @db.DateTime(0)
+  FechaModificacion      DateTime?                 @updatedAt @db.DateTime(0)
+  IsActive               Int?                      @default(1) @db.TinyInt
+
+  @@index([ClienteEquipoID], map: "idx_servicios_cliente_equipo")
+  @@index([ContratoID], map: "idx_servicios_contrato")
+  @@index([Estatus], map: "idx_servicios_estatus")
+  @@index([FechaProgramada], map: "idx_servicios_fecha")
+  @@index([TecnicoID], map: "idx_servicios_tecnico")
+}
+
+model servicios_equipos {
+  ServicioEquipoID     Int                   @id @default(autoincrement())
+  ServicioID           Int
+  ClienteEquipoID      Int?
+  EquipoID             Int?
+  AccionDesinstalacion AccionDesinstalacion?
+  Observaciones        String?               @db.VarChar(500)
+  IsActive             Int?                  @default(1) @db.TinyInt
+
+  @@index([ClienteEquipoID], map: "idx_servicios_equipos_ClienteEquipoID")
+  @@index([EquipoID], map: "idx_servicios_equipos_equipo")
+  @@index([ServicioID], map: "idx_servicios_equipos_servicio")
+}
+
+model servicios_equipos_refacciones {
+  ServicioEquipoRefaccionID Int               @id @default(autoincrement())
+  ServicioEquipoID          Int
+  RefaccionID               Int
+  CantidadEquipo            Int?              @default(0)
+  CantidadTecnico           Int?              @default(0)
+  Cambio                    Int?              @default(0) @db.TinyInt
+  Limpieza                  Int?              @default(0) @db.TinyInt
+  Verificacion              Int?              @default(0) @db.TinyInt
+  RefaccionNuevaID          Int?
+  CantidadNueva             Int?              @default(0)
+  DestinoRefaccion          DestinoRefaccion?
+  MotivoDano                MotivoDano?
+  ObservacionesDano         String?           @db.VarChar(255)
+  Observaciones             String?           @db.VarChar(255)
+  IsActive                  Int?              @default(1) @db.TinyInt
+
+  @@index([RefaccionID], map: "idx_ser_eq_ref_refaccion")
+  @@index([ServicioEquipoID], map: "idx_ser_eq_ref_servicio_equipo")
+}
+
+model servicios_insumos {
+  ServicioInsumoID Int                       @id @default(autoincrement())
+  ServicioID       Int
+  RefaccionID      Int
+  Cantidad         Int                       @default(1)
+  OrigenInventario OrigenInventarioServicio? @default(TECNICO)
+  CostoUnitario    Float?                    @default(0) @db.Float
+  Subtotal         Float?                    @default(0) @db.Float
+  Observaciones    String?                   @db.VarChar(255)
+  IsActive         Int?                      @default(1) @db.TinyInt
+  Cobrar           Boolean                   @default(true)
+
+  @@index([ServicioID], map: "idx_servicios_insumos_servicio")
+}
+
+model servicios_historial {
+  HistorialID   Int                @id @default(autoincrement())
+  ServicioID    Int
+  TipoAccion    TipoAccionServicio
+  Descripcion   String             @db.VarChar(500)
+  ValorAnterior String?            @db.Text
+  ValorNuevo    String?            @db.Text
+  UsuarioID     Int
+  FechaAccion   DateTime?          @default(now()) @db.DateTime(0)
+
+  @@index([FechaAccion], map: "idx_servicios_historial_fecha")
+  @@index([ServicioID], map: "idx_servicios_historial_servicio")
+}
+
+model servicios_notificaciones {
+  NotificacionID    Int                      @id @default(autoincrement())
+  ServicioID        Int?
+  ContratoID        Int?
+  Tipo              TipoNotificacionServicio
+  Titulo            String                   @db.VarChar(255)
+  Mensaje           String?                  @db.Text
+  FechaNotificacion DateTime                 @db.Date
+  FechaVisto        DateTime?                @db.DateTime(0)
+  UsuarioDestinoID  Int?
+  TecnicoDestinoID  Int?
+  Estatus           EstatusNotificacion?     @default(PENDIENTE)
+  IsActive          Int?                     @default(1) @db.TinyInt
+  FechaCreacion     DateTime?                @default(now()) @db.DateTime(0)
+
+  @@index([Estatus], map: "idx_notif_estatus")
+  @@index([FechaNotificacion], map: "idx_notif_fecha")
+  @@index([UsuarioDestinoID], map: "idx_notif_usuario")
+}
+
+model servicios_firmas {
+  FirmaID        Int       @id @default(autoincrement())
+  ServicioID     Int
+  TipoFirma      TipoFirma
+  NombreFirmante String    @db.VarChar(255)
+  FirmaData      String?   @db.MediumText
+  FirmaArchivo   String?   @db.VarChar(255)
+  FechaFirma     DateTime? @default(now()) @db.DateTime(0)
+  IpAddress      String?   @db.VarChar(45)
+  IsActive       Int?      @default(1) @db.TinyInt
+
+  @@index([ServicioID], map: "idx_firmas_servicio")
+}
+
+model servicios_adicionales_aplicados {
+  ServicioAdicionalAplicadoID Int       @id @default(autoincrement())
+  ServicioID                  Int
+  ServicioAdicionalID         Int
+  NombreServicio              String    @db.VarChar(255)
+  CostoOriginal               Float     @db.Float
+  CostoAplicado               Float     @db.Float
+  Autorizado                  Int?      @default(0) @db.TinyInt
+  FechaAutorizacion           DateTime? @db.DateTime(0)
+  NombreAutorizante           String?   @db.VarChar(255)
+  CobroGenerado               Int?      @default(0) @db.TinyInt
+  CobroID                     Int?
+  Observaciones               String?   @db.VarChar(500)
+  UsuarioAgregaID             Int?
+  UsuarioAutorizaID           Int?
+  FechaCreacion               DateTime? @default(now()) @db.DateTime(0)
+  IsActive                    Int?      @default(1) @db.TinyInt
+  Cobrar                      Boolean   @default(true)
+
+  @@unique([ServicioID, ServicioAdicionalID], map: "unique_servicio_adicional")
+  @@index([ServicioID], map: "idx_servicio")
+  @@index([ServicioAdicionalID], map: "idx_servicio_adicional")
+}
+
+model contratos_historial {
+  HistorialID   Int                @id @default(autoincrement())
+  ContratoID    Int
+  TipoAccion    TipoAccionContrato
+  Descripcion   String             @db.VarChar(500)
+  ValorAnterior String?            @db.Text
+  ValorNuevo    String?            @db.Text
+  UsuarioID     Int
+  FechaAccion   DateTime           @default(now()) @db.DateTime(0)
+  usuario       usuarios           @relation(fields: [UsuarioID], references: [UsuarioID])
+
+  @@index([UsuarioID])
+}
+
+model clientes_equipos {
+  ClienteEquipoID      Int                         @id @default(autoincrement())
+  ClienteID            Int
+  SucursalID           Int?
+  EquipoID             Int?
+  PlantillaEquipoID    Int?
+  TipoPropiedad        TipoPropiedad
+  ContratoID           Int?
+  PresupuestoDetalleID Int?
+  VentaDetalleID       Int?
+  DescripcionEquipo    String?                     @db.VarChar(255)
+  NumeroSerieExterno   String?                     @db.VarChar(100)
+  MarcaEquipo          String?                     @db.VarChar(100)
+  ModeloEquipo         String?                     @db.VarChar(100)
+  FechaAsignacion      DateTime                    @default(dbgenerated("(curdate())")) @db.Date
+  FechaInstalacion     DateTime?                   @db.Date
+  FechaRetiro          DateTime?                   @db.Date
+  MotivoRetiro         String?                     @db.VarChar(255)
+  Estatus              EstatusClienteEquipo        @default(ACTIVO)
+  Observaciones        String?                     @db.VarChar(500)
+  UsuarioAsignaID      Int?
+  IsActive             Boolean?                    @default(true)
+  Modalidad            clientes_equipos_Modalidad?
+  TipoItem             String?                     @db.VarChar(50)
+  PrecioUnitario       Float?                      @db.Float
+  PeriodoMeses         Int?
+
+  @@index([ClienteID], map: "idx_clientes_equipos_cliente")
+  @@index([EquipoID], map: "idx_clientes_equipos_equipo")
+  @@index([Estatus], map: "idx_clientes_equipos_estatus")
+}
+
+model ventas_encabezado {
+  VentaID             Int          @id @default(autoincrement())
+  NumeroVenta         String       @unique(map: "NumeroVenta") @db.VarChar(20)
+  ClienteID           Int
+  SucursalID          Int?
+  PresupuestoID       Int?
+  FechaVenta          DateTime     @default(dbgenerated("(curdate())")) @db.Date
+  Subtotal            Float        @default(0) @db.Float
+  DescuentoPorcentaje Float?       @db.Float
+  DescuentoEfectivo   Float?       @db.Float
+  IVA                 Float        @default(0) @db.Float
+  Total               Float        @default(0) @db.Float
+  Estatus             EstatusVenta @default(PENDIENTE)
+  Observaciones       String?      @db.VarChar(500)
+  UsuarioID           Int
+  FechaCreacion       DateTime     @default(now()) @db.DateTime(0)
+  IsActive            Boolean?     @default(true)
+
+  @@index([ClienteID], map: "idx_ventas_cliente")
+  @@index([Estatus], map: "idx_ventas_estatus")
+  @@index([FechaVenta], map: "idx_ventas_fecha")
+}
+
+model ventas_detalle {
+  VentaDetalleID       Int           @id @default(autoincrement())
+  VentaID              Int
+  TipoItem             TipoItemVenta
+  EquipoID             Int?
+  PlantillaEquipoID    Int?
+  RefaccionID          Int?
+  PresupuestoDetalleID Int?
+  Descripcion          String?       @db.VarChar(500)
+  Cantidad             Int           @default(1)
+  PrecioUnitario       Float         @default(0) @db.Float
+  DescuentoPorcentaje  Float?        @db.Float
+  DescuentoEfectivo    Float?        @db.Float
+  Subtotal             Float         @default(0) @db.Float
+  NumeroSerie          String?       @db.VarChar(50)
+  MesesGarantia        Int?          @default(12)
+  FechaFinGarantia     DateTime?     @db.Date
+  IsActive             Boolean?      @default(true)
+
+  @@index([EquipoID], map: "idx_ventas_detalle_equipo")
+  @@index([VentaID], map: "idx_ventas_detalle_venta")
+}
+
+model ventas_pagos {
+  VentaPagoID   Int      @id @default(autoincrement())
+  VentaID       Int
+  MetodoPagoID  Int
+  Monto         Float    @db.Float
+  FechaPago     DateTime @db.Date
+  Referencia    String?  @db.VarChar(100)
+  Observaciones String?  @db.VarChar(255)
+  UsuarioID     Int
+  FechaRegistro DateTime @default(now()) @db.DateTime(0)
+  IsActive      Boolean? @default(true)
+
+  @@index([VentaID], map: "idx_ventas_pagos_venta")
+}
+
+model cobros {
+  CobroID           Int                  @id @default(autoincrement())
+  ContratoID        Int?
+  ClienteEquipoID   Int?
+  NumeroCobro       String               @unique(map: "NumeroCobro_UNIQUE") @db.VarChar(20)
+  NumeroPeriodo     Int
+  FechaVencimiento  DateTime             @db.Date
+  FechaPago         DateTime?            @db.Date
+  MontoOriginal     Float                @db.Float
+  MontoDescuento    Float?               @db.Float
+  MontoPromocion    Float?               @db.Float
+  MontoFinal        Float                @db.Float
+  MontoPagado       Float?               @db.Float
+  Estatus           EstatusCobro         @default(PENDIENTE)
+  MotivoEspecial    MotivoCobroEspecial?
+  DescripcionMotivo String?              @db.VarChar(255)
+  MetodoPagoID      Int?
+  Referencia        String?              @db.VarChar(100)
+  MotivoCancelacion String?              @db.VarChar(255)
+  Observaciones     String?              @db.VarChar(500)
+  UsuarioCreadorID  Int?
+  UsuarioPagoID     Int?
+  FechaCreacion     DateTime             @default(now()) @db.DateTime(0)
+  FechaModificacion DateTime?            @updatedAt @db.DateTime(0)
+  IsActive          Int?                 @default(1) @db.TinyInt
+  VentaID           Int?
+  ServicioID        Int?
+  PresupuestoID     Int?
+
+  @@index([ContratoID], map: "idx_cobros_contrato")
+  @@index([Estatus], map: "idx_cobros_estatus")
+  @@index([FechaVencimiento], map: "idx_cobros_fecha_vencimiento")
+  @@index([PresupuestoID], map: "idx_cobros_presupuesto")
+  @@index([VentaID], map: "idx_cobros_venta")
+}
+
+model cobros_historial {
+  HistorialID   Int             @id @default(autoincrement())
+  CobroID       Int
+  TipoAccion    TipoAccionCobro
+  Descripcion   String          @db.VarChar(500)
+  ValorAnterior String?         @db.Text
+  ValorNuevo    String?         @db.Text
+  UsuarioID     Int
+  FechaAccion   DateTime        @default(now()) @db.DateTime(0)
+
+  @@index([CobroID], map: "idx_cobros_historial_cobro")
+  @@index([FechaAccion], map: "idx_cobros_historial_fecha")
+}
+
+model cobros_configuracion {
+  ConfiguracionID    Int             @id @default(autoincrement())
+  ContratoID         Int             @unique(map: "ContratoID_UNIQUE")
+  FechaInicialCobros DateTime        @db.Date
+  MontoCobro         Float           @db.Float
+  TipoTiempoContrato TipoTiempo
+  TiempoContrato     Int
+  FrecuenciaCobro    FrecuenciaCobro
+  TiempoFrecuencia   Int             @default(1)
+  TotalCobros        Int
+  CobrosGenerados    Int             @default(0)
+  Observaciones      String?         @db.VarChar(500)
+  UsuarioID          Int
+  FechaCreacion      DateTime        @default(now()) @db.DateTime(0)
+  IsActive           Int?            @default(1) @db.TinyInt
+
+  @@index([ContratoID], map: "idx_cobros_configuracion_contrato")
+}
+
+model refaccion_periodo_cambio {
+  RefaccionPeriodoCambioID Int       @id @default(autoincrement())
+  RefaccionID              Int
+  PeriodoContrato          Int
+  PeriodoCambioMeses       Int
+  Observaciones            String?   @db.VarChar(500)
+  IsActive                 Boolean?  @default(true)
+  CreatedAt                DateTime? @default(now()) @db.DateTime(0)
+  UpdatedAt                DateTime? @default(now()) @updatedAt @db.DateTime(0)
+
+  @@unique([RefaccionID, PeriodoContrato], map: "UQ_Refaccion_PeriodoContrato")
+  @@index([PeriodoContrato], map: "IDX_RefaccionPeriodoCambio_PeriodoContrato")
+  @@index([RefaccionID], map: "IDX_RefaccionPeriodoCambio_Refaccion")
+}
+
+model notas_credito {
+  NotaCreditoID     Int                   @id @default(autoincrement())
+  ProveedorID       Int
+  Monto             Float                 @db.Float
+  Fecha             DateTime              @db.Date
+  NumeroReferencia  String?               @db.VarChar(100)
+  Descripcion       String                @db.VarChar(500)
+  Observaciones     String?               @db.Text
+  Estado            notas_credito_Estado? @default(DISPONIBLE)
+  UsuarioID         Int
+  FechaCreacion     DateTime?             @default(now()) @db.DateTime(0)
+  FechaModificacion DateTime?             @default(now()) @db.DateTime(0)
+  IsActive          Int?                  @default(1) @db.TinyInt
+
+  @@index([Estado], map: "idx_estado")
+  @@index([ProveedorID], map: "idx_proveedor")
+}
+
+model notas_credito_aplicaciones {
+  AplicacionID       Int       @id @default(autoincrement())
+  NotaCreditoID      Int
+  CompraEncabezadoID Int
+  MontoAplicado      Float     @db.Float
+  FechaAplicacion    DateTime? @default(now()) @db.DateTime(0)
+  UsuarioID          Int
+
+  @@index([CompraEncabezadoID], map: "idx_compra")
+  @@index([NotaCreditoID], map: "idx_nota")
+}
+
+model cotizaciones_compra_encabezado {
+  CotizacionCompraID Int                                     @id @default(autoincrement())
+  Folio              String?                                 @db.VarChar(50)
+  FechaCotizacion    DateTime                                @db.Date
+  Observaciones      String?                                 @db.VarChar(500)
+  Estado             cotizaciones_compra_Estado?             @default(PENDIENTE)
+  UsuarioID          Int?
+  IsActive           Boolean?                                @default(true)
+  FechaCreacion      DateTime?                               @default(now()) @db.DateTime(0)
+  detalles           cotizaciones_compra_detalle[]
+  envios             cotizaciones_compra_envios[]
+  equiposVirtuales   cotizaciones_compra_equipos_virtuales[]
+  respuestas         cotizaciones_compra_respuestas[]
+  historialEquipos   equipos_virtuales_historial[]
+
+  @@index([Estado], map: "idx_cotizacion_estado")
+}
+
+model cotizaciones_compra_detalle {
+  CotizacionDetalleID                    Int                                      @id @default(autoincrement())
+  CotizacionCompraID                     Int
+  RefaccionID                            Int
+  Cantidad                               Int
+  Observaciones                          String?                                  @db.VarChar(255)
+  IsActive                               Boolean?                                 @default(true)
+  EquipoVirtualID                        Int?
+  encabezado                             cotizaciones_compra_encabezado           @relation(fields: [CotizacionCompraID], references: [CotizacionCompraID], onDelete: NoAction, onUpdate: NoAction, map: "cotizaciones_compra_detalle_ibfk_1")
+  equipoVirtual                          equipos_virtuales?                       @relation(fields: [EquipoVirtualID], references: [EquipoVirtualID], onDelete: NoAction, onUpdate: NoAction, map: "fk_cotizacion_detalle_equipo_virtual")
+  cotizaciones_compra_respuestas_detalle cotizaciones_compra_respuestas_detalle[]
+
+  @@index([CotizacionCompraID], map: "idx_cotizacion_detalle")
+  @@index([RefaccionID], map: "idx_refaccion_cotizacion")
+  @@index([EquipoVirtualID], map: "idx_equipo_virtual_cotizacion")
+}
+
+model cotizaciones_compra_envios {
+  EnvioID            Int                            @id @default(autoincrement())
+  CotizacionCompraID Int
+  ProveedorID        Int
+  ContactoID         Int?
+  FechaEnvio         DateTime?                      @default(now()) @db.DateTime(0)
+  MedioEnvio         String                         @db.VarChar(50)
+  Telefono           String?                        @db.VarChar(20)
+  encabezado         cotizaciones_compra_encabezado @relation(fields: [CotizacionCompraID], references: [CotizacionCompraID], onDelete: NoAction, onUpdate: NoAction, map: "cotizaciones_compra_envios_ibfk_1")
+
+  @@index([CotizacionCompraID], map: "idx_envio_cotizacion")
+  @@index([ProveedorID], map: "idx_envio_proveedor")
+}
+
+model cotizaciones_compra_respuestas {
+  RespuestaID        Int                                      @id @default(autoincrement())
+  CotizacionCompraID Int
+  ProveedorID        Int
+  Estado             EstadoRespuestaCotizacion?               @default(PENDIENTE)
+  DescuentoGlobal    Decimal?                                 @default(0.00) @db.Decimal(5, 2)
+  Observaciones      String?                                  @db.VarChar(500)
+  FechaRespuesta     DateTime?                                @db.DateTime(0)
+  FechaCreacion      DateTime?                                @default(now()) @db.DateTime(0)
+  IsActive           Boolean?                                 @default(true)
+  encabezado         cotizaciones_compra_encabezado           @relation(fields: [CotizacionCompraID], references: [CotizacionCompraID], map: "fk_respuesta_cotizacion")
+  proveedor          catalogo_proveedores                     @relation(fields: [ProveedorID], references: [ProveedorID], map: "fk_respuesta_proveedor")
+  detalles           cotizaciones_compra_respuestas_detalle[]
+  equipos            cotizaciones_compra_respuestas_equipos[]
+
+  @@unique([CotizacionCompraID, ProveedorID], map: "unique_cotizacion_proveedor")
+  @@index([CotizacionCompraID], map: "idx_respuesta_cotizacion")
+  @@index([ProveedorID], map: "idx_respuesta_proveedor")
+  @@index([Estado], map: "idx_respuesta_estado")
+}
+
+model cotizaciones_compra_respuestas_detalle {
+  RespuestaDetalleID          Int                            @id @default(autoincrement())
+  RespuestaID                 Int
+  CotizacionDetalleID         Int
+  PrecioUnitario              Decimal?                       @default(0.00) @db.Decimal(12, 2)
+  Descuento                   Decimal?                       @default(0.00) @db.Decimal(5, 2)
+  TieneStock                  Boolean?                       @default(true)
+  DiasEntrega                 Int?                           @default(0)
+  Observaciones               String?                        @db.VarChar(255)
+  IsActive                    Boolean?                       @default(true)
+  cotizaciones_compra_detalle cotizaciones_compra_detalle    @relation(fields: [CotizacionDetalleID], references: [CotizacionDetalleID], map: "fk_respuesta_detalle_cotizacion")
+  respuesta                   cotizaciones_compra_respuestas @relation(fields: [RespuestaID], references: [RespuestaID], onDelete: Cascade, map: "fk_respuesta_detalle_respuesta")
+
+  @@index([RespuestaID], map: "idx_respuesta_detalle")
+  @@index([CotizacionDetalleID], map: "idx_respuesta_cotizacion_detalle")
+}
+
+model cotizaciones_compra_respuestas_equipos {
+  RespuestaEquipoID         Int                                   @id @default(autoincrement())
+  RespuestaID               Int
+  CotizacionEquipoVirtualID Int
+  PrecioCotizado            Decimal                               @default(0.00) @db.Decimal(12, 2)
+  Disponible                Boolean?                              @default(true)
+  TiempoEntrega             String?                               @db.VarChar(50)
+  Observaciones             String?                               @db.VarChar(255)
+  IsActive                  Boolean?                              @default(true)
+  cotizacionEquipoVirtual   cotizaciones_compra_equipos_virtuales @relation(fields: [CotizacionEquipoVirtualID], references: [ID], onDelete: NoAction, onUpdate: NoAction, map: "fk_respuesta_equipo_cotizacion")
+  respuesta                 cotizaciones_compra_respuestas        @relation(fields: [RespuestaID], references: [RespuestaID], onDelete: Cascade, onUpdate: NoAction, map: "fk_respuesta_equipo_respuesta")
+
+  @@index([RespuestaID], map: "idx_respuesta_equipo")
+  @@index([CotizacionEquipoVirtualID], map: "idx_respuesta_cotizacion_equipo")
+}
+
+model equipos_virtuales {
+  EquipoVirtualID             Int                                     @id @default(autoincrement())
+  Nombre                      String                                  @db.VarChar(255)
+  Descripcion                 String?                                 @db.VarChar(500)
+  TotalCosto                  Decimal?                                @default(0.00) @db.Decimal(12, 2)
+  TotalConIVA                 Decimal?                                @default(0.00) @db.Decimal(12, 2)
+  IsActive                    Boolean?                                @default(true)
+  FechaCreacion               DateTime?                               @default(now()) @db.DateTime(0)
+  FechaActualizacion          DateTime?                               @default(now()) @updatedAt @db.DateTime(0)
+  UsuarioCreadorID            Int?
+  Codigo                      String?                                 @db.VarChar(50)
+  compras_detalle             compras_detalle[]
+  cotizaciones_compra_detalle cotizaciones_compra_detalle[]
+  cotizaciones_compra_equipos cotizaciones_compra_equipos_virtuales[]
+  detalles                    equipos_virtuales_detalle[]
+  historial                   equipos_virtuales_historial[]
+  presupuestos_detalle        presupuestos_detalle[]
+
+  @@index([Nombre], map: "idx_equipo_virtual_nombre")
+  @@index([IsActive], map: "idx_equipo_virtual_activo")
+}
+
+model equipos_virtuales_detalle {
+  DetalleID               Int                  @id @default(autoincrement())
+  EquipoVirtualID         Int
+  RefaccionID             Int
+  Cantidad                Int?                 @default(1)
+  CostoUnitario           Decimal?             @default(0.00) @db.Decimal(12, 2)
+  Descuento               Decimal?             @default(0.00) @db.Decimal(5, 2)
+  TotalUnitario           Decimal?             @default(0.00) @db.Decimal(12, 2)
+  Otros                   Decimal?             @default(0.00) @db.Decimal(12, 2)
+  TotalOtros              Decimal?             @default(0.00) @db.Decimal(12, 2)
+  CostoImportacion        Decimal?             @default(0.00) @db.Decimal(12, 2)
+  TotalUnidad             Decimal?             @default(0.00) @db.Decimal(12, 2)
+  TotalFinal              Decimal?             @default(0.00) @db.Decimal(12, 2)
+  IVA                     Decimal?             @default(0.00) @db.Decimal(5, 2)
+  CantidadPiezasPorEquipo Int?                 @default(1)
+  NumeroEquipos           Int?                 @default(1)
+  CostoAnterior           Decimal?             @default(0.00) @db.Decimal(12, 2)
+  CostoActual             Decimal?             @default(0.00) @db.Decimal(12, 2)
+  Diferencia              Decimal?             @default(0.00) @db.Decimal(12, 2)
+  IsActive                Boolean?             @default(true)
+  equipoVirtual           equipos_virtuales    @relation(fields: [EquipoVirtualID], references: [EquipoVirtualID], onDelete: Cascade, map: "fk_detalle_equipo_virtual")
+  refaccion               catalogo_refacciones @relation(fields: [RefaccionID], references: [RefaccionID], map: "fk_detalle_refaccion")
+
+  @@index([EquipoVirtualID], map: "idx_detalle_equipo")
+  @@index([RefaccionID], map: "idx_detalle_refaccion")
+}
+
+model equipos_virtuales_historial {
+  HistorialID        Int                             @id @default(autoincrement())
+  EquipoVirtualID    Int
+  FechaCambio        DateTime?                       @default(now()) @db.DateTime(0)
+  PrecioAnterior     Decimal                         @db.Decimal(12, 2)
+  PrecioNuevo        Decimal                         @db.Decimal(12, 2)
+  Diferencia         Decimal                         @db.Decimal(12, 2)
+  DetallesCambio     Json?
+  UsuarioID          Int?
+  Observaciones      String?                         @db.VarChar(500)
+  CotizacionCompraID Int?
+  equipoVirtual      equipos_virtuales               @relation(fields: [EquipoVirtualID], references: [EquipoVirtualID], onDelete: NoAction, onUpdate: NoAction, map: "equipos_virtuales_historial_ibfk_1")
+  cotizacion         cotizaciones_compra_encabezado? @relation(fields: [CotizacionCompraID], references: [CotizacionCompraID], onDelete: NoAction, onUpdate: NoAction, map: "fk_historial_cotizacion")
+
+  @@index([EquipoVirtualID], map: "idx_historial_equipo")
+  @@index([CotizacionCompraID], map: "idx_historial_cotizacion")
+}
+
+model cotizaciones_compra_equipos_virtuales {
+  ID                    Int                                      @id @default(autoincrement())
+  CotizacionCompraID    Int
+  EquipoVirtualID       Int
+  Cantidad              Int                                      @default(1)
+  PrecioOriginal        Decimal                                  @db.Decimal(12, 2)
+  PrecioFinal           Decimal                                  @db.Decimal(12, 2)
+  FechaCreacion         DateTime?                                @default(now()) @db.DateTime(0)
+  cotizacion            cotizaciones_compra_encabezado           @relation(fields: [CotizacionCompraID], references: [CotizacionCompraID], onDelete: NoAction, onUpdate: NoAction, map: "cotizaciones_compra_equipos_virtuales_ibfk_1")
+  equipoVirtual         equipos_virtuales                        @relation(fields: [EquipoVirtualID], references: [EquipoVirtualID], onDelete: NoAction, onUpdate: NoAction, map: "cotizaciones_compra_equipos_virtuales_ibfk_2")
+  respuestasProveedores cotizaciones_compra_respuestas_equipos[]
+
+  @@unique([CotizacionCompraID, EquipoVirtualID], map: "uk_cotizacion_equipo")
+  @@index([CotizacionCompraID], map: "idx_cotizacion")
+  @@index([EquipoVirtualID], map: "idx_equipo")
 }
 
 enum pagos_ReferenciaTipo {
@@ -619,7 +1254,7 @@ enum kardex_inventario_TipoMovimiento {
   Servicio_Danada
   Reacondicionamiento_Entrada
   Reacondicionamiento_Salida
-  EMPTY_ENUM_VALUE @map("")
+  EMPTY_ENUM_VALUE            @map("")
 }
 
 enum clientes_correos_TipoCorreo {
@@ -634,10 +1269,6 @@ enum compras_encabezado_Estatus {
   Finalizado
 }
 
-// =============================================
-// ENUMS PARA SISTEMA DE COMPRAS (EJES INDEPENDIENTES)
-// =============================================
-
 enum FormaPagoCompra {
   CONTADO
   CREDITO
@@ -647,13 +1278,6 @@ enum EstadoPagoCompra {
   PENDIENTE
   PARCIAL
   PAGADO
-}
-
-enum EstadoEntregaCompra {
-  PEDIDO
-  EN_ESPERA_DE_ENVIO
-  PARCIAL
-  ENTREGADO
 }
 
 enum TipoTraspaso {
@@ -696,111 +1320,11 @@ enum EstatusAjuste {
   Rechazado
 }
 
-model plantillas_equipo {
-  PlantillaEquipoID  Int       @id @default(autoincrement())
-  Codigo             String?   @db.VarChar(50)
-  NombreEquipo       String    @db.VarChar(255)
-  Observaciones      String?   @db.VarChar(500)
-  EsExterno          Int       @default(0) @db.TinyInt
-  PorcentajeVenta    Float     @default(35.00) @db.Float
-  PorcentajeRenta    Float     @default(15.00) @db.Float
-  PrecioRenta        Float?    @db.Float
-  IsActive           Int?      @db.TinyInt @default(1)
-  FechaCreacion      DateTime  @default(now()) @db.Date
-  FechaModificacion  DateTime? @db.Date
-
-  detalles              plantillas_equipo_detalle[]
-  equipos               equipos[]
-  presupuestos_detalle  presupuestos_detalle[]
-  contratos_equipos     contratos_equipos[]
-  clientes_equipos      clientes_equipos[]
-  ventas_detalle        ventas_detalle[]
-
-  @@unique([Codigo])
-}
-
-model plantillas_equipo_detalle {
-  PlantillaDetalleID Int                  @id @default(autoincrement())
-  PlantillaEquipoID  Int
-  RefaccionID        Int
-  Cantidad           Int                  @default(1)
-  IsActive           Int?                 @db.TinyInt @default(1)
-
-  plantilla          plantillas_equipo    @relation(fields: [PlantillaEquipoID], references: [PlantillaEquipoID])
-  refaccion          catalogo_refacciones @relation(fields: [RefaccionID], references: [RefaccionID])
-
-  @@unique([PlantillaEquipoID, RefaccionID])
-}
-
-model equipos {
-  EquipoID           Int       @id @default(autoincrement())
-  PlantillaEquipoID  Int
-  NumeroSerie        String    @unique @db.VarChar(50)
-  EsExterno          Int       @default(0) @db.TinyInt
-  Estatus            EstatusEquipo @default(Armado)
-  Observaciones      String?   @db.VarChar(500)
-  FechaCreacion      DateTime  @default(now()) @db.Date
-  FechaInstalacion   DateTime? @db.Date
-  FechaDesmontaje    DateTime? @db.Date
-  FechaReacondicionamiento DateTime? @db.Date
-  VecesReacondicionado Int     @default(0)
-  UsuarioCreadorID   Int?
-  IsActive           Int?      @db.TinyInt @default(1)
-
-  // Ubicación actual del equipo (se actualiza al instalar/retirar de contrato)
-  ClienteID          Int?
-  SucursalID         Int?
-  ContratoID         Int?
-
-  plantilla          plantillas_equipo   @relation(fields: [PlantillaEquipoID], references: [PlantillaEquipoID])
-  detalles           equipos_detalle[]
-  refacciones_danadas refacciones_danadas[]
-  historial          equipos_historial[]
-  cliente            catalogo_clientes?  @relation(fields: [ClienteID], references: [ClienteID])
-  sucursal           clientes_sucursales? @relation(fields: [SucursalID], references: [SucursalID])
-  contrato_actual    contratos?          @relation("EquipoContratoActual", fields: [ContratoID], references: [ContratoID])
-  contratos_equipos  contratos_equipos[]
-  servicios_equipos  servicios_equipos[]
-  clientes_equipos   clientes_equipos[]
-  ventas_detalle     ventas_detalle[]
-  compras_detalle    compras_detalle[]
-}
-
-model equipos_detalle {
-  EquipoDetalleID    Int       @id @default(autoincrement())
-  EquipoID           Int
-  RefaccionID        Int
-  Cantidad           Int       @default(1)
-  IsActive           Int?      @db.TinyInt @default(1)
-
-  equipo             equipos   @relation(fields: [EquipoID], references: [EquipoID])
-  refaccion          catalogo_refacciones @relation(fields: [RefaccionID], references: [RefaccionID])
-
-  @@unique([EquipoID, RefaccionID])
-}
-
 enum EstatusEquipo {
   Armado
   Instalado
   Reacondicionado
   Desmontado
-}
-
-model equipos_historial {
-  EquipoHistorialID   Int                @id @default(autoincrement())
-  EquipoID            Int
-  TipoAccion          TipoAccionEquipo
-  EstatusAnterior     EstatusEquipo?
-  EstatusNuevo        EstatusEquipo?
-  Descripcion         String             @db.VarChar(500)
-  DetalleJSON         String?            @db.Text
-  UsuarioID           Int?
-  FechaAccion         DateTime           @default(now())
-
-  equipo              equipos            @relation(fields: [EquipoID], references: [EquipoID])
-
-  @@index([EquipoID])
-  @@index([FechaAccion])
 }
 
 enum TipoAccionEquipo {
@@ -817,66 +1341,6 @@ enum TipoAccionEquipo {
   ACTIVACION
 }
 
-// =============================================
-// PRESUPUESTOS
-// =============================================
-
-model presupuestos_encabezado {
-  PresupuestoID         Int                      @id @default(autoincrement())
-  NumeroPresupuesto     String?                  @unique @db.VarChar(20)
-  ClienteID             Int
-  SucursalID            Int?
-  FechaCreacion         DateTime                 @default(now()) @db.Date
-  FechaVigencia         DateTime                 @db.Date
-  Estatus               EstatusPresupuesto       @default(Pendiente)
-  Observaciones         String?                  @db.VarChar(500)
-  UsuarioID             Int
-
-  Subtotal              Float                    @default(0) @db.Float
-  DescuentoPorcentaje   Float?                   @db.Float
-  DescuentoEfectivo     Float?                   @db.Float
-  GastosAdicionales     Float?                   @db.Float
-  IVA                   Float                    @default(0) @db.Float
-  Total                 Float                    @default(0) @db.Float
-
-  IsActive              Int?                     @db.TinyInt @default(1)
-
-  cliente               catalogo_clientes        @relation(fields: [ClienteID], references: [ClienteID])
-  sucursal              clientes_sucursales?     @relation(fields: [SucursalID], references: [SucursalID])
-  detalles              presupuestos_detalle[]
-  contratos             contratos[]
-  ventas                ventas_encabezado[]
-  cobros                cobros[]                 // Cobros generados desde este presupuesto
-}
-
-model presupuestos_detalle {
-  DetalleID             Int                      @id @default(autoincrement())
-  PresupuestoID         Int
-  TipoItem              TipoItemPresupuesto
-  Modalidad             ModalidadPresupuesto?
-
-  PlantillaEquipoID     Int?
-  RefaccionID           Int?
-  ServicioAdicionalID   Int?                     // FK a catalogo_servicios_adicionales
-
-  Descripcion           String?                  @db.VarChar(500)
-  Cantidad              Int                      @default(1)
-  PeriodoRenta          Int?                     // Meses de renta (solo para RENTA)
-  PrecioUnitario        Float                    @default(0) @db.Float
-  DescuentoPorcentaje   Float?                   @db.Float
-  DescuentoEfectivo     Float?                   @db.Float
-  Subtotal              Float                    @default(0) @db.Float
-
-  IsActive              Int?                     @db.TinyInt @default(1)
-
-  presupuesto           presupuestos_encabezado  @relation(fields: [PresupuestoID], references: [PresupuestoID])
-  plantilla             plantillas_equipo?       @relation(fields: [PlantillaEquipoID], references: [PlantillaEquipoID])
-  refaccion             catalogo_refacciones?    @relation(fields: [RefaccionID], references: [RefaccionID])
-  servicio_adicional    catalogo_servicios_adicionales? @relation(fields: [ServicioAdicionalID], references: [ServicioAdicionalID])
-  clientes_equipos      clientes_equipos[]
-  ventas_detalle        ventas_detalle[]
-}
-
 enum EstatusPresupuesto {
   Pendiente
   Enviado
@@ -885,393 +1349,12 @@ enum EstatusPresupuesto {
   Vencido
 }
 
-enum TipoItemPresupuesto {
-  EQUIPO_PURIFREEZE
-  EQUIPO_EXTERNO
-  REFACCION
-  SERVICIO
-}
-
 enum ModalidadPresupuesto {
   VENTA
   RENTA
   MANTENIMIENTO
 }
 
-// =============================================
-// CONTRATOS
-// =============================================
-
-model contratos {
-  ContratoID              Int                    @id @default(autoincrement())
-  NumeroContrato          String                 @unique @db.VarChar(20)
-  PresupuestoID           Int
-  ClienteID               Int
-  SucursalID              Int?
-  FechaInicio             DateTime               @db.Date
-  FechaFin                DateTime               @db.Date
-  Estatus                 EstatusContrato        @default(EN_REVISION)
-  CondicionesPago         CondicionesPago        @default(MENSUAL)
-  DiaPago                 Int                    @default(1)
-  MontoTotal              Float                  @default(0) @db.Float
-  FrecuenciaMantenimiento Int?                   // Meses entre mantenimientos
-  PenalizacionCancelacion Float?                 @db.Float // Porcentaje de penalización
-  MotivosCancelacion      String?                @db.VarChar(500)
-  Observaciones           String?                @db.VarChar(500)
-  ContratoOrigenID        Int?                   // Para renovaciones
-  UsuarioID               Int
-  FechaCreacion           DateTime               @default(now()) @db.Date
-  IsActive                Int?                   @db.TinyInt @default(1)
-
-  presupuesto             presupuestos_encabezado @relation(fields: [PresupuestoID], references: [PresupuestoID])
-  cliente                 catalogo_clientes       @relation(fields: [ClienteID], references: [ClienteID])
-  sucursal                clientes_sucursales?    @relation(fields: [SucursalID], references: [SucursalID])
-  contrato_origen         contratos?              @relation("ContratoRenovacion", fields: [ContratoOrigenID], references: [ContratoID])
-  contratos_renovados     contratos[]             @relation("ContratoRenovacion")
-  equipos_actuales        equipos[]               @relation("EquipoContratoActual")
-  equipos                 contratos_equipos[]
-  historial               contratos_historial[]
-  servicios               servicios[]
-  notificaciones          servicios_notificaciones[] @relation("NotificacionesContrato")
-  clientes_equipos        clientes_equipos[]
-  cobros                  cobros[]
-  cobros_configuracion    cobros_configuracion?
-}
-
-model contratos_equipos {
-  ContratoEquipoID        Int                    @id @default(autoincrement())
-  ContratoID              Int
-  EquipoID                Int?                   // Nullable: null = pendiente de asignar
-  ItemPendienteID         Int?                   // Referencia al item pendiente que satisface
-  Modalidad               ModalidadContrato
-  PrecioUnitario          Float                  @default(0) @db.Float
-  PeriodoMeses            Int?                   // Meses para RENTA
-  FechaAsignacion         DateTime               @default(now()) @db.Date
-  FechaInstalacion        DateTime?              @db.Date
-  FechaRetiro             DateTime?              @db.Date
-  Estatus                 EstatusContratoEquipo  @default(PENDIENTE)
-  Observaciones           String?                @db.VarChar(500)
-  IsActive                Int?                   @db.TinyInt @default(1)
-
-  // Datos del presupuesto (para referencia cuando EquipoID es null)
-  PlantillaEquipoID       Int?
-  RefaccionID             Int?
-  TipoItem                String?                @db.VarChar(50) // EQUIPO_PURIFREEZE, EQUIPO_EXTERNO, REFACCION, SERVICIO
-  Descripcion             String?                @db.VarChar(500)
-  CantidadRequerida       Int                    @default(1)
-  CantidadAsignada        Int                    @default(0)
-
-  contrato                contratos              @relation(fields: [ContratoID], references: [ContratoID])
-  equipo                  equipos?               @relation(fields: [EquipoID], references: [EquipoID])
-  plantilla               plantillas_equipo?     @relation(fields: [PlantillaEquipoID], references: [PlantillaEquipoID])
-  refaccion               catalogo_refacciones?  @relation(fields: [RefaccionID], references: [RefaccionID])
-
-  // Nota: No usamos @@unique porque permitimos múltiples items con EquipoID=null (pendientes)
-  // La unicidad de equipo asignado se valida en el servicio
-  @@index([ContratoID])
-  @@index([EquipoID])
-}
-
-// =============================================
-// SERVICIOS
-// =============================================
-
-model servicios {
-  ServicioID              Int                    @id @default(autoincrement())
-  ContratoID              Int?                   // Opcional - solo para equipos en renta
-  ClienteEquipoID         Int?                   // Equipo del cliente al que se le da servicio
-  TipoServicio            TipoServicio
-
-  // Programación
-  FechaProgramada         DateTime               @db.Date
-  HoraProgramada          DateTime?              @db.Time(0)
-  FechaEjecucion          DateTime?              @db.Date
-  HoraInicio              DateTime?              @db.Time(0)
-  HoraFin                 DateTime?              @db.Time(0)
-
-  // Asignación
-  TecnicoID               Int?
-
-  // Estados
-  Estatus                 EstatusServicio        @default(POR_CONFIRMAR)
-
-  // Configuración de inventario
-  OrigenInventario        OrigenInventarioServicio @default(TECNICO)
-
-  // Observaciones
-  ObservacionesAntes      String?                @db.VarChar(500)
-  ObservacionesDespues    String?                @db.VarChar(500)
-  ObservacionesGenerales  String?                @db.Text
-
-  // Reagendamiento / Próximo servicio
-  ProximoServicioMeses    Int?
-  ServicioOrigenID        Int?
-  MotivoReagendamiento    String?                @db.VarChar(255)
-  MotivoCancelacion       String?                @db.VarChar(255)
-
-  // Costos
-  CostoServicio           Float                  @default(0) @db.Float
-  CostoRefacciones        Float                  @default(0) @db.Float
-  CostoTotal              Float                  @default(0) @db.Float
-
-  // Auditoría
-  UsuarioCreadorID        Int?
-  UsuarioFinalizaID       Int?
-  FechaCreacion           DateTime               @default(now())
-  FechaModificacion       DateTime?              @updatedAt
-  IsActive                Int?                   @db.TinyInt @default(1)
-
-  // Relaciones
-  contrato                contratos?             @relation(fields: [ContratoID], references: [ContratoID])
-  cliente_equipo          clientes_equipos?      @relation(fields: [ClienteEquipoID], references: [ClienteEquipoID])
-  tecnico                 catalogo_tecnicos?     @relation(fields: [TecnicoID], references: [TecnicoID])
-  servicio_origen         servicios?             @relation("ServicioReagendado", fields: [ServicioOrigenID], references: [ServicioID])
-  servicios_reagendados   servicios[]            @relation("ServicioReagendado")
-  equipos                 servicios_equipos[]
-  insumos                 servicios_insumos[]
-  historial               servicios_historial[]
-  notificaciones          servicios_notificaciones[]
-  firmas                  servicios_firmas[]
-  servicios_adicionales   servicios_adicionales_aplicados[]
-  cobros                  cobros[]
-
-  @@index([ContratoID])
-  @@index([ClienteEquipoID])
-  @@index([TecnicoID])
-  @@index([FechaProgramada])
-  @@index([Estatus])
-}
-
-model servicios_equipos {
-  ServicioEquipoID        Int                    @id @default(autoincrement())
-  ServicioID              Int
-  ClienteEquipoID         Int?
-  EquipoID                Int?
-
-  // Para desinstalación
-  AccionDesinstalacion    AccionDesinstalacion?
-
-  // Observaciones
-  Observaciones           String?                @db.VarChar(500)
-
-  // Auditoría
-  IsActive                Int?                   @db.TinyInt @default(1)
-
-  // Relaciones
-  servicio                servicios              @relation(fields: [ServicioID], references: [ServicioID])
-  cliente_equipo          clientes_equipos?      @relation(fields: [ClienteEquipoID], references: [ClienteEquipoID])
-  equipo                  equipos?               @relation(fields: [EquipoID], references: [EquipoID])
-  refacciones             servicios_equipos_refacciones[]
-
-  @@index([ServicioID])
-  @@index([EquipoID])
-  @@index([ClienteEquipoID])
-}
-
-model servicios_equipos_refacciones {
-  ServicioEquipoRefaccionID Int                  @id @default(autoincrement())
-  ServicioEquipoID        Int
-  RefaccionID             Int
-
-  // Cantidades
-  CantidadEquipo          Int                    @default(0)
-  CantidadTecnico         Int                    @default(0)
-
-  // Acciones realizadas
-  Cambio                  Int                    @default(0) @db.TinyInt
-  Limpieza                Int                    @default(0) @db.TinyInt
-  Verificacion            Int                    @default(0) @db.TinyInt
-
-  // Si hubo cambio
-  RefaccionNuevaID        Int?
-  CantidadNueva           Int                    @default(0)
-
-  // Para desinstalación
-  DestinoRefaccion        DestinoRefaccion?
-  MotivoDano              MotivoDano?
-  ObservacionesDano       String?                @db.VarChar(255)
-
-  // Observaciones
-  Observaciones           String?                @db.VarChar(255)
-
-  // Auditoría
-  IsActive                Int?                   @db.TinyInt @default(1)
-
-  // Relaciones
-  servicio_equipo         servicios_equipos      @relation(fields: [ServicioEquipoID], references: [ServicioEquipoID])
-  refaccion               catalogo_refacciones   @relation("RefaccionOriginal", fields: [RefaccionID], references: [RefaccionID])
-  refaccion_nueva         catalogo_refacciones?  @relation("RefaccionNueva", fields: [RefaccionNuevaID], references: [RefaccionID])
-
-  @@index([ServicioEquipoID])
-  @@index([RefaccionID])
-}
-
-model servicios_insumos {
-  ServicioInsumoID        Int                    @id @default(autoincrement())
-  ServicioID              Int
-  RefaccionID             Int
-
-  // Cantidad
-  Cantidad                Int                    @default(1)
-
-  // Origen
-  OrigenInventario        OrigenInventarioServicio @default(TECNICO)
-
-  // Costos
-  CostoUnitario           Float                  @default(0) @db.Float
-  Subtotal                Float                  @default(0) @db.Float
-
-  // Cobrar
-  Cobrar                  Int                    @default(1) @db.TinyInt
-
-  // Observaciones
-  Observaciones           String?                @db.VarChar(255)
-
-  // Auditoría
-  IsActive                Int?                   @db.TinyInt @default(1)
-
-  // Relaciones
-  servicio                servicios              @relation(fields: [ServicioID], references: [ServicioID])
-  refaccion               catalogo_refacciones   @relation(fields: [RefaccionID], references: [RefaccionID])
-
-  @@index([ServicioID])
-}
-
-model servicios_historial {
-  HistorialID             Int                    @id @default(autoincrement())
-  ServicioID              Int
-
-  TipoAccion              TipoAccionServicio
-
-  Descripcion             String                 @db.VarChar(500)
-  ValorAnterior           String?                @db.Text
-  ValorNuevo              String?                @db.Text
-
-  UsuarioID               Int
-  FechaAccion             DateTime               @default(now())
-
-  // Relaciones
-  servicio                servicios              @relation(fields: [ServicioID], references: [ServicioID])
-
-  @@index([ServicioID])
-  @@index([FechaAccion])
-}
-
-model servicios_notificaciones {
-  NotificacionID          Int                    @id @default(autoincrement())
-  ServicioID              Int?
-  ContratoID              Int?
-
-  Tipo                    TipoNotificacionServicio
-
-  Titulo                  String                 @db.VarChar(255)
-  Mensaje                 String?                @db.Text
-
-  FechaNotificacion       DateTime               @db.Date
-  FechaVisto              DateTime?
-
-  // Destino
-  UsuarioDestinoID        Int?
-  TecnicoDestinoID        Int?
-
-  // Estado
-  Estatus                 EstatusNotificacion    @default(PENDIENTE)
-
-  // Auditoría
-  IsActive                Int?                   @db.TinyInt @default(1)
-  FechaCreacion           DateTime               @default(now())
-
-  // Relaciones
-  servicio                servicios?             @relation(fields: [ServicioID], references: [ServicioID])
-  contrato                contratos?             @relation("NotificacionesContrato", fields: [ContratoID], references: [ContratoID])
-  tecnico                 catalogo_tecnicos?     @relation(fields: [TecnicoDestinoID], references: [TecnicoID])
-
-  @@index([FechaNotificacion])
-  @@index([Estatus])
-  @@index([UsuarioDestinoID])
-}
-
-model servicios_firmas {
-  FirmaID                 Int                    @id @default(autoincrement())
-  ServicioID              Int
-
-  TipoFirma               TipoFirma
-  NombreFirmante          String                 @db.VarChar(255)
-
-  FirmaData               String?                @db.MediumText
-  FirmaArchivo            String?                @db.VarChar(255)
-
-  FechaFirma              DateTime               @default(now())
-  IpAddress               String?                @db.VarChar(45)
-
-  // Auditoría
-  IsActive                Int?                   @db.TinyInt @default(1)
-
-  // Relaciones
-  servicio                servicios              @relation(fields: [ServicioID], references: [ServicioID])
-
-  @@index([ServicioID])
-}
-
-// =============================================
-// SERVICIOS ADICIONALES APLICADOS
-// =============================================
-
-model servicios_adicionales_aplicados {
-  ServicioAdicionalAplicadoID Int                    @id @default(autoincrement())
-  ServicioID                  Int
-  ServicioAdicionalID         Int
-
-  // Datos del servicio adicional al momento de aplicarlo
-  NombreServicio              String                 @db.VarChar(255)
-  CostoOriginal               Float                  @db.Float  // Costo del catálogo
-  CostoAplicado               Float                  @db.Float  // Costo ajustado (puede ser diferente)
-
-  // Autorización del cliente
-  Autorizado                  Int                    @default(0) @db.TinyInt
-  FechaAutorizacion           DateTime?
-  NombreAutorizante           String?                @db.VarChar(255) // Nombre de quien autoriza
-
-  // Cobro generado
-  CobroGenerado               Int                    @default(0) @db.TinyInt
-  CobroID                     Int?                   // Referencia al cobro creado
-
-  // Cobrar
-  Cobrar                      Int                    @default(1) @db.TinyInt
-
-  // Observaciones
-  Observaciones               String?                @db.VarChar(500)
-
-  // Auditoría
-  UsuarioAgregaID             Int?
-  UsuarioAutorizaID           Int?
-  FechaCreacion               DateTime               @default(now())
-  IsActive                    Int?                   @db.TinyInt @default(1)
-
-  // Relaciones
-  servicio                    servicios              @relation(fields: [ServicioID], references: [ServicioID])
-  servicio_adicional          catalogo_servicios_adicionales @relation(fields: [ServicioAdicionalID], references: [ServicioAdicionalID])
-
-  @@index([ServicioID])
-  @@index([ServicioAdicionalID])
-  @@unique([ServicioID, ServicioAdicionalID])
-}
-
-model contratos_historial {
-  HistorialID             Int                    @id @default(autoincrement())
-  ContratoID              Int
-  TipoAccion              TipoAccionContrato
-  Descripcion             String                 @db.VarChar(500)
-  ValorAnterior           String?                @db.Text
-  ValorNuevo              String?                @db.Text
-  UsuarioID               Int
-  FechaAccion             DateTime               @default(now())
-
-  contrato                contratos              @relation(fields: [ContratoID], references: [ContratoID])
-  usuario                 usuarios               @relation(fields: [UsuarioID], references: [UsuarioID])
-}
-
-// Enums de Contratos
 enum EstatusContrato {
   EN_REVISION
   ACTIVO
@@ -1300,21 +1383,11 @@ enum EstatusContratoEquipo {
   RETIRADO
 }
 
-// Enums de Servicios
 enum TipoServicio {
   INSTALACION
   MANTENIMIENTO
   REPARACION
   DESINSTALACION
-}
-
-enum EstatusServicio {
-  POR_CONFIRMAR
-  PENDIENTE
-  CONFIRMADO
-  EN_PROCESO
-  REALIZADO
-  CANCELADO
 }
 
 enum OrigenInventarioServicio {
@@ -1377,68 +1450,6 @@ enum TipoAccionContrato {
   MODIFICACION
 }
 
-// =============================================
-// CLIENTES EQUIPOS (Equipos asignados a clientes)
-// =============================================
-
-model clientes_equipos {
-  ClienteEquipoID       Int                     @id @default(autoincrement())
-  ClienteID             Int
-  SucursalID            Int?
-
-  // Equipo físico (Purifreeze) o plantilla (externos)
-  EquipoID              Int?                    // FK equipos (para Purifreeze vendidos/rentados)
-  PlantillaEquipoID     Int?                    // FK plantillas (para externos o referencia)
-
-  // Clasificación
-  TipoPropiedad         TipoPropiedad
-
-  // Vínculos opcionales
-  ContratoID            Int?                    // Solo si es RENTA
-  PresupuestoDetalleID  Int?                    // Origen del presupuesto
-  VentaDetalleID        Int?                    // Si viene de una venta
-
-  // Datos del equipo externo (si aplica)
-  DescripcionEquipo     String?                 @db.VarChar(255)
-  NumeroSerieExterno    String?                 @db.VarChar(100)
-  MarcaEquipo           String?                 @db.VarChar(100)
-  ModeloEquipo          String?                 @db.VarChar(100)
-
-  // Datos de contrato (para RENTA)
-  Modalidad             ModalidadContrato?      // RENTA, VENTA, etc.
-  TipoItem              String?                 @db.VarChar(50) // EQUIPO_PURIFREEZE, EQUIPO_EXTERNO, REFACCION, SERVICIO
-  PrecioUnitario        Float?                  @db.Float
-  PeriodoMeses          Int?                    // Para rentas
-
-  // Control
-  FechaAsignacion       DateTime                @default(now()) @db.Date
-  FechaInstalacion      DateTime?               @db.Date
-  FechaRetiro           DateTime?               @db.Date
-  MotivoRetiro          String?                 @db.VarChar(255)
-  Estatus               EstatusClienteEquipo    @default(ACTIVO)
-  Observaciones         String?                 @db.VarChar(500)
-
-  // Auditoría
-  UsuarioAsignaID       Int?
-  IsActive              Int?                    @db.TinyInt @default(1)
-
-  // Relaciones
-  cliente               catalogo_clientes       @relation(fields: [ClienteID], references: [ClienteID])
-  sucursal              clientes_sucursales?    @relation(fields: [SucursalID], references: [SucursalID])
-  equipo                equipos?                @relation(fields: [EquipoID], references: [EquipoID])
-  plantilla             plantillas_equipo?      @relation(fields: [PlantillaEquipoID], references: [PlantillaEquipoID])
-  contrato              contratos?              @relation(fields: [ContratoID], references: [ContratoID])
-  presupuesto_detalle   presupuestos_detalle?   @relation(fields: [PresupuestoDetalleID], references: [DetalleID])
-  venta_detalle         ventas_detalle?         @relation(fields: [VentaDetalleID], references: [VentaDetalleID])
-  servicios             servicios[]             // Servicios directos a este equipo
-  servicios_equipos     servicios_equipos[]     // Equipos en servicios (por detalle)
-  cobros                cobros[]                // Cobros asociados a este equipo
-
-  @@index([ClienteID])
-  @@index([EquipoID])
-  @@index([Estatus])
-}
-
 enum TipoPropiedad {
   RENTA
   COMPRA
@@ -1447,125 +1458,11 @@ enum TipoPropiedad {
 
 enum EstatusClienteEquipo {
   ACTIVO
-  PENDIENTE_INSTALACION  // Equipo asignado pero pendiente de instalar
-  INSTALADO              // Equipo instalado en cliente
+  PENDIENTE_INSTALACION
+  INSTALADO
   RETIRADO
-  DEVUELTO               // Para rentas devueltas
-  VENDIDO                // Si se vendió posteriormente
-}
-
-// =============================================
-// VENTAS (Equipos y Refacciones)
-// =============================================
-
-model ventas_encabezado {
-  VentaID               Int                     @id @default(autoincrement())
-  NumeroVenta           String                  @unique @db.VarChar(20)
-  ClienteID             Int
-  SucursalID            Int?
-  PresupuestoID         Int?                    // Origen del presupuesto (si aplica)
-
-  // Fechas
-  FechaVenta            DateTime                @default(now()) @db.Date
-
-  // Totales
-  Subtotal              Float                   @default(0) @db.Float
-  DescuentoPorcentaje   Float?                  @db.Float
-  DescuentoEfectivo     Float?                  @db.Float
-  IVA                   Float                   @default(0) @db.Float
-  Total                 Float                   @default(0) @db.Float
-
-  // Estado
-  Estatus               EstatusVenta            @default(PENDIENTE)
-
-  // Observaciones
-  Observaciones         String?                 @db.VarChar(500)
-
-  // Auditoría
-  UsuarioID             Int
-  FechaCreacion         DateTime                @default(now())
-  IsActive              Int?                    @db.TinyInt @default(1)
-
-  // Relaciones
-  cliente               catalogo_clientes       @relation(fields: [ClienteID], references: [ClienteID])
-  sucursal              clientes_sucursales?    @relation(fields: [SucursalID], references: [SucursalID])
-  presupuesto           presupuestos_encabezado? @relation(fields: [PresupuestoID], references: [PresupuestoID])
-  detalles              ventas_detalle[]
-  pagos                 ventas_pagos[]
-  cobros                cobros[]                // Cobros generados desde esta venta
-
-  @@index([ClienteID])
-  @@index([FechaVenta])
-  @@index([Estatus])
-}
-
-model ventas_detalle {
-  VentaDetalleID        Int                     @id @default(autoincrement())
-  VentaID               Int
-
-  // Tipo de item vendido
-  TipoItem              TipoItemVenta
-
-  // Referencias (según el tipo)
-  EquipoID              Int?                    // Si es EQUIPO_PURIFREEZE
-  PlantillaEquipoID     Int?                    // Si es EQUIPO_EXTERNO (referencia)
-  RefaccionID           Int?                    // Si es REFACCION
-  PresupuestoDetalleID  Int?                    // Origen del presupuesto
-
-  // Descripción
-  Descripcion           String?                 @db.VarChar(500)
-
-  // Cantidades y precios
-  Cantidad              Int                     @default(1)
-  PrecioUnitario        Float                   @default(0) @db.Float
-  DescuentoPorcentaje   Float?                  @db.Float
-  DescuentoEfectivo     Float?                  @db.Float
-  Subtotal              Float                   @default(0) @db.Float
-
-  // Para equipos: número de serie
-  NumeroSerie           String?                 @db.VarChar(50)
-
-  // Garantía
-  MesesGarantia         Int?                    @default(12)
-  FechaFinGarantia      DateTime?               @db.Date
-
-  // Auditoría
-  IsActive              Int?                    @db.TinyInt @default(1)
-
-  // Relaciones
-  venta                 ventas_encabezado       @relation(fields: [VentaID], references: [VentaID])
-  equipo                equipos?                @relation(fields: [EquipoID], references: [EquipoID])
-  plantilla             plantillas_equipo?      @relation(fields: [PlantillaEquipoID], references: [PlantillaEquipoID])
-  refaccion             catalogo_refacciones?   @relation(fields: [RefaccionID], references: [RefaccionID])
-  presupuesto_detalle   presupuestos_detalle?   @relation(fields: [PresupuestoDetalleID], references: [DetalleID])
-  clientes_equipos      clientes_equipos[]      // Equipos asignados al cliente desde esta venta
-
-  @@index([VentaID])
-  @@index([EquipoID])
-}
-
-model ventas_pagos {
-  VentaPagoID           Int                     @id @default(autoincrement())
-  VentaID               Int
-
-  // Pago
-  MetodoPagoID          Int
-  Monto                 Float                   @db.Float
-  FechaPago             DateTime                @db.Date
-  Referencia            String?                 @db.VarChar(100)
-
-  // Observaciones
-  Observaciones         String?                 @db.VarChar(255)
-
-  // Auditoría
-  UsuarioID             Int
-  FechaRegistro         DateTime                @default(now())
-  IsActive              Int?                    @db.TinyInt @default(1)
-
-  // Relaciones
-  venta                 ventas_encabezado       @relation(fields: [VentaID], references: [VentaID])
-
-  @@index([VentaID])
+  DEVUELTO
+  VENDIDO
 }
 
 enum TipoItemVenta {
@@ -1580,130 +1477,6 @@ enum EstatusVenta {
   PAGADA
   PARCIAL
   CANCELADA
-}
-
-// =============================================
-// COBROS (Sistema de Cobranza para Rentas)
-// =============================================
-
-model cobros {
-  CobroID               Int                     @id @default(autoincrement())
-  ContratoID            Int?                    // Opcional - para cobros de renta
-  VentaID               Int?                    // Opcional - para cobros de venta
-  ServicioID            Int?                    // Opcional - para cobros de servicio adicional
-  PresupuestoID         Int?                    // Trazabilidad al presupuesto origen
-  ClienteEquipoID       Int?                    // Equipo específico (opcional)
-
-  // Identificador único del cobro
-  NumeroCobro           String                  @unique @db.VarChar(20)
-  NumeroPeriodo         Int                     // Periodo 1, 2, 3... del contrato
-
-  // Fechas
-  FechaVencimiento      DateTime                @db.Date
-  FechaPago             DateTime?               @db.Date
-
-  // Montos
-  MontoOriginal         Float                   @db.Float  // Monto original del cobro
-  MontoDescuento        Float?                  @db.Float  // Descuento aplicado
-  MontoPromocion        Float?                  @db.Float  // Promoción aplicada
-  MontoFinal            Float                   @db.Float  // Monto final a pagar
-  MontoPagado           Float?                  @db.Float  // Monto efectivamente pagado
-
-  // Estado del cobro
-  Estatus               EstatusCobro            @default(PENDIENTE)
-
-  // Si es regalo/promoción
-  MotivoEspecial        MotivoCobroEspecial?    // REGALO, PROMOCION, DESCUENTO
-  DescripcionMotivo     String?                 @db.VarChar(255)
-
-  // Pago
-  MetodoPagoID          Int?
-  Referencia            String?                 @db.VarChar(100)
-
-  // Motivo cancelación
-  MotivoCancelacion     String?                 @db.VarChar(255)
-
-  // Observaciones
-  Observaciones         String?                 @db.VarChar(500)
-
-  // Auditoría
-  UsuarioCreadorID      Int?
-  UsuarioPagoID         Int?                    // Usuario que registró el pago
-  FechaCreacion         DateTime                @default(now())
-  FechaModificacion     DateTime?               @updatedAt
-  IsActive              Int?                    @db.TinyInt @default(1)
-
-  // Relaciones
-  contrato              contratos?              @relation(fields: [ContratoID], references: [ContratoID])
-  venta                 ventas_encabezado?      @relation(fields: [VentaID], references: [VentaID])
-  servicio              servicios?              @relation(fields: [ServicioID], references: [ServicioID])
-  presupuesto           presupuestos_encabezado? @relation(fields: [PresupuestoID], references: [PresupuestoID])
-  cliente_equipo        clientes_equipos?       @relation(fields: [ClienteEquipoID], references: [ClienteEquipoID])
-  historial             cobros_historial[]
-
-  @@index([ContratoID])
-  @@index([VentaID])
-  @@index([ServicioID])
-  @@index([PresupuestoID])
-  @@index([FechaVencimiento])
-  @@index([Estatus])
-}
-
-model cobros_historial {
-  HistorialID           Int                     @id @default(autoincrement())
-  CobroID               Int
-
-  TipoAccion            TipoAccionCobro
-
-  Descripcion           String                  @db.VarChar(500)
-  ValorAnterior         String?                 @db.Text
-  ValorNuevo            String?                 @db.Text
-
-  UsuarioID             Int
-  FechaAccion           DateTime                @default(now())
-
-  // Relaciones
-  cobro                 cobros                  @relation(fields: [CobroID], references: [CobroID])
-
-  @@index([CobroID])
-  @@index([FechaAccion])
-}
-
-// Configuración de generación de cobros por contrato
-model cobros_configuracion {
-  ConfiguracionID       Int                     @id @default(autoincrement())
-  ContratoID            Int                     @unique
-
-  // Fechas de generación
-  FechaInicialCobros    DateTime                @db.Date
-
-  // Monto por cobro
-  MontoCobro            Float                   @db.Float
-
-  // Configuración de tiempo
-  TipoTiempoContrato    TipoTiempo              // ANIOS, MESES
-  TiempoContrato        Int                     // 1 año, 2 años, etc.
-
-  // Frecuencia de cobro
-  FrecuenciaCobro       FrecuenciaCobro         // MENSUAL, BIMESTRAL, TRIMESTRAL, SEMESTRAL, ANUAL
-  TiempoFrecuencia      Int                     @default(1) // Cada cuántos periodos
-
-  // Cálculo: Total de cobros
-  TotalCobros           Int                     // Número total de cobros a generar
-  CobrosGenerados       Int                     @default(0) // Cobros ya generados
-
-  // Observaciones
-  Observaciones         String?                 @db.VarChar(500)
-
-  // Auditoría
-  UsuarioID             Int
-  FechaCreacion         DateTime                @default(now())
-  IsActive              Int?                    @db.TinyInt @default(1)
-
-  // Relaciones
-  contrato              contratos               @relation(fields: [ContratoID], references: [ContratoID])
-
-  @@index([ContratoID])
 }
 
 enum EstatusCobro {
@@ -1753,131 +1526,9 @@ enum FrecuenciaCobro {
   ANUAL
 }
 
-// =============================================
-// PERIODOS DE CAMBIO DE REFACCIONES
-// =============================================
-
-model refaccion_periodo_cambio {
-  RefaccionPeriodoCambioID Int                    @id @default(autoincrement())
-  RefaccionID              Int
-  PeriodoContrato          Int                    // Frecuencia del contrato en meses (3, 4, 6, etc.)
-  PeriodoCambioMeses       Int                    // Cada cuántos meses se debe cambiar la refacción
-  Observaciones            String?                @db.VarChar(500)
-  IsActive                 Int?                   @db.TinyInt @default(1)
-  CreatedAt                DateTime               @default(now())
-  UpdatedAt                DateTime               @updatedAt
-
-  // Relaciones
-  refaccion                catalogo_refacciones   @relation(fields: [RefaccionID], references: [RefaccionID], onDelete: Cascade)
-
-  // Constraints
-  @@unique([RefaccionID, PeriodoContrato])
-  @@index([RefaccionID])
-  @@index([PeriodoContrato])
-}
-
-// =============================================
-// NOTAS DE CRÉDITO
-// =============================================
-
-model notas_credito {
-  NotaCreditoID     Int                          @id @default(autoincrement())
-  ProveedorID       Int
-  Monto             Float                        @db.Float
-  Fecha             DateTime                     @db.Date
-  NumeroReferencia  String?                      @db.VarChar(100)
-  Descripcion       String                       @db.VarChar(500)
-  Observaciones     String?                      @db.Text
-  Estado            notas_credito_Estado?        @default(DISPONIBLE)
-  UsuarioID         Int
-  FechaCreacion     DateTime?                    @default(now()) @db.DateTime(0)
-  FechaModificacion DateTime?                    @default(now()) @db.DateTime(0)
-  IsActive          Int?                         @default(1) @db.TinyInt
-
-  // Relaciones
-  proveedor         catalogo_proveedores         @relation(fields: [ProveedorID], references: [ProveedorID])
-  aplicaciones      notas_credito_aplicaciones[]
-
-  @@index([Estado], map: "idx_estado")
-  @@index([ProveedorID], map: "idx_proveedor")
-}
-
-model notas_credito_aplicaciones {
-  AplicacionID       Int                @id @default(autoincrement())
-  NotaCreditoID      Int
-  CompraEncabezadoID Int
-  MontoAplicado      Float              @db.Float
-  FechaAplicacion    DateTime?          @default(now()) @db.DateTime(0)
-  UsuarioID          Int
-
-  // Relaciones
-  nota_credito       notas_credito      @relation(fields: [NotaCreditoID], references: [NotaCreditoID])
-  compra             compras_encabezado @relation(fields: [CompraEncabezadoID], references: [CompraEncabezadoID])
-
-  @@index([CompraEncabezadoID], map: "idx_compra")
-  @@index([NotaCreditoID], map: "idx_nota")
-}
-
 enum notas_credito_Estado {
   DISPONIBLE
   APLICADO
-}
-
-// =============================================
-// COTIZACIONES DE COMPRA
-// =============================================
-
-model cotizaciones_compra_encabezado {
-  CotizacionCompraID Int                              @id @default(autoincrement())
-  Folio              String?                          @db.VarChar(50)
-  FechaCotizacion    DateTime                         @db.Date
-  Observaciones      String?                          @db.VarChar(500)
-  Estado             cotizaciones_compra_Estado?      @default(PENDIENTE)
-  UsuarioID          Int?
-  FechaCreacion      DateTime?                        @default(now()) @db.DateTime(0)
-  IsActive           Boolean?                         @default(true)
-
-  detalles           cotizaciones_compra_detalle[]
-  envios             cotizaciones_compra_envios[]
-  compras            compras_encabezado[]
-  respuestas         cotizaciones_compra_respuestas[]
-  equiposVirtuales   cotizaciones_compra_equipos_virtuales[]
-  historialEquipos   equipos_virtuales_historial[]
-
-  @@index([Estado], map: "idx_cotizacion_estado")
-}
-
-model cotizaciones_compra_detalle {
-  CotizacionDetalleID Int                              @id @default(autoincrement())
-  CotizacionCompraID  Int
-  RefaccionID         Int
-  Cantidad            Int
-  Observaciones       String?                          @db.VarChar(255)
-  EquipoVirtualID     Int?
-  IsActive            Boolean?                         @default(true)
-
-  encabezado          cotizaciones_compra_encabezado   @relation(fields: [CotizacionCompraID], references: [CotizacionCompraID])
-  refaccion           catalogo_refacciones             @relation(fields: [RefaccionID], references: [RefaccionID])
-  equipoVirtual       equipos_virtuales?               @relation(fields: [EquipoVirtualID], references: [EquipoVirtualID])
-
-  @@index([CotizacionCompraID], map: "idx_cotizacion_detalle")
-  @@index([RefaccionID], map: "idx_refaccion_cotizacion")
-  @@index([EquipoVirtualID], map: "idx_equipo_virtual_cotizacion")
-}
-
-model cotizaciones_compra_envios {
-  EnvioID            Int                              @id @default(autoincrement())
-  CotizacionCompraID Int
-  ProveedorID        Int
-  ContactoID         Int?
-  FechaEnvio         DateTime?                        @default(now()) @db.DateTime(0)
-  MedioEnvio         String                           @db.VarChar(50)
-  Telefono           String?                          @db.VarChar(20)
-
-  encabezado         cotizaciones_compra_encabezado   @relation(fields: [CotizacionCompraID], references: [CotizacionCompraID])
-
-  @@index([CotizacionCompraID], map: "idx_envio_cotizacion")
-  @@index([ProveedorID], map: "idx_envio_proveedor")
 }
 
 enum cotizaciones_compra_Estado {
@@ -1888,73 +1539,9 @@ enum cotizaciones_compra_Estado {
   CANCELADA
 }
 
-// ============================================================================
-// TIPO DE USUARIO
-// ============================================================================
-
 enum TipoUsuario {
   INTERNO
   PROVEEDOR
-}
-
-// ============================================================================
-// SISTEMA MULTI-PROVEEDOR PARA COTIZACIONES
-// ============================================================================
-
-model cotizaciones_compra_respuestas {
-  RespuestaID         Int                              @id @default(autoincrement())
-  CotizacionCompraID  Int
-  ProveedorID         Int
-  Estado              EstadoRespuestaCotizacion?       @default(PENDIENTE)
-  DescuentoGlobal     Decimal?                         @default(0) @db.Decimal(5, 2)
-  Observaciones       String?                          @db.VarChar(500)
-  FechaRespuesta      DateTime?                        @db.DateTime(0)
-  FechaCreacion       DateTime?                        @default(now()) @db.DateTime(0)
-  IsActive            Boolean?                         @default(true)
-
-  encabezado          cotizaciones_compra_encabezado   @relation(fields: [CotizacionCompraID], references: [CotizacionCompraID])
-  proveedor           catalogo_proveedores             @relation(fields: [ProveedorID], references: [ProveedorID])
-  detalles            cotizaciones_compra_respuestas_detalle[]
-  equipos             cotizaciones_compra_respuestas_equipos[]
-
-  @@unique([CotizacionCompraID, ProveedorID], map: "unique_cotizacion_proveedor")
-  @@index([CotizacionCompraID], map: "idx_respuesta_cotizacion")
-  @@index([ProveedorID], map: "idx_respuesta_proveedor")
-  @@index([Estado], map: "idx_respuesta_estado")
-}
-
-model cotizaciones_compra_respuestas_detalle {
-  RespuestaDetalleID  Int                              @id @default(autoincrement())
-  RespuestaID         Int
-  CotizacionDetalleID Int
-  PrecioUnitario      Decimal?                         @default(0) @db.Decimal(12, 2)
-  Descuento           Decimal?                         @default(0) @db.Decimal(5, 2)
-  TieneStock          Boolean?                         @default(true)
-  DiasEntrega         Int?                             @default(0)
-  Observaciones       String?                          @db.VarChar(255)
-  IsActive            Boolean?                         @default(true)
-
-  respuesta           cotizaciones_compra_respuestas   @relation(fields: [RespuestaID], references: [RespuestaID], onDelete: Cascade)
-
-  @@index([RespuestaID], map: "idx_respuesta_detalle")
-  @@index([CotizacionDetalleID], map: "idx_respuesta_cotizacion_detalle")
-}
-
-model cotizaciones_compra_respuestas_equipos {
-  RespuestaEquipoID         Int                              @id @default(autoincrement())
-  RespuestaID               Int
-  CotizacionEquipoVirtualID Int
-  PrecioCotizado            Decimal                          @default(0) @db.Decimal(12, 2)
-  Disponible                Boolean?                         @default(true)
-  TiempoEntrega             String?                          @db.VarChar(50)
-  Observaciones             String?                          @db.VarChar(255)
-  IsActive                  Boolean?                         @default(true)
-
-  respuesta                 cotizaciones_compra_respuestas   @relation(fields: [RespuestaID], references: [RespuestaID], onDelete: Cascade)
-  cotizacionEquipoVirtual   cotizaciones_compra_equipos_virtuales @relation(fields: [CotizacionEquipoVirtualID], references: [ID])
-
-  @@index([RespuestaID], map: "idx_respuesta_equipo")
-  @@index([CotizacionEquipoVirtualID], map: "idx_respuesta_cotizacion_equipo")
 }
 
 enum EstadoRespuestaCotizacion {
@@ -1964,92 +1551,31 @@ enum EstadoRespuestaCotizacion {
   RECHAZADA
 }
 
-// ============================================================================
-// EQUIPOS VIRTUALES
-// ============================================================================
-
-model equipos_virtuales {
-  EquipoVirtualID     Int                              @id @default(autoincrement())
-  Nombre              String                           @db.VarChar(255)
-  Descripcion         String?                          @db.VarChar(500)
-  Codigo              String?                          @db.VarChar(50)
-  TotalCosto          Decimal?                         @default(0) @db.Decimal(12, 2)
-  TotalConIVA         Decimal?                         @default(0) @db.Decimal(12, 2)
-  IsActive            Boolean?                         @default(true)
-  FechaCreacion       DateTime?                        @default(now()) @db.DateTime(0)
-  FechaActualizacion  DateTime?                        @updatedAt @db.DateTime(0)
-  UsuarioCreadorID    Int?
-
-  detalles                        equipos_virtuales_detalle[]
-  historial                       equipos_virtuales_historial[]
-  cotizaciones_compra_detalle     cotizaciones_compra_detalle[]
-  cotizaciones_compra_equipos     cotizaciones_compra_equipos_virtuales[]
-  compras_detalle                 compras_detalle[]
-
-  @@index([Nombre], map: "idx_equipo_virtual_nombre")
-  @@index([IsActive], map: "idx_equipo_virtual_activo")
+enum presupuestos_detalle_TipoItem {
+  EQUIPO_PURIFREEZE
+  EQUIPO_EXTERNO
+  REFACCION
+  SERVICIO
+  EQUIPO_VIRTUAL
 }
 
-model equipos_virtuales_detalle {
-  DetalleID               Int                          @id @default(autoincrement())
-  EquipoVirtualID         Int
-  RefaccionID             Int
-  Cantidad                Int?                         @default(1)
-  CostoUnitario           Decimal?                     @default(0) @db.Decimal(12, 2)
-  Descuento               Decimal?                     @default(0) @db.Decimal(5, 2)
-  TotalUnitario           Decimal?                     @default(0) @db.Decimal(12, 2)
-  Otros                   Decimal?                     @default(0) @db.Decimal(12, 2)
-  TotalOtros              Decimal?                     @default(0) @db.Decimal(12, 2)
-  CostoImportacion        Decimal?                     @default(0) @db.Decimal(12, 2)
-  TotalUnidad             Decimal?                     @default(0) @db.Decimal(12, 2)
-  TotalFinal              Decimal?                     @default(0) @db.Decimal(12, 2)
-  IVA                     Decimal?                     @default(0) @db.Decimal(5, 2)
-  CantidadPiezasPorEquipo Int?                         @default(1)
-  NumeroEquipos           Int?                         @default(1)
-  CostoAnterior           Decimal?                     @default(0) @db.Decimal(12, 2)
-  CostoActual             Decimal?                     @default(0) @db.Decimal(12, 2)
-  Diferencia              Decimal?                     @default(0) @db.Decimal(12, 2)
-  IsActive                Boolean?                     @default(true)
-
-  equipoVirtual           equipos_virtuales            @relation(fields: [EquipoVirtualID], references: [EquipoVirtualID], onDelete: Cascade)
-  refaccion               catalogo_refacciones         @relation(fields: [RefaccionID], references: [RefaccionID])
-
-  @@index([EquipoVirtualID], map: "idx_detalle_equipo")
-  @@index([RefaccionID], map: "idx_detalle_refaccion")
+enum servicios_Estatus {
+  POR_CONFIRMAR
+  CONFIRMADO
+  EN_PROCESO
+  REALIZADO
+  CANCELADO
 }
 
-model equipos_virtuales_historial {
-  HistorialID         Int                                @id @default(autoincrement())
-  EquipoVirtualID     Int
-  CotizacionCompraID  Int?
-  FechaCambio         DateTime                           @default(now()) @db.DateTime(0)
-  PrecioAnterior      Decimal                            @db.Decimal(12, 2)
-  PrecioNuevo         Decimal                            @db.Decimal(12, 2)
-  Diferencia          Decimal                            @db.Decimal(12, 2)
-  DetallesCambio      Json?
-  UsuarioID           Int?
-  Observaciones       String?                            @db.VarChar(500)
-
-  equipoVirtual       equipos_virtuales                  @relation(fields: [EquipoVirtualID], references: [EquipoVirtualID])
-  cotizacion          cotizaciones_compra_encabezado?    @relation(fields: [CotizacionCompraID], references: [CotizacionCompraID])
-
-  @@index([EquipoVirtualID], map: "idx_historial_equipo")
-  @@index([CotizacionCompraID], map: "idx_historial_cotizacion")
+enum compras_encabezado_EstadoEntrega {
+  PEDIDO
+  NO_ENTREGADO
+  PARCIAL
+  ENTREGADO
 }
 
-model cotizaciones_compra_equipos_virtuales {
-  ID                  Int                              @id @default(autoincrement())
-  CotizacionCompraID  Int
-  EquipoVirtualID     Int
-  PrecioOriginal      Decimal                          @db.Decimal(12, 2)
-  PrecioFinal         Decimal                          @db.Decimal(12, 2)
-  FechaCreacion       DateTime                         @default(now()) @db.DateTime(0)
-
-  cotizacion          cotizaciones_compra_encabezado   @relation(fields: [CotizacionCompraID], references: [CotizacionCompraID])
-  equipoVirtual       equipos_virtuales                @relation(fields: [EquipoVirtualID], references: [EquipoVirtualID])
-  respuestasProveedores cotizaciones_compra_respuestas_equipos[]
-
-  @@unique([CotizacionCompraID, EquipoVirtualID], map: "uk_cotizacion_equipo")
-  @@index([CotizacionCompraID], map: "idx_ccev_cotizacion")
-  @@index([EquipoVirtualID], map: "idx_ccev_equipo")
+enum clientes_equipos_Modalidad {
+  RENTA
+  VENTA
+  MANTENIMIENTO
 }

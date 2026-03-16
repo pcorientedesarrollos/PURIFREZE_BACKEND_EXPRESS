@@ -3,6 +3,7 @@ import { z } from 'zod';
 export const createProveedorContactoSchema = z.object({
   ProveedorID: z.number({ required_error: 'El ProveedorID es requerido' }),
   NombreContacto: z.string().min(1, 'El nombre del contacto es requerido').max(255),
+  Puesto: z.string().max(100).optional().nullable(),
   Celular: z.string().max(50).optional(),
   Correo: z.string().email('El correo debe ser válido').max(255).optional(),
   Observaciones: z.string().max(500).optional(),
@@ -10,6 +11,7 @@ export const createProveedorContactoSchema = z.object({
 
 export const updateProveedorContactoSchema = z.object({
   NombreContacto: z.string().min(1).max(255).optional(),
+  Puesto: z.string().max(100).optional().nullable(),
   Celular: z.string().max(50).optional(),
   Correo: z.string().email('El correo debe ser válido').max(255).optional(),
   Observaciones: z.string().max(500).optional(),

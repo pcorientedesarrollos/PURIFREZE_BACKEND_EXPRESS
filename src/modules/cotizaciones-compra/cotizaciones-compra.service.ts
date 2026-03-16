@@ -76,6 +76,7 @@ class CotizacionesCompraService {
             data: {
               CotizacionCompraID: encabezado.CotizacionCompraID,
               EquipoVirtualID: equipoDto.EquipoVirtualID,
+              Cantidad: equipoDto.Cantidad || 1,
               PrecioOriginal: equipoVirtual.TotalCosto || 0,
               PrecioFinal: equipoDto.PrecioFinal,
             },
@@ -205,6 +206,7 @@ class CotizacionesCompraService {
     const equiposVirtualesFormateados = cotizacion.equiposVirtuales.map((ev) => ({
       ID: ev.ID,
       EquipoVirtualID: ev.EquipoVirtualID,
+      Cantidad: ev.Cantidad || 1,
       PrecioOriginal: Number(ev.PrecioOriginal),
       PrecioFinal: Number(ev.PrecioFinal),
       FechaCreacion: moment(ev.FechaCreacion).format('YYYY-MM-DD HH:mm:ss'),
@@ -712,6 +714,7 @@ class CotizacionesCompraService {
         data: {
           CotizacionCompraID: cotizacionId,
           EquipoVirtualID: dto.EquipoVirtualID,
+          Cantidad: dto.Cantidad || 1,
           PrecioOriginal: equipoVirtual.TotalCosto || 0,
           PrecioFinal: dto.PrecioFinal,
         },
@@ -736,6 +739,7 @@ class CotizacionesCompraService {
           EquipoVirtualID: dto.EquipoVirtualID,
           Nombre: equipoVirtual.Nombre,
           Codigo: equipoVirtual.Codigo,
+          Cantidad: dto.Cantidad || 1,
           RefaccionesAgregadas: equipoVirtual.detalles.length,
           PrecioOriginal: equipoVirtual.TotalCosto,
           PrecioFinal: dto.PrecioFinal,

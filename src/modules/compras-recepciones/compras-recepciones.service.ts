@@ -296,28 +296,31 @@ class ComprasRecepcionesService {
     }
 
     // 7. Construir detalle de refacciones con info completa
-    const refaccionesDetalle = compra.compras_detalle.map(detalle => {
-      const refaccion = detalle.RefaccionID ? refaccionesMap.get(detalle.RefaccionID) : null;
-      const cantidadRecibida = detalle.RefaccionID ? (cantidadesRecibidas.get(detalle.RefaccionID) || 0) : 0;
-      const cantidadComprada = detalle.Cantidad || 0;
-      const cantidadPendiente = cantidadComprada - cantidadRecibida;
-      const precioUnitario = detalle.PrecioUnitario || 0;
+    // Solo incluir detalles que tienen RefaccionID (no equipos virtuales sin expandir)
+    const refaccionesDetalle = compra.compras_detalle
+      .filter(detalle => detalle.RefaccionID !== null)
+      .map(detalle => {
+        const refaccion = refaccionesMap.get(detalle.RefaccionID!);
+        const cantidadRecibida = cantidadesRecibidas.get(detalle.RefaccionID!) || 0;
+        const cantidadComprada = detalle.Cantidad || 0;
+        const cantidadPendiente = cantidadComprada - cantidadRecibida;
+        const precioUnitario = detalle.PrecioUnitario || 0;
 
-      return {
-        CompraDetalleID: detalle.CompraDetalleID,
-        RefaccionID: detalle.RefaccionID,
-        NombreRefaccion: refaccion?.NombrePieza || 'Refacción no encontrada',
-        Descripcion: refaccion?.Observaciones || '',
-        CantidadComprada: cantidadComprada,
-        CantidadRecibida: cantidadRecibida,
-        CantidadPendiente: cantidadPendiente,
-        PrecioUnitario: precioUnitario,
-        SubtotalComprado: cantidadComprada * precioUnitario,
-        SubtotalRecibido: cantidadRecibida * precioUnitario,
-        SubtotalPendiente: cantidadPendiente * precioUnitario,
-        Completado: cantidadPendiente <= 0,
-      };
-    });
+        return {
+          CompraDetalleID: detalle.CompraDetalleID,
+          RefaccionID: detalle.RefaccionID,
+          NombreRefaccion: refaccion?.NombrePieza || 'Refacción no encontrada',
+          Descripcion: refaccion?.Observaciones || '',
+          CantidadComprada: cantidadComprada,
+          CantidadRecibida: cantidadRecibida,
+          CantidadPendiente: cantidadPendiente,
+          PrecioUnitario: precioUnitario,
+          SubtotalComprado: cantidadComprada * precioUnitario,
+          SubtotalRecibido: cantidadRecibida * precioUnitario,
+          SubtotalPendiente: cantidadPendiente * precioUnitario,
+          Completado: cantidadPendiente <= 0,
+        };
+      });
 
     // 8. Calcular totales
     const totalPagado = pagos.reduce((sum, p) => sum + (p.Monto || 0), 0);

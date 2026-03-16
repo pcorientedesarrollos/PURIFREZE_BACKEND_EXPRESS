@@ -16,6 +16,7 @@ export const cotizacionIdParamSchema = z.object({
 // Equipo virtual para agregar a cotización
 const equipoVirtualItemSchema = z.object({
   EquipoVirtualID: z.number().int().positive('EquipoVirtualID es requerido'),
+  Cantidad: z.number().int().min(1, 'La cantidad mínima es 1').default(1),
   PrecioFinal: z.number().min(0, 'El precio debe ser positivo'),
 });
 
@@ -68,6 +69,7 @@ export const equipoVirtualIdParamSchema = z.object({
 // Agregar equipo virtual a cotización
 export const agregarEquipoVirtualSchema = z.object({
   EquipoVirtualID: z.number().int().positive('EquipoVirtualID es requerido'),
+  Cantidad: z.number().int().min(1, 'La cantidad mínima es 1').default(1),
   PrecioFinal: z.number().min(0, 'El precio debe ser positivo'),
 });
 
