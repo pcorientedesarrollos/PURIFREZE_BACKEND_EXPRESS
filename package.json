@@ -5,7 +5,7 @@
   "description": "Backend Purifreeze con Express + Prisma",
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only -r tsconfig-paths/register src/index.ts",
-    "build": "tsc",
+    "build": "prisma generate && tsc",
     "start": "node dist/index.js",
     "prisma:generate": "prisma generate",
     "prisma:pull": "prisma db pull",
