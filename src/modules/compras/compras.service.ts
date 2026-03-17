@@ -199,6 +199,13 @@ class ComprasService {
                 },
               },
             },
+            equipoVirtual: {
+              select: {
+                EquipoVirtualID: true,
+                Nombre: true,
+                Codigo: true,
+              },
+            },
           },
         },
         compras_pagos: {
