@@ -500,6 +500,20 @@ class ComprasRecepcionesService {
                 NombreProveedor: true,
               },
             },
+            compras_detalle: {
+              where: { EquipoVirtualID: { not: null } },
+              take: 1,
+              select: {
+                EquipoVirtualID: true,
+                equipoVirtual: {
+                  select: {
+                    EquipoVirtualID: true,
+                    Nombre: true,
+                    Codigo: true,
+                  },
+                },
+              },
+            },
           },
         },
       },
@@ -533,6 +547,11 @@ class ComprasRecepcionesService {
       Proveedor: recepcion.compra?.catalogo_proveedores ? {
         ProveedorID: recepcion.compra.catalogo_proveedores.ProveedorID,
         NombreProveedor: recepcion.compra.catalogo_proveedores.NombreProveedor,
+      } : null,
+      EquipoVirtual: recepcion.compra?.compras_detalle?.[0]?.equipoVirtual ? {
+        EquipoVirtualID: recepcion.compra.compras_detalle[0].equipoVirtual.EquipoVirtualID,
+        Nombre: recepcion.compra.compras_detalle[0].equipoVirtual.Nombre,
+        Codigo: recepcion.compra.compras_detalle[0].equipoVirtual.Codigo,
       } : null,
     }));
 

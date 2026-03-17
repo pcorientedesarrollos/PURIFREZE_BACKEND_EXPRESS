@@ -165,6 +165,9 @@ class CotizacionesCompraService {
         },
         envios: {
           orderBy: { FechaEnvio: 'desc' },
+          include: {
+            contacto: true,
+          },
         },
       },
     });
@@ -237,7 +240,7 @@ class CotizacionesCompraService {
 
     const proveedoresMap = new Map(proveedores.map((p) => [p.ProveedorID, p]));
 
-    const enviosConProveedor = cotizacion.envios.map((envio) => {
+    const enviosConProveedor = cotizacion.envios.map((envio: any) => {
       const proveedor = proveedoresMap.get(envio.ProveedorID);
       return {
         ...envio,
@@ -246,6 +249,15 @@ class CotizacionesCompraService {
           ? {
               ProveedorID: proveedor.ProveedorID,
               NombreProveedor: proveedor.NombreProveedor,
+            }
+          : null,
+        Contacto: envio.contacto
+          ? {
+              ContactoID: envio.contacto.ContactoID,
+              NombreContacto: envio.contacto.NombreContacto,
+              Puesto: envio.contacto.Puesto,
+              Celular: envio.contacto.Celular,
+              Correo: envio.contacto.Correo,
             }
           : null,
       };
@@ -400,7 +412,7 @@ class CotizacionesCompraService {
         throw new HttpError('Proveedor no encontrado', 404);
       }
 
-      // Crear registro de envío
+      // Crear registro de envío con include del contacto
       const envio = await tx.cotizaciones_compra_envios.create({
         data: {
           CotizacionCompraID: id,
@@ -408,6 +420,9 @@ class CotizacionesCompraService {
           ContactoID: dto.ContactoID || null,
           MedioEnvio: dto.MedioEnvio,
           Telefono: dto.Telefono || null,
+        },
+        include: {
+          contacto: true,
         },
       });
 
@@ -420,7 +435,16 @@ class CotizacionesCompraService {
       }
 
       return {
-        envio,
+        envio: {
+          ...envio,
+          Contacto: envio.contacto ? {
+            ContactoID: envio.contacto.ContactoID,
+            NombreContacto: envio.contacto.NombreContacto,
+            Puesto: envio.contacto.Puesto,
+            Celular: envio.contacto.Celular,
+            Correo: envio.contacto.Correo,
+          } : null,
+        },
         proveedor: {
           ProveedorID: proveedor.ProveedorID,
           NombreProveedor: proveedor.NombreProveedor,

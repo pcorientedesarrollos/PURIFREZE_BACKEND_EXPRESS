@@ -119,6 +119,7 @@ model proveedores_contactos {
   IsActive        Boolean?              @default(true)
 
   proveedor       catalogo_proveedores  @relation(fields: [ProveedorID], references: [ProveedorID])
+  envios          cotizaciones_compra_envios[]
 
   @@index([ProveedorID])
 }
@@ -1879,9 +1880,11 @@ model cotizaciones_compra_envios {
   Telefono           String?                          @db.VarChar(20)
 
   encabezado         cotizaciones_compra_encabezado   @relation(fields: [CotizacionCompraID], references: [CotizacionCompraID])
+  contacto           proveedores_contactos?           @relation(fields: [ContactoID], references: [ContactoID])
 
   @@index([CotizacionCompraID], map: "idx_envio_cotizacion")
   @@index([ProveedorID], map: "idx_envio_proveedor")
+  @@index([ContactoID], map: "idx_envio_contacto")
 }
 
 enum cotizaciones_compra_Estado {
