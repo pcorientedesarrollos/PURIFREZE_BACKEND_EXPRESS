@@ -388,7 +388,7 @@ class EquiposService {
       NombreEquipo: equipo.plantilla.NombreEquipo,
       Estatus: equipo.Estatus,
       EsExterno: equipo.EsExterno === 1,
-      FechaCreacion: moment(equipo.FechaCreacion).format('YYYY-MM-DD'),
+      FechaCreacion: moment.utc(equipo.FechaCreacion).format('YYYY-MM-DD'),
     }));
   }
 
@@ -1463,10 +1463,10 @@ class EquiposService {
       EsExterno: equipo.EsExterno === 1,
       Estatus: equipo.Estatus,
       Observaciones: equipo.Observaciones,
-      FechaCreacion: equipo.FechaCreacion ? moment(equipo.FechaCreacion).format('YYYY-MM-DD') : null,
-      FechaInstalacion: equipo.FechaInstalacion ? moment(equipo.FechaInstalacion).format('YYYY-MM-DD') : null,
-      FechaDesmontaje: equipo.FechaDesmontaje ? moment(equipo.FechaDesmontaje).format('YYYY-MM-DD') : null,
-      FechaReacondicionamiento: equipo.FechaReacondicionamiento ? moment(equipo.FechaReacondicionamiento).format('YYYY-MM-DD') : null,
+      FechaCreacion: equipo.FechaCreacion ? moment.utc(equipo.FechaCreacion).format('YYYY-MM-DD') : null,
+      FechaInstalacion: equipo.FechaInstalacion ? moment.utc(equipo.FechaInstalacion).format('YYYY-MM-DD') : null,
+      FechaDesmontaje: equipo.FechaDesmontaje ? moment.utc(equipo.FechaDesmontaje).format('YYYY-MM-DD') : null,
+      FechaReacondicionamiento: equipo.FechaReacondicionamiento ? moment.utc(equipo.FechaReacondicionamiento).format('YYYY-MM-DD') : null,
       VecesReacondicionado: equipo.VecesReacondicionado || 0,
       Plantilla: {
         PlantillaEquipoID: equipo.plantilla.PlantillaEquipoID,
@@ -1489,10 +1489,10 @@ class EquiposService {
       EsExterno: equipo.EsExterno === 1,
       Estatus: equipo.Estatus,
       Observaciones: equipo.Observaciones,
-      FechaCreacion: equipo.FechaCreacion ? moment(equipo.FechaCreacion).format('YYYY-MM-DD') : null,
-      FechaInstalacion: equipo.FechaInstalacion ? moment(equipo.FechaInstalacion).format('YYYY-MM-DD') : null,
-      FechaDesmontaje: equipo.FechaDesmontaje ? moment(equipo.FechaDesmontaje).format('YYYY-MM-DD') : null,
-      FechaReacondicionamiento: equipo.FechaReacondicionamiento ? moment(equipo.FechaReacondicionamiento).format('YYYY-MM-DD') : null,
+      FechaCreacion: equipo.FechaCreacion ? moment.utc(equipo.FechaCreacion).format('YYYY-MM-DD') : null,
+      FechaInstalacion: equipo.FechaInstalacion ? moment.utc(equipo.FechaInstalacion).format('YYYY-MM-DD') : null,
+      FechaDesmontaje: equipo.FechaDesmontaje ? moment.utc(equipo.FechaDesmontaje).format('YYYY-MM-DD') : null,
+      FechaReacondicionamiento: equipo.FechaReacondicionamiento ? moment.utc(equipo.FechaReacondicionamiento).format('YYYY-MM-DD') : null,
       VecesReacondicionado: equipo.VecesReacondicionado || 0,
       UsuarioCreadorID: equipo.UsuarioCreadorID,
       Plantilla: {

@@ -42,7 +42,7 @@ class InventarioService {
     const inventarioFormateado = inventario.map((item) => ({
       ...item,
       FechaUltimoMovimiento: item.FechaUltimoMovimiento
-        ? moment(item.FechaUltimoMovimiento).format('YYYY-MM-DD')
+        ? moment.utc(item.FechaUltimoMovimiento).format('YYYY-MM-DD')
         : null,
       refaccion: item.RefaccionID ? refaccionesMap.get(item.RefaccionID) || null : null,
       ubicacion: item.UbicacionID ? ubicacionesMap.get(item.UbicacionID) || null : null,
@@ -89,7 +89,7 @@ class InventarioService {
     const inventarioFormateado = inventario.map((item) => ({
       ...item,
       FechaUltimoMovimiento: item.FechaUltimoMovimiento
-        ? moment(item.FechaUltimoMovimiento).format('YYYY-MM-DD')
+        ? moment.utc(item.FechaUltimoMovimiento).format('YYYY-MM-DD')
         : null,
       refaccion,
       ubicacion: item.UbicacionID ? ubicacionesMap.get(item.UbicacionID) || null : null,

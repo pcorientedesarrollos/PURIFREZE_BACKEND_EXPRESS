@@ -91,8 +91,8 @@ class ComprasPagosService {
 
     const pagosFormateados = pagos.map((pago) => ({
       ...pago,
-      FechaPago: moment(pago.FechaPago).format('YYYY-MM-DD'),
-      FechaRegistro: moment(pago.FechaRegistro).format('YYYY-MM-DD HH:mm:ss'),
+      FechaPago: moment.utc(pago.FechaPago).format('YYYY-MM-DD'),
+      FechaRegistro: moment.utc(pago.FechaRegistro).format('YYYY-MM-DD HH:mm:ss'),
     }));
 
     const totalPagado = pagos.reduce((sum, pago) => sum + pago.Monto, 0);

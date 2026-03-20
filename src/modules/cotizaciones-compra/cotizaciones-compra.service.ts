@@ -103,6 +103,13 @@ class CotizacionesCompraService {
     const cotizaciones = await prisma.cotizaciones_compra_encabezado.findMany({
       where: { IsActive: true },
       include: {
+        usuario: {
+          select: {
+            UsuarioID: true,
+            Usuario: true,
+            NombreCompleto: true,
+          },
+        },
         detalles: {
           where: { IsActive: true, EquipoVirtualID: null }, // Solo refacciones individuales
         },
@@ -121,8 +128,8 @@ class CotizacionesCompraService {
 
     const formateadas = cotizaciones.map((cot) => ({
       ...cot,
-      FechaCotizacion: moment(cot.FechaCotizacion).format('YYYY-MM-DD'),
-      FechaCreacion: moment(cot.FechaCreacion).format('YYYY-MM-DD HH:mm:ss'),
+      FechaCotizacion: moment.utc(cot.FechaCotizacion).format('YYYY-MM-DD'),
+      FechaCreacion: moment.utc(cot.FechaCreacion).format('YYYY-MM-DD HH:mm:ss'),
       TotalRefacciones: cot.detalles.length,
       TotalEquiposVirtuales: cot.equiposVirtuales.length,
       TotalEnvios: cot.envios.length,
@@ -140,6 +147,13 @@ class CotizacionesCompraService {
     const cotizacion = await prisma.cotizaciones_compra_encabezado.findUnique({
       where: { CotizacionCompraID: id },
       include: {
+        usuario: {
+          select: {
+            UsuarioID: true,
+            Usuario: true,
+            NombreCompleto: true,
+          },
+        },
         detalles: {
           where: { IsActive: true, EquipoVirtualID: null }, // Solo refacciones individuales
         },
@@ -212,7 +226,7 @@ class CotizacionesCompraService {
       Cantidad: ev.Cantidad || 1,
       PrecioOriginal: Number(ev.PrecioOriginal),
       PrecioFinal: Number(ev.PrecioFinal),
-      FechaCreacion: moment(ev.FechaCreacion).format('YYYY-MM-DD HH:mm:ss'),
+      FechaCreacion: moment.utc(ev.FechaCreacion).format('YYYY-MM-DD HH:mm:ss'),
       equipoVirtual: {
         EquipoVirtualID: ev.equipoVirtual.EquipoVirtualID,
         Nombre: ev.equipoVirtual.Nombre,
@@ -244,7 +258,7 @@ class CotizacionesCompraService {
       const proveedor = proveedoresMap.get(envio.ProveedorID);
       return {
         ...envio,
-        FechaEnvio: moment(envio.FechaEnvio).format('YYYY-MM-DD HH:mm:ss'),
+        FechaEnvio: moment.utc(envio.FechaEnvio).format('YYYY-MM-DD HH:mm:ss'),
         Proveedor: proveedor
           ? {
               ProveedorID: proveedor.ProveedorID,
@@ -265,8 +279,8 @@ class CotizacionesCompraService {
 
     const formateada = {
       ...cotizacion,
-      FechaCotizacion: moment(cotizacion.FechaCotizacion).format('YYYY-MM-DD'),
-      FechaCreacion: moment(cotizacion.FechaCreacion).format('YYYY-MM-DD HH:mm:ss'),
+      FechaCotizacion: moment.utc(cotizacion.FechaCotizacion).format('YYYY-MM-DD'),
+      FechaCreacion: moment.utc(cotizacion.FechaCreacion).format('YYYY-MM-DD HH:mm:ss'),
       detalles: detallesConRefaccion,
       equiposVirtuales: equiposVirtualesFormateados,
       envios: enviosConProveedor,

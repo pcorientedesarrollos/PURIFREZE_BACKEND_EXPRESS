@@ -110,8 +110,9 @@ class EquiposVirtualesService {
       Codigo: equipo.Codigo,
       TotalCosto: equipo.TotalCosto,
       TotalRefacciones: equipo.detalles.length,
-      FechaCreacion: equipo.FechaCreacion ? moment(equipo.FechaCreacion).format('YYYY-MM-DD') : null,
-      FechaActualizacion: equipo.FechaActualizacion ? moment(equipo.FechaActualizacion).format('YYYY-MM-DD') : null,
+      TotalCantidad: equipo.detalles.reduce((sum, d) => sum + d.Cantidad, 0),
+      FechaCreacion: equipo.FechaCreacion ? moment.utc(equipo.FechaCreacion).format('YYYY-MM-DD') : null,
+      FechaActualizacion: equipo.FechaActualizacion ? moment.utc(equipo.FechaActualizacion).format('YYYY-MM-DD') : null,
     }));
 
     return { message: 'Equipos virtuales obtenidos', data: equiposFormateados };
@@ -156,8 +157,8 @@ class EquiposVirtualesService {
       Codigo: equipo.Codigo,
       TotalCosto: equipo.TotalCosto,
       IsActive: equipo.IsActive,
-      FechaCreacion: equipo.FechaCreacion ? moment(equipo.FechaCreacion).format('YYYY-MM-DD') : null,
-      FechaActualizacion: equipo.FechaActualizacion ? moment(equipo.FechaActualizacion).format('YYYY-MM-DD') : null,
+      FechaCreacion: equipo.FechaCreacion ? moment.utc(equipo.FechaCreacion).format('YYYY-MM-DD') : null,
+      FechaActualizacion: equipo.FechaActualizacion ? moment.utc(equipo.FechaActualizacion).format('YYYY-MM-DD') : null,
       detalles: equipo.detalles.map(detalle => ({
         DetalleID: detalle.DetalleID,
         RefaccionID: detalle.RefaccionID,
@@ -494,7 +495,7 @@ class EquiposVirtualesService {
 
     const historialFormateado = historial.map(h => ({
       HistorialID: h.HistorialID,
-      FechaCambio: moment(h.FechaCambio).format('YYYY-MM-DD HH:mm:ss'),
+      FechaCambio: moment.utc(h.FechaCambio).format('YYYY-MM-DD HH:mm:ss'),
       PrecioAnterior: h.PrecioAnterior,
       PrecioNuevo: h.PrecioNuevo,
       Diferencia: h.Diferencia,
@@ -503,7 +504,7 @@ class EquiposVirtualesService {
       Cotizacion: h.cotizacion ? {
         CotizacionCompraID: h.cotizacion.CotizacionCompraID,
         Folio: h.cotizacion.Folio,
-        FechaCotizacion: moment(h.cotizacion.FechaCotizacion).format('YYYY-MM-DD'),
+        FechaCotizacion: moment.utc(h.cotizacion.FechaCotizacion).format('YYYY-MM-DD'),
       } : null,
     }));
 

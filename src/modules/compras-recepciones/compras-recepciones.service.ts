@@ -339,7 +339,7 @@ class ComprasRecepcionesService {
         compra: {
           CompraEncabezadoID: compra.CompraEncabezadoID,
           ProveedorID: compra.ProveedorID,
-          FechaCompra: compra.FechaCompra ? moment(compra.FechaCompra).format('YYYY-MM-DD') : null,
+          FechaCompra: compra.FechaCompra ? moment.utc(compra.FechaCompra).format('YYYY-MM-DD') : null,
           Estatus: compra.Estatus,
           TotalBruto: compra.TotalBruto,
           TotalIVA: compra.TotalIVA,
@@ -348,11 +348,11 @@ class ComprasRecepcionesService {
         refacciones: refaccionesDetalle,
         recepciones: recepciones.map(r => ({
           ...r,
-          FechaRecepcion: r.FechaRecepcion ? moment(r.FechaRecepcion).format('YYYY-MM-DD') : null,
+          FechaRecepcion: r.FechaRecepcion ? moment.utc(r.FechaRecepcion).format('YYYY-MM-DD') : null,
         })),
         pagos: pagos.map(p => ({
           ...p,
-          FechaPago: p.FechaPago ? moment(p.FechaPago).format('YYYY-MM-DD') : null,
+          FechaPago: p.FechaPago ? moment.utc(p.FechaPago).format('YYYY-MM-DD') : null,
         })),
         resumen: {
           totalRecepciones: recepciones.length,
@@ -531,14 +531,14 @@ class ComprasRecepcionesService {
     // Formatear respuesta
     const reporteFormateado = recepcionesFiltradas.map(recepcion => ({
       RecepcionID: recepcion.ComprasRecepcionesEncabezadoID,
-      FechaRecepcion: recepcion.FechaRecepcion ? moment(recepcion.FechaRecepcion).format('YYYY-MM-DD') : null,
+      FechaRecepcion: recepcion.FechaRecepcion ? moment.utc(recepcion.FechaRecepcion).format('YYYY-MM-DD') : null,
       NumeroFactura: recepcion.NumeroFactura,
       MontoRecepcion: recepcion.MontoRecepcion,
       Observaciones: recepcion.Observaciones,
       TotalRefacciones: recepcion.compras_recepciones_detalle.length,
       Compra: recepcion.compra ? {
         CompraEncabezadoID: recepcion.compra.CompraEncabezadoID,
-        FechaCompra: recepcion.compra.FechaCompra ? moment(recepcion.compra.FechaCompra).format('YYYY-MM-DD') : null,
+        FechaCompra: recepcion.compra.FechaCompra ? moment.utc(recepcion.compra.FechaCompra).format('YYYY-MM-DD') : null,
         TotalNeto: recepcion.compra.TotalNeto,
         EstadoEntrega: recepcion.compra.EstadoEntrega,
         EstadoPago: recepcion.compra.EstadoPago,

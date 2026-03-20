@@ -118,8 +118,8 @@ class PlantillasEquipoService {
         PrecioVenta: this.redondear(costoTotal * (1 + (plantilla.PorcentajeVenta || 35) / 100)),
         PrecioRenta: plantilla.PrecioRenta || precioRentaSugerido,
         PrecioRentaSugerido: precioRentaSugerido,
-        FechaCreacion: plantilla.FechaCreacion ? moment(plantilla.FechaCreacion).format('YYYY-MM-DD') : null,
-        FechaModificacion: plantilla.FechaModificacion ? moment(plantilla.FechaModificacion).format('YYYY-MM-DD') : null,
+        FechaCreacion: plantilla.FechaCreacion ? moment.utc(plantilla.FechaCreacion).format('YYYY-MM-DD') : null,
+        FechaModificacion: plantilla.FechaModificacion ? moment.utc(plantilla.FechaModificacion).format('YYYY-MM-DD') : null,
       };
     });
 
@@ -169,8 +169,8 @@ class PlantillasEquipoService {
       PorcentajeVenta: plantilla.PorcentajeVenta,
       PorcentajeRenta: plantilla.PorcentajeRenta,
       IsActive: plantilla.IsActive,
-      FechaCreacion: plantilla.FechaCreacion ? moment(plantilla.FechaCreacion).format('YYYY-MM-DD') : null,
-      FechaModificacion: plantilla.FechaModificacion ? moment(plantilla.FechaModificacion).format('YYYY-MM-DD') : null,
+      FechaCreacion: plantilla.FechaCreacion ? moment.utc(plantilla.FechaCreacion).format('YYYY-MM-DD') : null,
+      FechaModificacion: plantilla.FechaModificacion ? moment.utc(plantilla.FechaModificacion).format('YYYY-MM-DD') : null,
       CostoTotal: this.redondear(costoTotal),
       PrecioVenta: this.redondear(costoTotal * (1 + (plantilla.PorcentajeVenta || 35) / 100)),
       PrecioRenta: plantilla.PrecioRenta || precioRentaSugerido,

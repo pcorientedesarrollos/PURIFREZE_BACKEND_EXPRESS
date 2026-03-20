@@ -300,18 +300,18 @@ class NotasCreditoService {
         NombreProveedor: nc.proveedor.NombreProveedor,
       } : null,
       Monto: nc.Monto,
-      Fecha: moment(nc.Fecha).format('YYYY-MM-DD'),
+      Fecha: moment.utc(nc.Fecha).format('YYYY-MM-DD'),
       NumeroReferencia: nc.NumeroReferencia,
       Descripcion: nc.Descripcion,
       Observaciones: nc.Observaciones,
       Estado: nc.Estado,
-      FechaCreacion: moment(nc.FechaCreacion).format('YYYY-MM-DD HH:mm'),
+      FechaCreacion: moment.utc(nc.FechaCreacion).format('YYYY-MM-DD HH:mm'),
       Aplicaciones: nc.aplicaciones?.map((app: any) => ({
         AplicacionID: app.AplicacionID,
         CompraEncabezadoID: app.CompraEncabezadoID,
-        FechaCompra: app.compra?.FechaCompra ? moment(app.compra.FechaCompra).format('YYYY-MM-DD') : null,
+        FechaCompra: app.compra?.FechaCompra ? moment.utc(app.compra.FechaCompra).format('YYYY-MM-DD') : null,
         MontoAplicado: app.MontoAplicado,
-        FechaAplicacion: moment(app.FechaAplicacion).format('YYYY-MM-DD HH:mm'),
+        FechaAplicacion: moment.utc(app.FechaAplicacion).format('YYYY-MM-DD HH:mm'),
       })) || [],
     };
   }

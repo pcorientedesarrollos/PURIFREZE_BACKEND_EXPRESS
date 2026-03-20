@@ -433,8 +433,8 @@ class ServiciosService {
       data: servicios.map(s => ({
         ServicioID: s.ServicioID,
         TipoServicio: s.TipoServicio,
-        FechaProgramada: moment(s.FechaProgramada).format('YYYY-MM-DD'),
-        HoraProgramada: s.HoraProgramada ? moment(s.HoraProgramada).format('HH:mm') : null,
+        FechaProgramada: moment.utc(s.FechaProgramada).format('YYYY-MM-DD'),
+        HoraProgramada: s.HoraProgramada ? moment.utc(s.HoraProgramada).format('HH:mm') : null,
         Estatus: s.Estatus,
         NumeroContrato: s.contrato?.NumeroContrato || null,
         NombreCliente: s.contrato?.cliente?.NombreComercio || null,
@@ -551,8 +551,8 @@ class ServiciosService {
 
     // Guardar valores anteriores para historial
     const valoresAnteriores = {
-      FechaProgramada: moment(servicioOriginal.FechaProgramada).format('YYYY-MM-DD'),
-      HoraProgramada: servicioOriginal.HoraProgramada ? moment(servicioOriginal.HoraProgramada).format('HH:mm') : null,
+      FechaProgramada: moment.utc(servicioOriginal.FechaProgramada).format('YYYY-MM-DD'),
+      HoraProgramada: servicioOriginal.HoraProgramada ? moment.utc(servicioOriginal.HoraProgramada).format('HH:mm') : null,
       TecnicoID: servicioOriginal.TecnicoID,
       TipoServicio: servicioOriginal.TipoServicio,
     };
@@ -1400,7 +1400,7 @@ class ServiciosService {
           servicioGenerado = {
             ServicioID: nuevoServicio.ServicioID,
             TipoServicio: nuevoServicio.TipoServicio,
-            FechaProgramada: moment(nuevoServicio.FechaProgramada).format('YYYY-MM-DD'),
+            FechaProgramada: moment.utc(nuevoServicio.FechaProgramada).format('YYYY-MM-DD'),
             Estatus: nuevoServicio.Estatus,
           };
 
@@ -1438,7 +1438,7 @@ class ServiciosService {
           servicioFuturoExistente: servicioFuturoExistente ? {
             ServicioID: servicioFuturoExistente.ServicioID,
             TipoServicio: servicioFuturoExistente.TipoServicio,
-            FechaProgramada: moment(servicioFuturoExistente.FechaProgramada).format('YYYY-MM-DD'),
+            FechaProgramada: moment.utc(servicioFuturoExistente.FechaProgramada).format('YYYY-MM-DD'),
             Estatus: servicioFuturoExistente.Estatus,
           } : null,
           servicioGenerado: servicioGenerado,
@@ -1670,8 +1670,8 @@ class ServiciosService {
     return {
       ServicioID: servicio.ServicioID,
       TipoServicio: servicio.TipoServicio,
-      FechaProgramada: moment(servicio.FechaProgramada).format('YYYY-MM-DD'),
-      HoraProgramada: servicio.HoraProgramada ? moment(servicio.HoraProgramada).format('HH:mm') : null,
+      FechaProgramada: moment.utc(servicio.FechaProgramada).format('YYYY-MM-DD'),
+      HoraProgramada: servicio.HoraProgramada ? moment.utc(servicio.HoraProgramada).format('HH:mm') : null,
       Estatus: servicio.Estatus,
       OrigenInventario: servicio.OrigenInventario,
       Contrato: {
@@ -1703,11 +1703,11 @@ class ServiciosService {
     return {
       ServicioID: servicio.ServicioID,
       TipoServicio: servicio.TipoServicio,
-      FechaProgramada: moment(servicio.FechaProgramada).format('YYYY-MM-DD'),
-      HoraProgramada: servicio.HoraProgramada ? moment(servicio.HoraProgramada).format('HH:mm') : null,
-      FechaEjecucion: servicio.FechaEjecucion ? moment(servicio.FechaEjecucion).format('YYYY-MM-DD') : null,
-      HoraInicio: servicio.HoraInicio ? moment(servicio.HoraInicio).format('HH:mm') : null,
-      HoraFin: servicio.HoraFin ? moment(servicio.HoraFin).format('HH:mm') : null,
+      FechaProgramada: moment.utc(servicio.FechaProgramada).format('YYYY-MM-DD'),
+      HoraProgramada: servicio.HoraProgramada ? moment.utc(servicio.HoraProgramada).format('HH:mm') : null,
+      FechaEjecucion: servicio.FechaEjecucion ? moment.utc(servicio.FechaEjecucion).format('YYYY-MM-DD') : null,
+      HoraInicio: servicio.HoraInicio ? moment.utc(servicio.HoraInicio).format('HH:mm') : null,
+      HoraFin: servicio.HoraFin ? moment.utc(servicio.HoraFin).format('HH:mm') : null,
       Estatus: servicio.Estatus,
       OrigenInventario: servicio.OrigenInventario,
       ObservacionesAntes: servicio.ObservacionesAntes,
@@ -1806,7 +1806,7 @@ class ServiciosService {
         FirmaID: f.FirmaID,
         TipoFirma: f.TipoFirma,
         NombreFirmante: f.NombreFirmante,
-        FechaFirma: moment(f.FechaFirma).format('YYYY-MM-DD HH:mm'),
+        FechaFirma: moment.utc(f.FechaFirma).format('YYYY-MM-DD HH:mm'),
       })),
       ServiciosAdicionales: servicio.servicios_adicionales?.map((sa: any) => ({
         ServicioAdicionalAplicadoID: sa.ServicioAdicionalAplicadoID,
@@ -1816,20 +1816,20 @@ class ServiciosService {
         CostoOriginal: sa.CostoOriginal,
         CostoAplicado: sa.CostoAplicado,
         Autorizado: sa.Autorizado === 1,
-        FechaAutorizacion: sa.FechaAutorizacion ? moment(sa.FechaAutorizacion).format('YYYY-MM-DD HH:mm') : null,
+        FechaAutorizacion: sa.FechaAutorizacion ? moment.utc(sa.FechaAutorizacion).format('YYYY-MM-DD HH:mm') : null,
         NombreAutorizante: sa.NombreAutorizante,
         Cobrar: sa.Cobrar === 1,
         CobroGenerado: sa.CobroGenerado === 1,
         CobroID: sa.CobroID,
         Observaciones: sa.Observaciones,
-        FechaCreacion: moment(sa.FechaCreacion).format('YYYY-MM-DD HH:mm'),
+        FechaCreacion: moment.utc(sa.FechaCreacion).format('YYYY-MM-DD HH:mm'),
         servicio_adicional: sa.servicio_adicional ? {
           ServicioAdicionalID: sa.servicio_adicional.ServicioAdicionalID,
           Nombre: sa.servicio_adicional.Nombre,
           Costo: sa.servicio_adicional.Costo,
         } : null,
       })) || [],
-      FechaCreacion: moment(servicio.FechaCreacion).format('YYYY-MM-DD HH:mm'),
+      FechaCreacion: moment.utc(servicio.FechaCreacion).format('YYYY-MM-DD HH:mm'),
     };
   }
 }

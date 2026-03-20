@@ -149,12 +149,12 @@ class CotizacionesProveedorService {
       RespuestaID: resp.RespuestaID,
       EstadoRespuesta: resp.Estado,
       DescuentoGlobal: resp.DescuentoGlobal,
-      FechaRespuesta: resp.FechaRespuesta ? moment(resp.FechaRespuesta).format('YYYY-MM-DD HH:mm:ss') : null,
-      FechaAsignacion: moment(resp.FechaCreacion).format('YYYY-MM-DD HH:mm:ss'),
+      FechaRespuesta: resp.FechaRespuesta ? moment.utc(resp.FechaRespuesta).format('YYYY-MM-DD HH:mm:ss') : null,
+      FechaAsignacion: moment.utc(resp.FechaCreacion).format('YYYY-MM-DD HH:mm:ss'),
       Cotizacion: {
         CotizacionCompraID: resp.encabezado.CotizacionCompraID,
         Folio: resp.encabezado.Folio,
-        FechaCotizacion: moment(resp.encabezado.FechaCotizacion).format('YYYY-MM-DD'),
+        FechaCotizacion: moment.utc(resp.encabezado.FechaCotizacion).format('YYYY-MM-DD'),
         Observaciones: resp.encabezado.Observaciones,
         Estado: resp.encabezado.Estado,
         TotalRefacciones: resp.encabezado.detalles.length,
@@ -301,12 +301,12 @@ class CotizacionesProveedorService {
         Estado: respuesta.Estado,
         DescuentoGlobal: respuesta.DescuentoGlobal,
         Observaciones: respuesta.Observaciones,
-        FechaRespuesta: respuesta.FechaRespuesta ? moment(respuesta.FechaRespuesta).format('YYYY-MM-DD HH:mm:ss') : null,
+        FechaRespuesta: respuesta.FechaRespuesta ? moment.utc(respuesta.FechaRespuesta).format('YYYY-MM-DD HH:mm:ss') : null,
         Proveedor: respuesta.proveedor,
         Cotizacion: {
           CotizacionCompraID: respuesta.encabezado.CotizacionCompraID,
           Folio: respuesta.encabezado.Folio,
-          FechaCotizacion: moment(respuesta.encabezado.FechaCotizacion).format('YYYY-MM-DD'),
+          FechaCotizacion: moment.utc(respuesta.encabezado.FechaCotizacion).format('YYYY-MM-DD'),
           Observaciones: respuesta.encabezado.Observaciones,
         },
         detalles: detallesFormateados,
@@ -546,7 +546,7 @@ class CotizacionesProveedorService {
         DescuentoGlobal: resp.DescuentoGlobal,
         Total: Math.round(total * 100) / 100,
         TotalConDescuentoGlobal: Math.round(totalConDescuentoGlobal * 100) / 100,
-        FechaRespuesta: resp.FechaRespuesta ? moment(resp.FechaRespuesta).format('YYYY-MM-DD HH:mm:ss') : null,
+        FechaRespuesta: resp.FechaRespuesta ? moment.utc(resp.FechaRespuesta).format('YYYY-MM-DD HH:mm:ss') : null,
       };
     });
 
@@ -601,7 +601,7 @@ class CotizacionesProveedorService {
         Cotizacion: {
           CotizacionCompraID: cotizacion.CotizacionCompraID,
           Folio: cotizacion.Folio,
-          FechaCotizacion: moment(cotizacion.FechaCotizacion).format('YYYY-MM-DD'),
+          FechaCotizacion: moment.utc(cotizacion.FechaCotizacion).format('YYYY-MM-DD'),
           Estado: cotizacion.Estado,
         },
         TotalProveedores: respuestas.length,
@@ -648,8 +648,8 @@ class CotizacionesProveedorService {
     const proveedores = respuestas.map(resp => ({
       RespuestaID: resp.RespuestaID,
       Estado: resp.Estado,
-      FechaAsignacion: moment(resp.FechaCreacion).format('YYYY-MM-DD HH:mm:ss'),
-      FechaRespuesta: resp.FechaRespuesta ? moment(resp.FechaRespuesta).format('YYYY-MM-DD HH:mm:ss') : null,
+      FechaAsignacion: moment.utc(resp.FechaCreacion).format('YYYY-MM-DD HH:mm:ss'),
+      FechaRespuesta: resp.FechaRespuesta ? moment.utc(resp.FechaRespuesta).format('YYYY-MM-DD HH:mm:ss') : null,
       DescuentoGlobal: resp.DescuentoGlobal,
       Proveedor: resp.proveedor,
     }));

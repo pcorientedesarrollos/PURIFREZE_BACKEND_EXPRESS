@@ -485,6 +485,7 @@ model usuarios {
   catalogo_tecnicos    catalogo_tecnicos?
   contratos_historial  contratos_historial[]
   proveedor            catalogo_proveedores?  @relation(fields: [ProveedorID], references: [ProveedorID])
+  cotizacionesCompra   cotizaciones_compra_encabezado[]
 
   @@index([ProveedorID], map: "idx_usuario_proveedor")
   @@index([TipoUsuario], map: "idx_usuario_tipo")
@@ -1842,6 +1843,7 @@ model cotizaciones_compra_encabezado {
   FechaCreacion      DateTime?                        @default(now()) @db.DateTime(0)
   IsActive           Boolean?                         @default(true)
 
+  usuario            usuarios?                        @relation(fields: [UsuarioID], references: [UsuarioID])
   detalles           cotizaciones_compra_detalle[]
   envios             cotizaciones_compra_envios[]
   compras            compras_encabezado[]
@@ -1850,6 +1852,7 @@ model cotizaciones_compra_encabezado {
   historialEquipos   equipos_virtuales_historial[]
 
   @@index([Estado], map: "idx_cotizacion_estado")
+  @@index([UsuarioID], map: "idx_cotizacion_usuario")
 }
 
 model cotizaciones_compra_detalle {

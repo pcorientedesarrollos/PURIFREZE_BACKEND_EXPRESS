@@ -57,9 +57,15 @@ class ComprasService {
   async update(id: number, dto: UpdateCompraDto) {
     const result = await prisma.$transaction(async (tx) => {
       const compraExistente = await this.obtenerCompraOError(tx, id);
-      this.validarCompraModificable(compraExistente.Estatus);
 
+      // Solo bloquear cambios en detalles si está finalizada/pagada
+      // Permitir actualizar campos del encabezado (NumeroPedido, etc.)
       const { Detalles, DetallesEliminar, CuentaBancariaID, MetodoPagoID, ...datosEncabezado } = dto;
+      const tieneModificacionDetalles = (Detalles && Detalles.length > 0) || (DetallesEliminar && DetallesEliminar.length > 0);
+
+      if (tieneModificacionDetalles) {
+        this.validarCompraModificable(compraExistente.Estatus);
+      }
       const cambiaAFinalizado = this.verificarCambioAFinalizado(dto.Estatus, compraExistente.Estatus);
       const cambiaAPagado = this.verificarCambioAPagado(dto.Estatus, compraExistente.Estatus);
 
@@ -153,16 +159,16 @@ class ComprasService {
       orderBy: { CompraEncabezadoID: 'desc' },
     });
 
-    // Formatear fechas
+    // Formatear fechas - Usar moment.utc() para evitar conversión de timezone
     const comprasFormateadas = compras.map((compra) => ({
       ...compra,
-      FechaCompra: compra.FechaCompra ? moment(compra.FechaCompra).format('YYYY-MM-DD') : null,
+      FechaCompra: compra.FechaCompra ? moment.utc(compra.FechaCompra).format('YYYY-MM-DD') : null,
       FechaVencimientoCredito: compra.FechaVencimientoCredito
-        ? moment(compra.FechaVencimientoCredito).format('YYYY-MM-DD')
+        ? moment.utc(compra.FechaVencimientoCredito).format('YYYY-MM-DD')
         : null,
       compras_pagos: compra.compras_pagos.map((pago) => ({
         ...pago,
-        FechaPago: moment(pago.FechaPago).format('YYYY-MM-DD'),
+        FechaPago: moment.utc(pago.FechaPago).format('YYYY-MM-DD'),
       })),
     }));
 
@@ -233,21 +239,21 @@ class ComprasService {
       throw new HttpError('Compra no encontrada', 404);
     }
 
-    // Formatear fechas
+    // Formatear fechas - Usar moment.utc() para evitar conversión de timezone
     const compraFormateada = {
       ...compra,
-      FechaCompra: compra.FechaCompra ? moment(compra.FechaCompra).format('YYYY-MM-DD') : null,
+      FechaCompra: compra.FechaCompra ? moment.utc(compra.FechaCompra).format('YYYY-MM-DD') : null,
       FechaVencimientoCredito: compra.FechaVencimientoCredito
-        ? moment(compra.FechaVencimientoCredito).format('YYYY-MM-DD')
+        ? moment.utc(compra.FechaVencimientoCredito).format('YYYY-MM-DD')
         : null,
       compras_pagos: compra.compras_pagos.map((pago) => ({
         ...pago,
-        FechaPago: moment(pago.FechaPago).format('YYYY-MM-DD'),
+        FechaPago: moment.utc(pago.FechaPago).format('YYYY-MM-DD'),
       })),
       compras_recepciones: compra.compras_recepciones.map((recepcion) => ({
         ...recepcion,
         FechaRecepcion: recepcion.FechaRecepcion
-          ? moment(recepcion.FechaRecepcion).format('YYYY-MM-DD')
+          ? moment.utc(recepcion.FechaRecepcion).format('YYYY-MM-DD')
           : null,
       })),
     };

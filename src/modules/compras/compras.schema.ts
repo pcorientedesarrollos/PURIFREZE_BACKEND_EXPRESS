@@ -46,6 +46,7 @@ export const updateCompraDetalleSchema = z.object({
   CompraDetalleID: z.number().optional(),
   RefaccionID: z.number().optional().nullable(),
   EquipoID: z.number().optional().nullable(),
+  EquipoVirtualID: z.number().optional().nullable(),
   Cantidad: z.number({ required_error: 'Cantidad es requerida' }),
   PrecioUnitario: z.number({ required_error: 'PrecioUnitario es requerido' }),
   DescuentoPorcentaje: z.number({ required_error: 'DescuentoPorcentaje es requerido' }),
@@ -55,8 +56,8 @@ export const updateCompraDetalleSchema = z.object({
   SubTotal: z.number({ required_error: 'SubTotal es requerido' }),
   Total: z.number({ required_error: 'Total es requerido' }),
 }).refine(
-  (data) => data.RefaccionID || data.EquipoID,
-  { message: 'Debe especificar RefaccionID o EquipoID', path: ['RefaccionID'] }
+  (data) => data.RefaccionID || data.EquipoID || data.EquipoVirtualID,
+  { message: 'Debe especificar RefaccionID, EquipoID o EquipoVirtualID', path: ['RefaccionID'] }
 );
 
 // Schema para encabezado de compra (actualizar)
@@ -78,7 +79,7 @@ export const updateCompraSchema = z.object({
   DetallesEliminar: z.array(z.number()).optional(),
   // Nuevos campos para sistema de ejes independientes
   FormaPago: z.enum(['CONTADO', 'CREDITO']).optional(),
-  DiasCredito: z.number().optional(),
+  DiasCredito: z.number().nullable().optional(),
   FechaVencimientoCredito: z.string().optional().transform((val) => val ? new Date(val) : undefined),
   // Número de pedido del proveedor (ingresado por usuario)
   NumeroPedido: z.string().max(100).optional(),
