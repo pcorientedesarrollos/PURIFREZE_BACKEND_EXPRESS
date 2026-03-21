@@ -110,7 +110,7 @@ class EquiposVirtualesService {
       Codigo: equipo.Codigo,
       TotalCosto: equipo.TotalCosto,
       TotalRefacciones: equipo.detalles.length,
-      TotalCantidad: equipo.detalles.reduce((sum, d) => sum + d.Cantidad, 0),
+      TotalCantidad: equipo.detalles.reduce((sum, d) => sum + (d.Cantidad ?? 0), 0),
       FechaCreacion: equipo.FechaCreacion ? moment.utc(equipo.FechaCreacion).format('YYYY-MM-DD') : null,
       FechaActualizacion: equipo.FechaActualizacion ? moment.utc(equipo.FechaActualizacion).format('YYYY-MM-DD') : null,
     }));
