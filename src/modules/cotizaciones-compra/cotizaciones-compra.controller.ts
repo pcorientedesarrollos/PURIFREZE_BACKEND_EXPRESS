@@ -85,10 +85,23 @@ class CotizacionesCompraController {
       CotizacionCompraID: number;
       EquipoVirtualID: number;
     };
-    const result = await cotizacionesCompraService.actualizarPrecioEquipoVirtual(
+    const result = await cotizacionesCompraService.actualizarEquipoVirtual(
       CotizacionCompraID,
       EquipoVirtualID,
-      req.body.PrecioFinal
+      req.body
+    );
+    return success(res, result.message, result.data);
+  }
+
+  async actualizarCantidadDetalle(req: Request, res: Response) {
+    const { CotizacionCompraID, DetalleID } = req.params as unknown as {
+      CotizacionCompraID: number;
+      DetalleID: number;
+    };
+    const result = await cotizacionesCompraService.actualizarCantidadDetalle(
+      CotizacionCompraID,
+      DetalleID,
+      req.body.Cantidad
     );
     return success(res, result.message, result.data);
   }

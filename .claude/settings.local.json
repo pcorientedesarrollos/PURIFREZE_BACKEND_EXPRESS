@@ -48,7 +48,9 @@
       "Bash(__NEW_LINE_5927eb3b7c7313b7__ echo \"=== 6. Segunda recepción con otra factura ===\")",
       "Bash(__NEW_LINE_5927eb3b7c7313b7__ echo \"\")",
       "Bash(python -m json.tool:*)",
-      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc3VhcmlvSUQiOjEsIlNlc3Npb25JRCI6IjE5ZjRlYWMzLTRiZWUtNDNkZS05ZDc1LTZiZDgxZDdhMmQyNyIsIklwQWRyZXNzIjoiOjoxIiwiaWF0IjoxNzczMjk0OTczLCJleHAiOjE3NzMzMjAxNzN9.VPFSQU1cGemIWwzEAkhLfkCiqOieoKN9_GlyHCUQwSo\")"
+      "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc3VhcmlvSUQiOjEsIlNlc3Npb25JRCI6IjE5ZjRlYWMzLTRiZWUtNDNkZS05ZDc1LTZiZDgxZDdhMmQyNyIsIklwQWRyZXNzIjoiOjoxIiwiaWF0IjoxNzczMjk0OTczLCJleHAiOjE3NzMzMjAxNzN9.VPFSQU1cGemIWwzEAkhLfkCiqOieoKN9_GlyHCUQwSo\")",
+      "Bash(npm run build:*)",
+      "Bash(mysql:*)"
     ],
     "deny": [],
     "ask": []

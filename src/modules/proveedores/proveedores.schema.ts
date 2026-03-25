@@ -6,7 +6,10 @@ export const createProveedorSchema = z.object({
   Telefono: z.string().max(50).optional(),
   Contacto: z.string().max(100).optional(),
   Pais: z.string().max(100).optional(),
-  Correo: z.string().email('El correo debe ser válido').max(100).optional(),
+  Correo: z.union([
+    z.string().email('El correo debe ser válido').max(100),
+    z.literal('')
+  ]).optional(),
   Observaciones: z.string().optional(),
 });
 
@@ -16,7 +19,10 @@ export const updateProveedorSchema = z.object({
   Telefono: z.string().max(50).optional(),
   Contacto: z.string().max(100).optional(),
   Pais: z.string().max(100).optional(),
-  Correo: z.string().email('El correo debe ser válido').max(100).optional(),
+  Correo: z.union([
+    z.string().email('El correo debe ser válido').max(100),
+    z.literal('')
+  ]).optional(),
   Observaciones: z.string().optional(),
 });
 

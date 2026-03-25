@@ -1842,6 +1842,7 @@ model cotizaciones_compra_encabezado {
   UsuarioID          Int?
   FechaCreacion      DateTime?                        @default(now()) @db.DateTime(0)
   IsActive           Boolean?                         @default(true)
+  NumeroPedido       String?                          @db.VarChar(100)
 
   usuario            usuarios?                        @relation(fields: [UsuarioID], references: [UsuarioID])
   detalles           cotizaciones_compra_detalle[]

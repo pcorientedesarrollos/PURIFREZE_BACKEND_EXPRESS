@@ -11,6 +11,8 @@ import {
   agregarEquipoVirtualSchema,
   actualizarPrecioEquipoVirtualSchema,
   equipoVirtualIdParamSchema,
+  actualizarDetalleCantidadSchema,
+  detalleIdParamSchema,
 } from './cotizaciones-compra.schema';
 
 const router = Router();
@@ -276,6 +278,12 @@ router.post('/:CotizacionCompraID/enviar', validateParams(cotizacionIdParamSchem
  *         description: Compra creada a partir de la cotización
  */
 router.post('/:CotizacionCompraID/convertir', validateParams(cotizacionIdParamSchema), validateBody(convertirACompraSchema), (req, res) => cotizacionesCompraController.convertirACompra(req, res));
+
+// =============================================
+// ACTUALIZAR CANTIDAD DE DETALLE
+// =============================================
+
+router.patch('/:CotizacionCompraID/detalles/:DetalleID', validateParams(detalleIdParamSchema), validateBody(actualizarDetalleCantidadSchema), (req, res) => cotizacionesCompraController.actualizarCantidadDetalle(req, res));
 
 // =============================================
 // EQUIPOS VIRTUALES EN COTIZACIÓN

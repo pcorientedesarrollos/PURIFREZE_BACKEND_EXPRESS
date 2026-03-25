@@ -31,6 +31,7 @@ class CotizacionesCompraService {
           Folio: folio,
           FechaCotizacion: dto.FechaCotizacion,
           Observaciones: dto.Observaciones || null,
+          NumeroPedido: dto.NumeroPedido || null,
           Estado: 'PENDIENTE',
           UsuarioID: dto.UsuarioID || null,
           IsActive: true,
@@ -314,6 +315,7 @@ class CotizacionesCompraService {
       const datosActualizar: Prisma.cotizaciones_compra_encabezadoUpdateInput = {};
       if (dto.FechaCotizacion) datosActualizar.FechaCotizacion = dto.FechaCotizacion;
       if (dto.Observaciones !== undefined) datosActualizar.Observaciones = dto.Observaciones;
+      if (dto.NumeroPedido !== undefined) datosActualizar.NumeroPedido = dto.NumeroPedido;
 
       await tx.cotizaciones_compra_encabezado.update({
         where: { CotizacionCompraID: id },
@@ -538,6 +540,7 @@ class CotizacionesCompraService {
           TotalRecibido: 0,
           TotalNotasCredito: 0,
           UsuarioID: cotizacion.UsuarioID,
+          NumeroPedido: cotizacion.NumeroPedido || null,
           IsActive: true,
           CotizacionCompraID: id, // Referencia a la cotización origen
         },
@@ -789,7 +792,7 @@ class CotizacionesCompraService {
   /**
    * Actualiza el precio final de un equipo virtual en la cotización
    */
-  async actualizarPrecioEquipoVirtual(cotizacionId: number, equipoVirtualId: number, precioFinal: number) {
+  async actualizarEquipoVirtual(cotizacionId: number, equipoVirtualId: number, dto: { PrecioFinal?: number; Cantidad?: number }) {
     const registro = await prisma.cotizaciones_compra_equipos_virtuales.findFirst({
       where: {
         CotizacionCompraID: cotizacionId,
@@ -799,12 +802,35 @@ class CotizacionesCompraService {
 
     if (!registro) throw new HttpError('Equipo virtual no encontrado en esta cotización', 404);
 
+    const data: any = {};
+    if (dto.PrecioFinal !== undefined) data.PrecioFinal = dto.PrecioFinal;
+    if (dto.Cantidad !== undefined) data.Cantidad = dto.Cantidad;
+
     await prisma.cotizaciones_compra_equipos_virtuales.update({
       where: { ID: registro.ID },
-      data: { PrecioFinal: precioFinal },
+      data,
     });
 
-    return { message: 'Precio actualizado', data: { PrecioFinal: precioFinal } };
+    return { message: 'Equipo virtual actualizado', data: { ...data } };
+  }
+
+  async actualizarCantidadDetalle(cotizacionId: number, detalleId: number, cantidad: number) {
+    const detalle = await prisma.cotizaciones_compra_detalle.findFirst({
+      where: {
+        CotizacionDetalleID: detalleId,
+        CotizacionCompraID: cotizacionId,
+        IsActive: true,
+      },
+    });
+
+    if (!detalle) throw new HttpError('Detalle no encontrado en esta cotización', 404);
+
+    await prisma.cotizaciones_compra_detalle.update({
+      where: { CotizacionDetalleID: detalleId },
+      data: { Cantidad: cantidad },
+    });
+
+    return { message: 'Cantidad actualizada', data: { CotizacionDetalleID: detalleId, Cantidad: cantidad } };
   }
 
   /**

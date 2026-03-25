@@ -24,6 +24,7 @@ const equipoVirtualItemSchema = z.object({
 export const createCotizacionCompraSchema = z.object({
   FechaCotizacion: z.string().transform((val) => new Date(val)),
   Observaciones: z.string().max(500).optional().nullable(),
+  NumeroPedido: z.string().max(100).optional().nullable(),
   UsuarioID: z.number().int().positive().optional().nullable(),
   Detalles: z.array(detalleSchema).optional().default([]),
   EquiposVirtuales: z.array(equipoVirtualItemSchema).optional().default([]),
@@ -36,6 +37,7 @@ export const createCotizacionCompraSchema = z.object({
 export const updateCotizacionCompraSchema = z.object({
   FechaCotizacion: z.string().transform((val) => new Date(val)).optional(),
   Observaciones: z.string().max(500).optional().nullable(),
+  NumeroPedido: z.string().max(100).optional().nullable(),
   Detalles: z.array(detalleSchema).optional(),
   DetallesEliminar: z.array(z.number().int().positive()).optional(),
 });
@@ -73,9 +75,21 @@ export const agregarEquipoVirtualSchema = z.object({
   PrecioFinal: z.number().min(0, 'El precio debe ser positivo'),
 });
 
-// Actualizar precio de equipo virtual en cotización
+// Actualizar equipo virtual en cotización (precio y/o cantidad)
 export const actualizarPrecioEquipoVirtualSchema = z.object({
-  PrecioFinal: z.number().min(0, 'El precio debe ser positivo'),
+  PrecioFinal: z.number().min(0, 'El precio debe ser positivo').optional(),
+  Cantidad: z.number().int().min(1, 'La cantidad mínima es 1').optional(),
+});
+
+// Actualizar cantidad de un detalle de cotización
+export const actualizarDetalleCantidadSchema = z.object({
+  Cantidad: z.number().int().min(1, 'La cantidad mínima es 1'),
+});
+
+// Parámetro ID de detalle
+export const detalleIdParamSchema = z.object({
+  CotizacionCompraID: z.string().regex(/^\d+$/, 'CotizacionCompraID debe ser un número').transform(Number),
+  DetalleID: z.string().regex(/^\d+$/, 'DetalleID debe ser un número').transform(Number),
 });
 
 // Types
@@ -91,3 +105,4 @@ export type EnviarCotizacionDto = EnviarCotizacionInput;
 export type ConvertirACompraDto = ConvertirACompraInput;
 export type AgregarEquipoVirtualDto = z.infer<typeof agregarEquipoVirtualSchema>;
 export type ActualizarPrecioEquipoVirtualDto = z.infer<typeof actualizarPrecioEquipoVirtualSchema>;
+export type ActualizarDetalleCantidadDto = z.infer<typeof actualizarDetalleCantidadSchema>;
