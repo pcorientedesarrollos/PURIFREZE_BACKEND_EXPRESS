@@ -41,12 +41,14 @@ class ComprasPagosService {
       }
 
       // 6. Crear el registro de pago
+      const descuento = dto.Descuento || 0;
       const pago = await tx.compras_pagos.create({
         data: {
           CompraEncabezadoID: dto.CompraEncabezadoID,
           MetodoPagoID: dto.MetodoPagoID,
           CuentaBancariaID: dto.CuentaBancariaID || null,
           Monto: dto.Monto,
+          Descuento: descuento,
           FechaPago: new Date(dto.FechaPago),
           Referencia: dto.Referencia || null,
           Observaciones: dto.Observaciones || null,

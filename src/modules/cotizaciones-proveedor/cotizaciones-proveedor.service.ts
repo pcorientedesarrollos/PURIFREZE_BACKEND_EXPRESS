@@ -300,6 +300,7 @@ class CotizacionesProveedorService {
         RespuestaID: respuesta.RespuestaID,
         Estado: respuesta.Estado,
         DescuentoGlobal: respuesta.DescuentoGlobal,
+        NumeroPedido: respuesta.NumeroPedido,
         Observaciones: respuesta.Observaciones,
         FechaRespuesta: respuesta.FechaRespuesta ? moment.utc(respuesta.FechaRespuesta).format('YYYY-MM-DD HH:mm:ss') : null,
         Proveedor: respuesta.proveedor,
@@ -425,6 +426,7 @@ class CotizacionesProveedorService {
         data: {
           Estado: 'COMPLETADA',
           DescuentoGlobal: dto.DescuentoGlobal || 0,
+          NumeroPedido: dto.NumeroPedido || null,
           Observaciones: dto.Observaciones || null,
           FechaRespuesta: new Date(),
         },
@@ -547,6 +549,7 @@ class CotizacionesProveedorService {
         Total: Math.round(total * 100) / 100,
         TotalConDescuentoGlobal: Math.round(totalConDescuentoGlobal * 100) / 100,
         FechaRespuesta: resp.FechaRespuesta ? moment.utc(resp.FechaRespuesta).format('YYYY-MM-DD HH:mm:ss') : null,
+        NumeroPedido: resp.NumeroPedido || null,
       };
     });
 
@@ -651,6 +654,7 @@ class CotizacionesProveedorService {
       FechaAsignacion: moment.utc(resp.FechaCreacion).format('YYYY-MM-DD HH:mm:ss'),
       FechaRespuesta: resp.FechaRespuesta ? moment.utc(resp.FechaRespuesta).format('YYYY-MM-DD HH:mm:ss') : null,
       DescuentoGlobal: resp.DescuentoGlobal,
+      NumeroPedido: resp.NumeroPedido,
       Proveedor: resp.proveedor,
     }));
 
@@ -866,6 +870,7 @@ class CotizacionesProveedorService {
             UsuarioID: cotizacion.UsuarioID,
             IsActive: true,
             CotizacionCompraID: cotizacionId,
+            NumeroPedido: respuesta.NumeroPedido || null,
           },
         });
 
@@ -938,6 +943,7 @@ class CotizacionesProveedorService {
               UsuarioID: cotizacion.UsuarioID,
               IsActive: true,
               CotizacionCompraID: cotizacionId,
+              NumeroPedido: respuesta.NumeroPedido || null,
             },
           });
           compraEncabezadoId = nuevaCompra.CompraEncabezadoID;

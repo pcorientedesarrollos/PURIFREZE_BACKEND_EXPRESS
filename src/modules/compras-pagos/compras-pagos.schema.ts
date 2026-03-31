@@ -6,6 +6,7 @@ export const createCompraPagoSchema = z.object({
   MetodoPagoID: z.number({ required_error: 'MetodoPagoID es requerido' }),
   CuentaBancariaID: z.number().optional(),
   Monto: z.number({ required_error: 'Monto es requerido' }).positive('El monto debe ser positivo'),
+  Descuento: z.number().min(0, 'El descuento no puede ser negativo').default(0),
   FechaPago: z.string({ required_error: 'FechaPago es requerida' }),
   Referencia: z.string().max(100).nullish(),
   Observaciones: z.string().max(255).nullish(),

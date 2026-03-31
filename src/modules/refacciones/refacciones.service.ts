@@ -98,9 +98,34 @@ class RefaccionesService {
       throw new HttpError('No existe la refacción', 404);
     }
 
-    // No permitir cambiar la clasificación porque el código está vinculado a ella
+    // Preparar datos de actualización
+    const { ClasificacionRefaccionID: _, ...restData } = data;
+    const updateData: any = { ...restData };
+
+    // Si cambia la clasificación, regenerar el código
     if (ClasificacionRefaccionID !== undefined && ClasificacionRefaccionID !== refaccionExist.ClasificacionID) {
-      throw new HttpError('No se puede cambiar la clasificación de una refacción porque el código está vinculado a ella', 300);
+      const newClasificacion = await prisma.catalogo_clasificacion_refacciones.findUnique({
+        where: { ClasificacionRefaccionID },
+      });
+
+      if (!newClasificacion) {
+        throw new HttpError('La clasificación no existe', 300);
+      }
+
+      if (!newClasificacion.Codigo) {
+        throw new HttpError('La clasificación no tiene código asignado', 300);
+      }
+
+      // Generar nuevo código: {CodigoClasificacion}-{Consecutivo}
+      const countRefacciones = await prisma.catalogo_refacciones.count({
+        where: { ClasificacionID: ClasificacionRefaccionID },
+      });
+
+      const consecutivo = (countRefacciones + 1).toString().padStart(3, '0');
+      const nuevoCodigo = `${newClasificacion.Codigo}-${consecutivo}`;
+
+      updateData.ClasificacionID = ClasificacionRefaccionID;
+      updateData.Codigo = nuevoCodigo;
     }
 
     if (UnidadID) {
@@ -126,12 +151,9 @@ class RefaccionesService {
       }
     }
 
-    // Excluir ClasificacionRefaccionID del update (no se puede cambiar)
-    const { ClasificacionRefaccionID: _, ...restData } = data;
-
     const refaccionUpdate = await prisma.catalogo_refacciones.update({
       where: { RefaccionID },
-      data: restData,
+      data: updateData,
     });
 
     return { message: 'Refacción Actualizada', data: refaccionUpdate };

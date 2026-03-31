@@ -50,7 +50,9 @@
       "Bash(python -m json.tool:*)",
       "Bash(TOKEN=\"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJVc3VhcmlvSUQiOjEsIlNlc3Npb25JRCI6IjE5ZjRlYWMzLTRiZWUtNDNkZS05ZDc1LTZiZDgxZDdhMmQyNyIsIklwQWRyZXNzIjoiOjoxIiwiaWF0IjoxNzczMjk0OTczLCJleHAiOjE3NzMzMjAxNzN9.VPFSQU1cGemIWwzEAkhLfkCiqOieoKN9_GlyHCUQwSo\")",
       "Bash(npm run build:*)",
-      "Bash(mysql:*)"
+      "Bash(mysql:*)",
+      "Bash(dir:*)",
+      "Bash(findstr:*)"
     ],
     "deny": [],
     "ask": []

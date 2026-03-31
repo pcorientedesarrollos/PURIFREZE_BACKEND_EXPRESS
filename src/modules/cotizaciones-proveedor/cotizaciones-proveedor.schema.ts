@@ -29,6 +29,7 @@ export const respuestaEquipoVirtualSchema = z.object({
 // Schema para respuesta del proveedor
 export const respuestaProveedorSchema = z.object({
   DescuentoGlobal: z.number().min(0).max(100, 'DescuentoGlobal máximo es 100%').default(0),
+  NumeroPedido: z.string().max(100, 'NumeroPedido máximo 100 caracteres').optional().nullable(),
   Observaciones: z.string().max(500, 'Observaciones máximo 500 caracteres').optional(),
   Detalles: z.array(respuestaDetalleSchema).default([]),
   EquiposVirtuales: z.array(respuestaEquipoVirtualSchema).default([]),

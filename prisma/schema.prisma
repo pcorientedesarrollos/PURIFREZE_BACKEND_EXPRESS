@@ -371,6 +371,7 @@ model compras_pagos {
   MetodoPagoID        Int
   CuentaBancariaID    Int?
   Monto               Float                @db.Float
+  Descuento           Float?               @db.Float @default(0)
   FechaPago           DateTime             @db.Date
   Referencia          String?              @db.VarChar(100)
   Observaciones       String?              @db.VarChar(255)
@@ -1918,6 +1919,7 @@ model cotizaciones_compra_respuestas {
   ProveedorID         Int
   Estado              EstadoRespuestaCotizacion?       @default(PENDIENTE)
   DescuentoGlobal     Decimal?                         @default(0) @db.Decimal(5, 2)
+  NumeroPedido        String?                          @db.VarChar(100)
   Observaciones       String?                          @db.VarChar(500)
   FechaRespuesta      DateTime?                        @db.DateTime(0)
   FechaCreacion       DateTime?                        @default(now()) @db.DateTime(0)
