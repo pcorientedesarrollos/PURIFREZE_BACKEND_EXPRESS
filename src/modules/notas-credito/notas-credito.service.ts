@@ -147,6 +147,16 @@ class NotasCreditoService {
             NombreProveedor: true,
           },
         },
+        aplicaciones: {
+          include: {
+            compra: {
+              select: {
+                CompraEncabezadoID: true,
+                FechaCompra: true,
+              },
+            },
+          },
+        },
       },
       orderBy: { Fecha: 'desc' },
     });
