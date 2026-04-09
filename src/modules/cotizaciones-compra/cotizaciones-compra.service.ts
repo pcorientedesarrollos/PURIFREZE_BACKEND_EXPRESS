@@ -484,7 +484,6 @@ class CotizacionesCompraService {
             where: { IsActive: true },
           },
           equiposVirtuales: {
-            where: { IsActive: true },
             include: {
               equipoVirtual: true,
             },
@@ -518,12 +517,12 @@ class CotizacionesCompraService {
       }
 
       // Filtrar detalles seleccionados
-      const detallesSeleccionados = cotizacion.detalles.filter((d) =>
+      const detallesSeleccionados = cotizacion.detalles.filter((d: any) =>
         dto.DetallesSeleccionados.includes(d.CotizacionDetalleID)
       );
 
       // Filtrar equipos virtuales seleccionados
-      const equiposSeleccionados = cotizacion.equiposVirtuales?.filter((e) =>
+      const equiposSeleccionados = cotizacion.equiposVirtuales?.filter((e: any) =>
         dto.EquiposVirtualesSeleccionados?.includes(e.EquipoVirtualID)
       ) || [];
 
@@ -560,7 +559,7 @@ class CotizacionesCompraService {
 
       // Crear detalles de compra para refacciones individuales (sin precios)
       const detallesCompra = await Promise.all(
-        detallesSeleccionados.map((detalle) =>
+        detallesSeleccionados.map((detalle: any) =>
           tx.compras_detalle.create({
             data: {
               CompraEncabezadoID: compra.CompraEncabezadoID,
@@ -581,7 +580,7 @@ class CotizacionesCompraService {
 
       // Crear detalles de compra para equipos virtuales (con sus precios ya establecidos)
       const detallesEquipos = await Promise.all(
-        equiposSeleccionados.map((equipo) => {
+        equiposSeleccionados.map((equipo: any) => {
           const precioTotal = Number(equipo.PrecioFinal) * equipo.Cantidad;
           return tx.compras_detalle.create({
             data: {
