@@ -53,8 +53,12 @@ export const enviarCotizacionSchema = z.object({
 // Convertir a compra
 export const convertirACompraSchema = z.object({
   ProveedorID: z.number().int().positive('ProveedorID es requerido'),
-  DetallesSeleccionados: z.array(z.number().int().positive()).min(1, 'Debe seleccionar al menos una refacción'),
-});
+  DetallesSeleccionados: z.array(z.number().int().positive()).optional().default([]),
+  EquiposVirtualesSeleccionados: z.array(z.number().int().positive()).optional().default([]),
+}).refine(
+  (data) => (data.DetallesSeleccionados?.length ?? 0) > 0 || (data.EquiposVirtualesSeleccionados?.length ?? 0) > 0,
+  { message: 'Debe seleccionar al menos una refacción o un equipo virtual' }
+);
 
 // Generar link de WhatsApp
 export const whatsappLinkSchema = z.object({

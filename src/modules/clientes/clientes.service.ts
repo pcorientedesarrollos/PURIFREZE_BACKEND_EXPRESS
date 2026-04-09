@@ -159,8 +159,17 @@ class ClientesService {
       where: { ClienteID },
       include: {
         sucursales: {
-          where: { IsActive: true },
-          orderBy: { NombreSucursal: 'asc' },
+          orderBy: [{ EsMatriz: 'desc' }, { NombreSucursal: 'asc' }],
+          include: {
+            datosFiscales: {
+              select: {
+                DatosFiscalesID: true,
+                RFC: true,
+                RazonSocial: true,
+                Regimen: true,
+              },
+            },
+          },
         },
       },
     });

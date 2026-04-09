@@ -97,14 +97,23 @@ class ClientesSucursalesService {
   async findByClienteID(ClienteID: number) {
     const sucursales = await prisma.clientes_sucursales.findMany({
       where: { ClienteID, IsActive: true },
-      orderBy: {
-        NombreSucursal: 'asc',
-      },
+      orderBy: [
+        { EsMatriz: 'desc' },
+        { NombreSucursal: 'asc' },
+      ],
       include: {
         cliente: {
           select: {
             ClienteID: true,
             NombreComercio: true,
+          },
+        },
+        datosFiscales: {
+          select: {
+            DatosFiscalesID: true,
+            RFC: true,
+            RazonSocial: true,
+            Regimen: true,
           },
         },
       },
@@ -241,6 +250,65 @@ class ClientesSucursalesService {
     });
 
     return { message: 'Sucursal establecida como matriz', data: sucursalUpdate };
+  }
+
+  /**
+   * Asignar o quitar RFC a una sucursal
+   */
+  async asignarRfc(SucursalID: number, DatosFiscalesID: number | null) {
+    const sucursal = await prisma.clientes_sucursales.findUnique({
+      where: { SucursalID },
+    });
+
+    if (!sucursal) {
+      throw new HttpError('La sucursal no existe', 404);
+    }
+
+    if (!sucursal.IsActive) {
+      throw new HttpError('La sucursal no está activa', 400);
+    }
+
+    // Si se asigna un RFC, validar que pertenezca al mismo cliente
+    if (DatosFiscalesID !== null) {
+      const datosFiscales = await prisma.clientes_datosFiscales.findUnique({
+        where: { DatosFiscalesID },
+      });
+
+      if (!datosFiscales) {
+        throw new HttpError('Los datos fiscales no existen', 404);
+      }
+
+      if (datosFiscales.ClienteID !== sucursal.ClienteID) {
+        throw new HttpError('Los datos fiscales no pertenecen a este cliente', 400);
+      }
+
+      if (!datosFiscales.IsActive) {
+        throw new HttpError('Los datos fiscales no están activos', 400);
+      }
+    }
+
+    const sucursalUpdate = await prisma.clientes_sucursales.update({
+      where: { SucursalID },
+      data: { DatosFiscalesID },
+      include: {
+        cliente: {
+          select: { ClienteID: true, NombreComercio: true },
+        },
+        datosFiscales: {
+          select: {
+            DatosFiscalesID: true,
+            RFC: true,
+            RazonSocial: true,
+          },
+        },
+      },
+    });
+
+    const mensaje = DatosFiscalesID
+      ? 'RFC asignado a la sucursal'
+      : 'RFC removido de la sucursal';
+
+    return { message: mensaje, data: sucursalUpdate };
   }
 }
 

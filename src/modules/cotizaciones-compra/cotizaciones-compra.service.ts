@@ -476,12 +476,18 @@ class CotizacionesCompraService {
    */
   async convertirACompra(id: number, dto: ConvertirACompraDto) {
     const result = await prisma.$transaction(async (tx) => {
-      // Obtener cotización con detalles
+      // Obtener cotización con detalles y equipos virtuales
       const cotizacion = await tx.cotizaciones_compra_encabezado.findUnique({
         where: { CotizacionCompraID: id },
         include: {
           detalles: {
             where: { IsActive: true },
+          },
+          equiposVirtuales: {
+            where: { IsActive: true },
+            include: {
+              equipoVirtual: true,
+            },
           },
         },
       });
@@ -516,8 +522,14 @@ class CotizacionesCompraService {
         dto.DetallesSeleccionados.includes(d.CotizacionDetalleID)
       );
 
-      if (detallesSeleccionados.length === 0) {
-        throw new HttpError('Ningún detalle válido seleccionado', 400);
+      // Filtrar equipos virtuales seleccionados
+      const equiposSeleccionados = cotizacion.equiposVirtuales?.filter((e) =>
+        dto.EquiposVirtualesSeleccionados?.includes(e.EquipoVirtualID)
+      ) || [];
+
+      // Debe haber al menos un detalle o equipo seleccionado
+      if (detallesSeleccionados.length === 0 && equiposSeleccionados.length === 0) {
+        throw new HttpError('Debe seleccionar al menos una refacción o equipo virtual', 400);
       }
 
       // Crear compra (sin precios, el usuario los llenará después)
@@ -546,7 +558,7 @@ class CotizacionesCompraService {
         },
       });
 
-      // Crear detalles de compra (sin precios)
+      // Crear detalles de compra para refacciones individuales (sin precios)
       const detallesCompra = await Promise.all(
         detallesSeleccionados.map((detalle) =>
           tx.compras_detalle.create({
@@ -567,6 +579,29 @@ class CotizacionesCompraService {
         )
       );
 
+      // Crear detalles de compra para equipos virtuales (con sus precios ya establecidos)
+      const detallesEquipos = await Promise.all(
+        equiposSeleccionados.map((equipo) => {
+          const precioTotal = Number(equipo.PrecioFinal) * equipo.Cantidad;
+          return tx.compras_detalle.create({
+            data: {
+              CompraEncabezadoID: compra.CompraEncabezadoID,
+              RefaccionID: null, // Es un equipo virtual, no una refacción
+              EquipoVirtualID: equipo.EquipoVirtualID,
+              Cantidad: equipo.Cantidad,
+              PrecioUnitario: Number(equipo.PrecioFinal),
+              DescuentoPorcentaje: 0,
+              DescuentoEfectivo: 0,
+              GastosOperativos: 0,
+              GastosImportacion: 0,
+              SubTotal: precioTotal,
+              Total: precioTotal,
+              IsActive: true,
+            },
+          });
+        })
+      );
+
       // Actualizar estado de cotización
       await tx.cotizaciones_compra_encabezado.update({
         where: { CotizacionCompraID: id },
@@ -579,8 +614,9 @@ class CotizacionesCompraService {
       return {
         compra,
         detallesCompra,
+        detallesEquipos,
         cotizacionID: id,
-        mensaje: 'Compra creada. Ahora debe agregar los precios editando la compra.',
+        mensaje: 'Compra creada exitosamente.',
       };
     });
 

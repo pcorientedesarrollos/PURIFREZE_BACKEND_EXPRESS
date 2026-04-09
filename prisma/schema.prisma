@@ -44,6 +44,7 @@ model catalogo_clientes {
   Observaciones     String?                    @db.VarChar(500)
   IsActive          Boolean?
   sucursales        clientes_sucursales[]
+  datosFiscales     clientes_datosFiscales[]
   presupuestos      presupuestos_encabezado[]
   equipos           equipos[]
   contratos         contratos[]
@@ -65,14 +66,18 @@ model clientes_sucursales {
   IsActive          Boolean?                   @default(true)
   Latitud           Float?                     @db.Float
   Longitud          Float?                     @db.Float
+  DatosFiscalesID   Int?
 
   cliente               catalogo_clientes          @relation(fields: [ClienteID], references: [ClienteID])
+  datosFiscales         clientes_datosFiscales?    @relation(fields: [DatosFiscalesID], references: [DatosFiscalesID])
   empleados_sucursales  empleados_sucursales[]
   presupuestos          presupuestos_encabezado[]
   equipos               equipos[]
   contratos             contratos[]
   clientes_equipos      clientes_equipos[]
   ventas                ventas_encabezado[]
+
+  @@index([DatosFiscalesID])
 }
 
 model catalogo_cuentasBancarias {
@@ -217,6 +222,11 @@ model clientes_datosFiscales {
   CodigoPostal    String?  @db.VarChar(255)
   IsActive        Boolean?
   ClienteID       Int?
+
+  cliente         catalogo_clientes?     @relation(fields: [ClienteID], references: [ClienteID])
+  sucursales      clientes_sucursales[]
+
+  @@index([ClienteID])
 }
 
 model clientes_direcciones {

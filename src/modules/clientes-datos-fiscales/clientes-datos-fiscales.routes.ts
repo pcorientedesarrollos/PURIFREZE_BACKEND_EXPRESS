@@ -99,6 +99,23 @@ router.get('/:DatosFiscalesID', validateParams(datosFiscalesIdParamSchema), (req
 router.get('/cliente/:ClienteID', validateParams(clienteIdParamSchema), (req, res) => clientesDatosFiscalesController.findByClienteID(req, res));
 
 /** @swagger
+ * /clientes-datos-fiscales/catalogo/{ClienteID}:
+ *   get:
+ *     summary: Obtener catálogo de RFC del cliente con sucursales asignadas
+ *     tags: [Clientes - Datos Fiscales]
+ *     parameters:
+ *       - in: path
+ *         name: ClienteID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     responses:
+ *       200:
+ *         description: Catálogo de RFC con info de sucursales asignadas
+ */
+router.get('/catalogo/:ClienteID', validateParams(clienteIdParamSchema), (req, res) => clientesDatosFiscalesController.findCatalogoByCliente(req, res));
+
+/** @swagger
  * /clientes-datos-fiscales/por-cliente/{ClienteID}:
  *   get:
  *     summary: Obtener datos fiscales por ClienteID (alias)

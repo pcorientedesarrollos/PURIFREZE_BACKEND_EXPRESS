@@ -48,6 +48,13 @@ class ClientesSucursalesController {
     const result = await clientesSucursalesService.setMatriz(SucursalID);
     return success(res, result.message, result.data);
   }
+
+  async asignarRfc(req: Request, res: Response) {
+    const { SucursalID } = req.params as unknown as { SucursalID: number };
+    const { DatosFiscalesID } = req.body as { DatosFiscalesID: number | null };
+    const result = await clientesSucursalesService.asignarRfc(SucursalID, DatosFiscalesID);
+    return success(res, result.message, result.data);
+  }
 }
 
 export const clientesSucursalesController = new ClientesSucursalesController();

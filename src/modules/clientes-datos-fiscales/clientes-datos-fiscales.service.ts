@@ -106,6 +106,37 @@ class ClientesDatosFiscalesService {
 
     return { message: 'Datos Fiscales activados', data: dataUpdate };
   }
+
+  /**
+   * Obtener catálogo de RFC de un cliente con info de sucursales asignadas
+   */
+  async findCatalogoByCliente(ClienteID: number) {
+    const datosFiscales = await prisma.clientes_datosFiscales.findMany({
+      where: {
+        ClienteID,
+        IsActive: true,
+      },
+      include: {
+        sucursales: {
+          where: { IsActive: true },
+          select: {
+            SucursalID: true,
+            NombreSucursal: true,
+            EsMatriz: true,
+          },
+        },
+      },
+      orderBy: { DatosFiscalesID: 'desc' },
+    });
+
+    return {
+      message: 'Catálogo de RFC obtenido',
+      data: datosFiscales.map(df => ({
+        ...df,
+        sucursalesAsignadas: df.sucursales.length,
+      })),
+    };
+  }
 }
 
 export const clientesDatosFiscalesService = new ClientesDatosFiscalesService();

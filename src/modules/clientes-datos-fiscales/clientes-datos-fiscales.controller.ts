@@ -27,6 +27,12 @@ class ClientesDatosFiscalesController {
     return success(res, result.message, result.data);
   }
 
+  async findCatalogoByCliente(req: Request, res: Response) {
+    const { ClienteID } = req.params as unknown as { ClienteID: number };
+    const result = await clientesDatosFiscalesService.findCatalogoByCliente(ClienteID);
+    return success(res, result.message, result.data);
+  }
+
   async update(req: Request, res: Response) {
     const { DatosFiscalesID } = req.params as unknown as { DatosFiscalesID: number };
     const result = await clientesDatosFiscalesService.update(DatosFiscalesID, req.body);

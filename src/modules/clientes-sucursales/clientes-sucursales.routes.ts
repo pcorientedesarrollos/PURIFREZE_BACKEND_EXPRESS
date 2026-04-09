@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { clientesSucursalesController } from './clientes-sucursales.controller';
 import { validateBody, validateParams } from '../../middlewares/validateRequest';
-import { createClienteSucursalSchema, updateClienteSucursalSchema, sucursalIdParamSchema, clienteIdParamSchema } from './clientes-sucursales.schema';
+import { createClienteSucursalSchema, updateClienteSucursalSchema, sucursalIdParamSchema, clienteIdParamSchema, asignarRfcSchema } from './clientes-sucursales.schema';
 
 const router = Router();
 
@@ -170,5 +170,34 @@ router.patch('/activar/:SucursalID', validateParams(sucursalIdParamSchema), (req
  *         description: Establecida como matriz
  */
 router.patch('/matriz/:SucursalID', validateParams(sucursalIdParamSchema), (req, res) => clientesSucursalesController.setMatriz(req, res));
+
+/** @swagger
+ * /clientes-sucursales/{SucursalID}/asignar-rfc:
+ *   patch:
+ *     summary: Asignar o quitar RFC a una sucursal
+ *     tags: [Clientes - Sucursales]
+ *     parameters:
+ *       - in: path
+ *         name: SucursalID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required: [DatosFiscalesID]
+ *             properties:
+ *               DatosFiscalesID:
+ *                 type: integer
+ *                 nullable: true
+ *                 description: ID de los datos fiscales a asignar (null para quitar)
+ *     responses:
+ *       200:
+ *         description: RFC asignado/removido correctamente
+ */
+router.patch('/:SucursalID/asignar-rfc', validateParams(sucursalIdParamSchema), validateBody(asignarRfcSchema), (req, res) => clientesSucursalesController.asignarRfc(req, res));
 
 export default router;

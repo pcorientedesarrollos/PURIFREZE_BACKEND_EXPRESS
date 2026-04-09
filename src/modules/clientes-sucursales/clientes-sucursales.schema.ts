@@ -33,5 +33,10 @@ export const clienteIdParamSchema = z.object({
   ClienteID: z.string().regex(/^\d+$/, 'ID debe ser un número válido').transform(Number),
 });
 
+export const asignarRfcSchema = z.object({
+  DatosFiscalesID: z.number().nullable(),
+});
+
 export type CreateClienteSucursalDto = z.infer<typeof createClienteSucursalSchema>;
 export type UpdateClienteSucursalDto = z.infer<typeof updateClienteSucursalSchema>;
+export type AsignarRfcDto = z.infer<typeof asignarRfcSchema>;
