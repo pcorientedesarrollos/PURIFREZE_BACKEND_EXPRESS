@@ -14,10 +14,11 @@ class ComprasPagosService {
       // 1. Obtener la compra
       const compra = await this.obtenerCompraOError(tx, dto.CompraEncabezadoID);
 
-      // 2. Calcular saldo pendiente
+      // 2. Calcular saldo pendiente (considerando notas de crédito)
       const totalPagado = compra.TotalPagado || 0;
       const totalNeto = compra.TotalNeto || 0;
-      const saldoPendiente = totalNeto - totalPagado;
+      const totalNotasCredito = compra.TotalNotasCredito || 0;
+      const saldoPendiente = totalNeto - totalPagado - totalNotasCredito;
 
       // 3. Validar que no exceda el saldo pendiente
       if (dto.Monto > saldoPendiente) {
@@ -56,6 +57,15 @@ class ComprasPagosService {
           IsActive: 1,
         },
       });
+
+      // 6.1 Si hay descuento, reducir TotalNeto de la compra permanentemente
+      if (descuento > 0) {
+        const nuevoTotalNeto = Math.max(0, totalNeto - descuento);
+        await tx.compras_encabezado.update({
+          where: { CompraEncabezadoID: dto.CompraEncabezadoID },
+          data: { TotalNeto: nuevoTotalNeto },
+        });
+      }
 
       // 7. Crear movimiento bancario (si hay cuenta bancaria)
       if (dto.CuentaBancariaID) {
@@ -98,7 +108,8 @@ class ComprasPagosService {
     }));
 
     const totalPagado = pagos.reduce((sum, pago) => sum + pago.Monto, 0);
-    const saldoPendiente = (compra.TotalNeto || 0) - totalPagado;
+    const totalNotasCredito = compra.TotalNotasCredito || 0;
+    const saldoPendiente = (compra.TotalNeto || 0) - totalPagado - totalNotasCredito;
 
     return {
       message: 'Pagos obtenidos',
@@ -107,6 +118,7 @@ class ComprasPagosService {
         resumen: {
           TotalCompra: compra.TotalNeto || 0,
           TotalPagado: totalPagado,
+          TotalNotasCredito: totalNotasCredito,
           SaldoPendiente: saldoPendiente,
           EstadoPago: compra.EstadoPago,
           FormaPago: compra.FormaPago,
@@ -241,6 +253,7 @@ class ComprasPagosService {
   /**
    * Actualiza el EstadoPago y TotalPagado de una compra
    * También verifica si ambos ejes están completos para actualizar Estatus legacy
+   * Considera TotalNotasCredito en el cálculo del saldo pendiente
    */
   async actualizarEstadoPagoCompra(tx: Prisma.TransactionClient, compraEncabezadoID: number) {
     // Obtener suma de pagos activos
@@ -261,12 +274,15 @@ class ComprasPagosService {
     if (!compra) return;
 
     const totalNeto = compra.TotalNeto || 0;
+    const totalNotasCredito = compra.TotalNotasCredito || 0;
+    // El saldo real considera pagos + notas de crédito
+    const totalCubierto = totalPagado + totalNotasCredito;
 
     // Determinar nuevo estado de pago
     let nuevoEstadoPago: EstadoPagoCompra;
-    if (totalPagado >= totalNeto) {
+    if (totalCubierto >= totalNeto) {
       nuevoEstadoPago = 'PAGADO';
-    } else if (totalPagado > 0) {
+    } else if (totalCubierto > 0) {
       nuevoEstadoPago = 'PARCIAL';
     } else {
       nuevoEstadoPago = 'PENDIENTE';
