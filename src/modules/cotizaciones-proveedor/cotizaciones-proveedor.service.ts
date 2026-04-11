@@ -588,6 +588,7 @@ class CotizacionesProveedorService {
         EquipoVirtualID: evCot.EquipoVirtualID,
         Codigo: evCot.equipoVirtual.Codigo,
         Nombre: evCot.equipoVirtual.Nombre,
+        Cantidad: evCot.Cantidad || 1,
         PrecioOriginal: Number(evCot.PrecioOriginal),
         PrecioFinal: Number(evCot.PrecioFinal),
         Precios: preciosEquipos,
@@ -977,6 +978,8 @@ class CotizacionesProveedorService {
           const precioOriginal = Number(equipoCot.PrecioOriginal);
           const precioNuevo = Number(equipoResp.PrecioCotizado);
           const diferencia = precioNuevo - precioOriginal;
+          const cantidad = equipoCot.Cantidad || 1;
+          const subtotalEquipo = precioNuevo * cantidad;
 
           // ============================================================
           // 1. CREAR LÍNEA DE COMPRA PARA EL EQUIPO VIRTUAL
@@ -987,19 +990,19 @@ class CotizacionesProveedorService {
               EquipoVirtualID: equipoCot.EquipoVirtualID,
               RefaccionID: null,
               EquipoID: null,
-              Cantidad: 1,
+              Cantidad: cantidad,
               PrecioUnitario: precioNuevo,
               DescuentoPorcentaje: 0,
               DescuentoEfectivo: 0,
               GastosOperativos: 0,
               GastosImportacion: 0,
-              SubTotal: precioNuevo,
-              Total: precioNuevo,
+              SubTotal: subtotalEquipo,
+              Total: subtotalEquipo,
               IsActive: true,
             },
           });
 
-          totalEquiposProveedor += precioNuevo;
+          totalEquiposProveedor += subtotalEquipo;
 
           // ============================================================
           // 2. ACTUALIZAR PrecioFinal EN LA COTIZACIÓN
