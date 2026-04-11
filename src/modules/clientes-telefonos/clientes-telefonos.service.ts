@@ -7,7 +7,10 @@ class ClientesTelefonosService {
     const { Telefono } = data;
 
     const findTelefono = await prisma.clientes_telefonos.findFirst({
-      where: { Telefono },
+      where: {
+        Telefono,
+        EmpleadoID: data.EmpleadoID,
+      },
     });
 
     if (findTelefono) {
@@ -71,6 +74,7 @@ class ClientesTelefonosService {
         where: {
           Telefono,
           TelefonoID: { not: TelefonoID },
+          EmpleadoID: telefonoExist.EmpleadoID,
         },
       });
 

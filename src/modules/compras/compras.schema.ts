@@ -4,6 +4,7 @@ import { z } from 'zod';
 export const createCompraDetalleSchema = z.object({
   RefaccionID: z.number().optional().nullable(),
   EquipoID: z.number().optional().nullable(),
+  EquipoVirtualID: z.number().optional().nullable(),
   Cantidad: z.number({ required_error: 'Cantidad es requerida' }),
   PrecioUnitario: z.number({ required_error: 'PrecioUnitario es requerido' }),
   DescuentoPorcentaje: z.number({ required_error: 'DescuentoPorcentaje es requerido' }),
@@ -13,8 +14,8 @@ export const createCompraDetalleSchema = z.object({
   SubTotal: z.number({ required_error: 'SubTotal es requerido' }),
   Total: z.number({ required_error: 'Total es requerido' }),
 }).refine(
-  (data) => data.RefaccionID || data.EquipoID,
-  { message: 'Debe especificar RefaccionID o EquipoID', path: ['RefaccionID'] }
+  (data) => data.RefaccionID || data.EquipoID || data.EquipoVirtualID,
+  { message: 'Debe especificar RefaccionID, EquipoID o EquipoVirtualID', path: ['RefaccionID'] }
 );
 
 // Schema para encabezado de compra (crear)

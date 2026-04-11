@@ -11,7 +11,10 @@ class ClientesCorreosService {
     }
 
     const findCorreo = await prisma.clientes_correos.findFirst({
-      where: { Correo },
+      where: {
+        Correo,
+        ...(EmpleadoID ? { EmpleadoID } : { ClienteID }),
+      },
     });
 
     if (findCorreo) {
@@ -71,6 +74,9 @@ class ClientesCorreosService {
         where: {
           Correo,
           CorreoID: { not: CorreoID },
+          ...(correoExist.EmpleadoID
+            ? { EmpleadoID: correoExist.EmpleadoID }
+            : { ClienteID: correoExist.ClienteID }),
         },
       });
 

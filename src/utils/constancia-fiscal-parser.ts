@@ -47,18 +47,28 @@ export async function parsearConstanciaFiscal(buffer: Buffer): Promise<DatosFisc
 }
 
 function extraerRFC(texto: string): string | null {
-  // Buscar patrón de RFC mexicano (13 caracteres para persona moral, 12 para física)
-  // Patrón: 3-4 letras + 6 dígitos (fecha) + 3 caracteres alfanuméricos (homoclave)
-  const rfcRegex = /RFC:\s*([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3})/i;
+  // 1. Buscar RFC con espacios, tabs o saltos de línea entre label y valor
+  // Maneja formato de tabla del SAT donde "RFC:" y el valor pueden estar separados
+  const rfcRegex = /RFC[\s\n\r:]*([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3})/i;
   const match = texto.match(rfcRegex);
   if (match) return match[1].toUpperCase();
 
-  // Alternativa: buscar cerca de "Registro Federal de Contribuyentes"
-  const rfcAltRegex = /(?:Registro Federal|R\.?F\.?C\.?)[^A-Z]*([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3})/i;
+  // 2. Buscar en estructura de tabla: "RFC:" en una línea, valor en otra
+  const lineas = texto.split('\n');
+  for (let i = 0; i < lineas.length - 1; i++) {
+    if (/^\s*RFC\s*:?\s*$/i.test(lineas[i].trim())) {
+      const siguienteLinea = lineas[i + 1].trim();
+      const rfcMatch = siguienteLinea.match(/^([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3})/i);
+      if (rfcMatch) return rfcMatch[1].toUpperCase();
+    }
+  }
+
+  // 3. Buscar cerca de "Registro Federal de Contribuyentes"
+  const rfcAltRegex = /(?:Registro Federal|R\.?F\.?C\.?)[\s\n\r:]*([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3})/i;
   const matchAlt = texto.match(rfcAltRegex);
   if (matchAlt) return matchAlt[1].toUpperCase();
 
-  // Buscar RFC suelto (patrón estándar mexicano)
+  // 4. Buscar RFC suelto (patrón estándar mexicano)
   const rfcSuelto = /\b([A-ZÑ&]{3,4}\d{6}[A-Z0-9]{3})\b/;
   const matchSuelto = texto.match(rfcSuelto);
   if (matchSuelto) return matchSuelto[1].toUpperCase();
