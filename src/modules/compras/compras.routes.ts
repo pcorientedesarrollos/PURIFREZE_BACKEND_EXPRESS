@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { comprasController } from './compras.controller';
 import { validateBody, validateParams } from '../../middlewares/validateRequest';
-import { createCompraSchema, updateCompraSchema, compraIdParamSchema } from './compras.schema';
+import { createCompraSchema, updateCompraSchema, compraIdParamSchema, aplicarDescuentosSchema } from './compras.schema';
 
 const router = Router();
 
@@ -187,5 +187,37 @@ router.put('/:CompraEncabezadoID', validateParams(compraIdParamSchema), validate
  *         description: Eliminada
  */
 router.delete('/:CompraEncabezadoID', validateParams(compraIdParamSchema), (req, res) => comprasController.remove(req, res));
+
+/** @swagger
+ * /compras/{CompraEncabezadoID}/descuentos:
+ *   patch:
+ *     summary: Aplicar descuentos al encabezado de compra
+ *     tags: [Compras]
+ *     parameters:
+ *       - in: path
+ *         name: CompraEncabezadoID
+ *         required: true
+ *         schema:
+ *           type: integer
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               DescuentoPorcentaje:
+ *                 type: number
+ *                 description: Descuento en porcentaje (0-100)
+ *               DescuentoEfectivo:
+ *                 type: number
+ *                 description: Descuento en monto fijo ($)
+ *     responses:
+ *       200:
+ *         description: Descuentos aplicados
+ *       400:
+ *         description: Error de validación
+ */
+router.patch('/:CompraEncabezadoID/descuentos', validateParams(compraIdParamSchema), validateBody(aplicarDescuentosSchema), (req, res) => comprasController.aplicarDescuentos(req, res));
 
 export default router;

@@ -91,8 +91,18 @@ export const compraIdParamSchema = z.object({
   CompraEncabezadoID: z.string().regex(/^\d+$/, 'ID debe ser un número válido').transform(Number),
 });
 
+// Schema para aplicar descuentos desde modal de pagos
+export const aplicarDescuentosSchema = z.object({
+  DescuentoPorcentaje: z.number().min(0).max(100).optional(),
+  DescuentoEfectivo: z.number().min(0).optional(),
+}).refine(
+  (data) => data.DescuentoPorcentaje !== undefined || data.DescuentoEfectivo !== undefined,
+  { message: 'Debe especificar al menos un tipo de descuento (porcentaje o efectivo)' }
+);
+
 // Types
 export type CreateCompraDetalleDto = z.infer<typeof createCompraDetalleSchema>;
 export type CreateCompraDto = z.infer<typeof createCompraSchema>;
 export type UpdateCompraDetalleDto = z.infer<typeof updateCompraDetalleSchema>;
 export type UpdateCompraDto = z.infer<typeof updateCompraSchema>;
+export type AplicarDescuentosDto = z.infer<typeof aplicarDescuentosSchema>;

@@ -7,6 +7,7 @@ import {
   CreateCompraDetalleDto,
   UpdateCompraDto,
   UpdateCompraDetalleDto,
+  AplicarDescuentosDto,
 } from './compras.schema';
 import {
   validarSaldoCuentaBancaria,
@@ -805,6 +806,105 @@ class ComprasService {
           : compra.Estatus,
       },
     });
+  }
+
+  /**
+   * Aplica descuentos al encabezado de una compra desde el modal de pagos
+   * Recalcula TotalNeto basado en descuentos aplicados
+   */
+  async aplicarDescuentos(id: number, dto: AplicarDescuentosDto) {
+    const result = await prisma.$transaction(async (tx) => {
+      // 1. Obtener la compra
+      const compra = await tx.compras_encabezado.findUnique({
+        where: { CompraEncabezadoID: id },
+      });
+
+      if (!compra) {
+        throw new HttpError('Compra no encontrada', 404);
+      }
+
+      if (!compra.IsActive) {
+        throw new HttpError('La compra no está activa', 400);
+      }
+
+      // 2. No permitir si ya está completamente pagada
+      if (compra.EstadoPago === 'PAGADO') {
+        throw new HttpError('No se pueden aplicar descuentos a una compra ya pagada', 400);
+      }
+
+      // 3. Calcular nuevos totales
+      const totalBruto = compra.TotalBruto || 0;
+      const gastosOperativos = compra.TotalGastosOperativos || 0;
+      const gastosImportacion = compra.TotalGastosImportacion || 0;
+      const totalPagado = compra.TotalPagado || 0;
+      const totalNotasCredito = compra.TotalNotasCredito || 0;
+
+      // Descuentos nuevos a aplicar (se SUMAN a los existentes)
+      const descuentoPorcentajeNuevo = dto.DescuentoPorcentaje || 0;
+      const descuentoEfectivoNuevo = dto.DescuentoEfectivo || 0;
+
+      // Calcular monto del descuento por porcentaje (sobre el total bruto)
+      const montoDescuentoPorcentaje = totalBruto * (descuentoPorcentajeNuevo / 100);
+
+      // Total de descuentos nuevos
+      const totalDescuentosNuevos = montoDescuentoPorcentaje + descuentoEfectivoNuevo;
+
+      // Nuevo total de descuentos (acumulando con los existentes)
+      const descuentosPrevios = (compra.TotalDescuentosPorcentaje || 0) + (compra.TotalDescuentoEfectivo || 0);
+      const totalDescuentosFinal = descuentosPrevios + totalDescuentosNuevos;
+
+      // Nuevo TotalNeto
+      const nuevoTotalNeto = totalBruto - totalDescuentosFinal + gastosOperativos + gastosImportacion;
+
+      // 4. Validar que el total no quede negativo
+      if (nuevoTotalNeto < 0) {
+        throw new HttpError('El descuento no puede ser mayor al total de la compra', 400);
+      }
+
+      // 5. Validar que no quede un saldo pendiente negativo
+      const nuevoSaldoPendiente = nuevoTotalNeto - totalPagado - totalNotasCredito;
+      if (nuevoSaldoPendiente < 0) {
+        throw new HttpError(
+          `El descuento generaría un saldo negativo. Total pagado + notas de crédito ($${(totalPagado + totalNotasCredito).toFixed(2)}) excede el nuevo total ($${nuevoTotalNeto.toFixed(2)})`,
+          400
+        );
+      }
+
+      // 6. Calcular IVA del nuevo total (los precios ya incluyen IVA 16%)
+      const ivaFactor = 1.16;
+      const totalSinIva = nuevoTotalNeto / ivaFactor;
+      const nuevoTotalIva = totalSinIva * 0.16;
+
+      // 7. Actualizar compra
+      const compraActualizada = await tx.compras_encabezado.update({
+        where: { CompraEncabezadoID: id },
+        data: {
+          TotalDescuentosPorcentaje: (compra.TotalDescuentosPorcentaje || 0) + montoDescuentoPorcentaje,
+          TotalDescuentoEfectivo: (compra.TotalDescuentoEfectivo || 0) + descuentoEfectivoNuevo,
+          TotalIVA: nuevoTotalIva,
+          TotalNeto: nuevoTotalNeto,
+        },
+      });
+
+      // 8. Actualizar estado de pago si el saldo pendiente es 0
+      if (nuevoSaldoPendiente === 0) {
+        await tx.compras_encabezado.update({
+          where: { CompraEncabezadoID: id },
+          data: { EstadoPago: 'PAGADO' },
+        });
+      }
+
+      return {
+        CompraEncabezadoID: id,
+        TotalBruto: totalBruto,
+        TotalDescuentosPorcentaje: compraActualizada.TotalDescuentosPorcentaje,
+        TotalDescuentoEfectivo: compraActualizada.TotalDescuentoEfectivo,
+        TotalNeto: nuevoTotalNeto,
+        SaldoPendiente: nuevoSaldoPendiente,
+      };
+    });
+
+    return { message: 'Descuentos aplicados correctamente', data: result };
   }
 }
 
