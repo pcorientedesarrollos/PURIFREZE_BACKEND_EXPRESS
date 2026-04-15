@@ -9,6 +9,7 @@ export const createCompraPagoSchema = z.object({
   Descuento: z.number().min(0, 'El descuento no puede ser negativo').default(0),
   FechaPago: z.string({ required_error: 'FechaPago es requerida' }),
   Referencia: z.string().max(100).nullish(),
+  Factura: z.string().max(100).nullish(),
   Observaciones: z.string().max(255).nullish(),
   UsuarioID: z.number({ required_error: 'UsuarioID es requerido' }),
 });

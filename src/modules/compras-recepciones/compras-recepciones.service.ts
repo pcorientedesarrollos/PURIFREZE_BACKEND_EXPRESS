@@ -40,40 +40,66 @@ class ComprasRecepcionesService {
 
       // 2. Validar que vengan detalles
       if (!Detalles?.length) {
-        throw new HttpError('No ingresaste ninguna refacción en la recepción', 400);
+        throw new HttpError('No ingresaste ningún item en la recepción', 400);
       }
 
-      // 3. Obtener cantidades ya recibidas (sin validar pago, ahora son independientes)
-      const cantidadesRecibidas = await obtenerCantidadesRecibidasCompra(tx, CompraEncabezadoID);
+      // 3. Crear mapa de detalles de compra por CompraDetalleID
+      const detallesCompraMap = new Map<number, {
+        CompraDetalleID: number;
+        RefaccionID: number | null;
+        EquipoVirtualID: number | null;
+        Cantidad: number;
+        PrecioUnitario: number | null;
+      }>();
 
-      // 5. Validar que las cantidades no excedan las de la compra
-      const detallesCompraMap = new Map<number, { RefaccionID: number; Cantidad: number; PrecioUnitario: number | null }>();
       for (const detalle of compra.compras_detalle) {
-        if (detalle.IsActive && detalle.RefaccionID) {
-          detallesCompraMap.set(detalle.RefaccionID, {
+        if (detalle.IsActive) {
+          detallesCompraMap.set(detalle.CompraDetalleID, {
+            CompraDetalleID: detalle.CompraDetalleID,
             RefaccionID: detalle.RefaccionID,
+            EquipoVirtualID: detalle.EquipoVirtualID,
             Cantidad: detalle.Cantidad || 0,
             PrecioUnitario: detalle.PrecioUnitario,
           });
         }
       }
 
+      // 4. Obtener cantidades ya recibidas por CompraDetalleID
+      const recepcionesExistentes = await tx.compras_recepciones_detalle.findMany({
+        where: {
+          compras_recepciones_encabezado: {
+            CompraEncabezadoID,
+            IsActive: 1,
+          },
+          IsActive: 1,
+        },
+      });
+
+      const cantidadesRecibidasPorDetalle = new Map<number, number>();
+      for (const rec of recepcionesExistentes) {
+        if (rec.CompraDetalleID) {
+          const actual = cantidadesRecibidasPorDetalle.get(rec.CompraDetalleID) || 0;
+          cantidadesRecibidasPorDetalle.set(rec.CompraDetalleID, actual + (rec.CantidadEstablecida || 0));
+        }
+      }
+
+      // 5. Validar que las cantidades no excedan las de la compra
       for (const detalleRecepcion of Detalles) {
-        const detalleCompra = detallesCompraMap.get(detalleRecepcion.RefaccionID);
+        const detalleCompra = detallesCompraMap.get(detalleRecepcion.CompraDetalleID);
 
         if (!detalleCompra) {
           throw new HttpError(
-            `La refacción ${detalleRecepcion.RefaccionID} no existe en la compra`,
+            `El detalle con ID ${detalleRecepcion.CompraDetalleID} no existe en la compra`,
             400,
           );
         }
 
-        const cantidadYaRecibida = cantidadesRecibidas.get(detalleRecepcion.RefaccionID) || 0;
+        const cantidadYaRecibida = cantidadesRecibidasPorDetalle.get(detalleRecepcion.CompraDetalleID) || 0;
         const cantidadPendiente = detalleCompra.Cantidad - cantidadYaRecibida;
 
         if (detalleRecepcion.CantidadEstablecida > cantidadPendiente) {
           throw new HttpError(
-            `La cantidad a recibir (${detalleRecepcion.CantidadEstablecida}) para la refacción ${detalleRecepcion.RefaccionID} excede la cantidad pendiente (${cantidadPendiente})`,
+            `La cantidad a recibir (${detalleRecepcion.CantidadEstablecida}) excede la cantidad pendiente (${cantidadPendiente})`,
             400,
           );
         }
@@ -94,47 +120,52 @@ class ComprasRecepcionesService {
 
       // 7. Crear detalles de recepción y procesar inventario/kardex
       for (const detalleRecepcion of Detalles) {
+        const detalleCompra = detallesCompraMap.get(detalleRecepcion.CompraDetalleID)!;
+        const esEquipoVirtual = detalleCompra.EquipoVirtualID && !detalleCompra.RefaccionID;
+
         // Crear detalle de recepción
         await tx.compras_recepciones_detalle.create({
           data: {
             ComprasRecepcionesEncabezadoID: recepcionGuardada.ComprasRecepcionesEncabezadoID,
-            RefaccionID: detalleRecepcion.RefaccionID,
+            CompraDetalleID: detalleRecepcion.CompraDetalleID,
+            RefaccionID: detalleCompra.RefaccionID,
             CantidadEstablecida: detalleRecepcion.CantidadEstablecida,
             IsActive: 1,
           },
         });
 
-        // Obtener precio unitario de la compra
-        const detalleCompra = detallesCompraMap.get(detalleRecepcion.RefaccionID)!;
-        const precioUnitario = detalleCompra.PrecioUnitario || 0;
+        // Solo procesar inventario/kardex para refacciones (no para equipos virtuales)
+        if (detalleCompra.RefaccionID && !esEquipoVirtual) {
+          const precioUnitario = detalleCompra.PrecioUnitario || 0;
 
-        // Actualizar inventario
-        await actualizarInventario(
-          tx,
-          detalleRecepcion.RefaccionID,
-          detalleRecepcion.CantidadEstablecida,
-          fechaHoyStr,
-        );
+          // Actualizar inventario
+          await actualizarInventario(
+            tx,
+            detalleCompra.RefaccionID,
+            detalleRecepcion.CantidadEstablecida,
+            fechaHoyStr,
+          );
 
-        // Crear registro en Kardex
-        await crearKardex(
-          tx,
-          detalleRecepcion.RefaccionID,
-          detalleRecepcion.CantidadEstablecida,
-          precioUnitario,
-          usuarioIDNum,
-          'Entrada_Compra',
-          `Entrada por recepción de compra #${CompraEncabezadoID}`,
-          fechaHoyStr,
-        );
+          // Crear registro en Kardex
+          await crearKardex(
+            tx,
+            detalleCompra.RefaccionID,
+            detalleRecepcion.CantidadEstablecida,
+            precioUnitario,
+            usuarioIDNum,
+            'Entrada_Compra',
+            `Entrada por recepción de compra #${CompraEncabezadoID}`,
+            fechaHoyStr,
+          );
 
-        // Actualizar costo promedio
-        await actualizarCostoPromedioRefaccion(
-          tx,
-          detalleRecepcion.RefaccionID,
-          precioUnitario,
-          detalleRecepcion.CantidadEstablecida,
-        );
+          // Actualizar costo promedio
+          await actualizarCostoPromedioRefaccion(
+            tx,
+            detalleCompra.RefaccionID,
+            precioUnitario,
+            detalleRecepcion.CantidadEstablecida,
+          );
+        }
       }
 
       // 8. Actualizar estado de entrega de la compra (nuevo sistema de ejes independientes)
@@ -235,7 +266,7 @@ class ComprasRecepcionesService {
 
   /**
    * Obtiene recepciones con pagos por ID de compra
-   * Incluye información completa de refacciones para facilitar nuevas recepciones
+   * Incluye información completa de refacciones Y equipos virtuales para facilitar nuevas recepciones
    */
   async findByCompraWithPagos(compraEncabezadoID: number) {
     // 1. Obtener la compra con sus detalles
@@ -273,9 +304,13 @@ class ComprasRecepcionesService {
       orderBy: { PagosID: 'desc' },
     });
 
-    // 4. Obtener IDs de refacciones de la compra
+    // 4. Obtener IDs de refacciones Y equipos virtuales
     const refaccionIDs = compra.compras_detalle
       .map(d => d.RefaccionID)
+      .filter((id): id is number => id !== null);
+
+    const equipoVirtualIDs = compra.compras_detalle
+      .map(d => d.EquipoVirtualID)
       .filter((id): id is number => id !== null);
 
     // 5. Obtener información de las refacciones
@@ -284,43 +319,72 @@ class ComprasRecepcionesService {
     });
     const refaccionesMap = new Map(refacciones.map(r => [r.RefaccionID, r]));
 
-    // 6. Calcular cantidades recibidas por refacción
-    const cantidadesRecibidas = new Map<number, number>();
+    // 5b. Obtener información de equipos virtuales
+    const equiposVirtuales = equipoVirtualIDs.length > 0
+      ? await prisma.equipos_virtuales.findMany({
+          where: { EquipoVirtualID: { in: equipoVirtualIDs } },
+        })
+      : [];
+    const equiposVirtualesMap = new Map(equiposVirtuales.map(e => [e.EquipoVirtualID, e]));
+
+    // 6. Calcular cantidades recibidas por CompraDetalleID (no por RefaccionID)
+    const cantidadesRecibidasPorDetalle = new Map<number, number>();
     for (const recepcion of recepciones) {
-      for (const detalle of recepcion.compras_recepciones_detalle) {
-        if (detalle.RefaccionID) {
-          const actual = cantidadesRecibidas.get(detalle.RefaccionID) || 0;
-          cantidadesRecibidas.set(detalle.RefaccionID, actual + (detalle.CantidadEstablecida || 0));
+      for (const detalleRec of recepcion.compras_recepciones_detalle) {
+        // Buscar el CompraDetalleID correspondiente
+        if (detalleRec.CompraDetalleID) {
+          const actual = cantidadesRecibidasPorDetalle.get(detalleRec.CompraDetalleID) || 0;
+          cantidadesRecibidasPorDetalle.set(detalleRec.CompraDetalleID, actual + (detalleRec.CantidadEstablecida || 0));
+        } else if (detalleRec.RefaccionID) {
+          // Fallback: buscar por RefaccionID (compatibilidad con recepciones antiguas)
+          const detalleCompra = compra.compras_detalle.find(d => d.RefaccionID === detalleRec.RefaccionID);
+          if (detalleCompra) {
+            const actual = cantidadesRecibidasPorDetalle.get(detalleCompra.CompraDetalleID) || 0;
+            cantidadesRecibidasPorDetalle.set(detalleCompra.CompraDetalleID, actual + (detalleRec.CantidadEstablecida || 0));
+          }
         }
       }
     }
 
-    // 7. Construir detalle de refacciones con info completa
-    // Solo incluir detalles que tienen RefaccionID (no equipos virtuales sin expandir)
-    const refaccionesDetalle = compra.compras_detalle
-      .filter(detalle => detalle.RefaccionID !== null)
-      .map(detalle => {
-        const refaccion = refaccionesMap.get(detalle.RefaccionID!);
-        const cantidadRecibida = cantidadesRecibidas.get(detalle.RefaccionID!) || 0;
-        const cantidadComprada = detalle.Cantidad || 0;
-        const cantidadPendiente = cantidadComprada - cantidadRecibida;
-        const precioUnitario = detalle.PrecioUnitario || 0;
+    // 7. Construir detalle incluyendo TODOS los items (refacciones Y equipos virtuales)
+    const refaccionesDetalle = compra.compras_detalle.map(detalle => {
+      const esEquipoVirtual = detalle.EquipoVirtualID && !detalle.RefaccionID;
 
-        return {
-          CompraDetalleID: detalle.CompraDetalleID,
-          RefaccionID: detalle.RefaccionID,
-          NombreRefaccion: refaccion?.NombrePieza || 'Refacción no encontrada',
-          Descripcion: refaccion?.Observaciones || '',
-          CantidadComprada: cantidadComprada,
-          CantidadRecibida: cantidadRecibida,
-          CantidadPendiente: cantidadPendiente,
-          PrecioUnitario: precioUnitario,
-          SubtotalComprado: cantidadComprada * precioUnitario,
-          SubtotalRecibido: cantidadRecibida * precioUnitario,
-          SubtotalPendiente: cantidadPendiente * precioUnitario,
-          Completado: cantidadPendiente <= 0,
-        };
-      });
+      let nombre: string;
+      let descripcion: string;
+
+      if (esEquipoVirtual) {
+        const equipo = equiposVirtualesMap.get(detalle.EquipoVirtualID!);
+        nombre = equipo?.Nombre || 'Equipo Virtual';
+        descripcion = equipo?.Codigo || '';
+      } else {
+        const refaccion = refaccionesMap.get(detalle.RefaccionID!);
+        nombre = refaccion?.NombrePieza || 'Refacción no encontrada';
+        descripcion = refaccion?.Observaciones || '';
+      }
+
+      const cantidadRecibida = cantidadesRecibidasPorDetalle.get(detalle.CompraDetalleID) || 0;
+      const cantidadComprada = detalle.Cantidad || 0;
+      const cantidadPendiente = cantidadComprada - cantidadRecibida;
+      const precioUnitario = detalle.PrecioUnitario || 0;
+
+      return {
+        CompraDetalleID: detalle.CompraDetalleID,
+        RefaccionID: detalle.RefaccionID,
+        EquipoVirtualID: detalle.EquipoVirtualID,
+        EsEquipoVirtual: esEquipoVirtual,
+        NombreRefaccion: nombre,
+        Descripcion: descripcion,
+        CantidadComprada: cantidadComprada,
+        CantidadRecibida: cantidadRecibida,
+        CantidadPendiente: cantidadPendiente,
+        PrecioUnitario: precioUnitario,
+        SubtotalComprado: cantidadComprada * precioUnitario,
+        SubtotalRecibido: cantidadRecibida * precioUnitario,
+        SubtotalPendiente: cantidadPendiente * precioUnitario,
+        Completado: cantidadPendiente <= 0,
+      };
+    });
 
     // 8. Calcular totales
     const totalPagado = pagos.reduce((sum, p) => sum + (p.Monto || 0), 0);
@@ -328,7 +392,7 @@ class ComprasRecepcionesService {
     const totalCompra = compra.TotalNeto || 0;
     const montoPendientePago = totalCompra - totalPagado;
 
-    // 9. Calcular totales de refacciones
+    // 9. Calcular totales de items (refacciones + equipos virtuales)
     const totalRefaccionesCompradas = refaccionesDetalle.reduce((sum, r) => sum + r.CantidadComprada, 0);
     const totalRefaccionesRecibidas = refaccionesDetalle.reduce((sum, r) => sum + r.CantidadRecibida, 0);
     const totalRefaccionesPendientes = refaccionesDetalle.reduce((sum, r) => sum + r.CantidadPendiente, 0);
@@ -362,7 +426,7 @@ class ComprasRecepcionesService {
           montoTotalRecibido: totalRecibido,
           montoTotalPagado: totalPagado,
           montoPendientePago: montoPendientePago,
-          // Refacciones
+          // Items (refacciones + equipos virtuales)
           totalRefaccionesCompradas,
           totalRefaccionesRecibidas,
           totalRefaccionesPendientes,

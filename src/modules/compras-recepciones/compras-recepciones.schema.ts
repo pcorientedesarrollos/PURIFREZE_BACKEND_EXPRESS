@@ -1,8 +1,9 @@
 import { z } from 'zod';
 
 // Schema para detalle de recepción
+// Usa CompraDetalleID para identificar el item (soporta refacciones y equipos virtuales)
 export const createRecepcionDetalleSchema = z.object({
-  RefaccionID: z.number({ required_error: 'RefaccionID es requerido' }),
+  CompraDetalleID: z.number({ required_error: 'CompraDetalleID es requerido' }),
   CantidadEstablecida: z.number({ required_error: 'CantidadEstablecida es requerida' }),
 });
 

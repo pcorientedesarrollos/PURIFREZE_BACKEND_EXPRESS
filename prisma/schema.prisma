@@ -351,6 +351,7 @@ model compras_recepciones_detalle {
   ComprasRecepcionesDetalleID    Int                           @id @default(autoincrement())
   ComprasRecepcionesEncabezadoID Int?
   RefaccionID                    Int?
+  CompraDetalleID                Int?
   CantidadEstablecida            Float?                        @db.Float
   IsActive                       Int?                          @db.TinyInt
   compras_recepciones_encabezado compras_recepciones_encabezado? @relation("RecepcionDetalles", fields: [ComprasRecepcionesEncabezadoID], references: [ComprasRecepcionesEncabezadoID])
@@ -384,6 +385,7 @@ model compras_pagos {
   Descuento           Float?               @db.Float @default(0)
   FechaPago           DateTime             @db.Date
   Referencia          String?              @db.VarChar(100)
+  Factura             String?              @db.VarChar(100)
   Observaciones       String?              @db.VarChar(255)
   UsuarioID           Int
   FechaRegistro       DateTime             @default(now())
