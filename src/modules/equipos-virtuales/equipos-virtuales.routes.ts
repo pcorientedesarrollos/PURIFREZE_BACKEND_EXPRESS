@@ -31,6 +31,9 @@ router.put('/:EquipoVirtualID', validateParams(equipoVirtualIdParamSchema), vali
 // POST /equipos-virtuales/:EquipoVirtualID/duplicar - Duplicar equipo
 router.post('/:EquipoVirtualID/duplicar', validateParams(equipoVirtualIdParamSchema), (req, res) => equiposVirtualesController.duplicate(req, res));
 
+// POST /equipos-virtuales/:EquipoVirtualID/migrar-a-plantilla - Migrar a plantilla de equipo
+router.post('/:EquipoVirtualID/migrar-a-plantilla', validateParams(equipoVirtualIdParamSchema), (req, res) => equiposVirtualesController.migrarAPlantilla(req, res));
+
 // PATCH /equipos-virtuales/baja/:EquipoVirtualID - Dar de baja
 router.patch('/baja/:EquipoVirtualID', validateParams(equipoVirtualIdParamSchema), (req, res) => equiposVirtualesController.deactivate(req, res));
 

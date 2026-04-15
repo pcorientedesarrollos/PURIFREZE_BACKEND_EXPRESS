@@ -55,6 +55,12 @@ class EquiposVirtualesController {
     const result = await equiposVirtualesService.getHistorial(EquipoVirtualID);
     return success(res, result.message, result.data);
   }
+
+  async migrarAPlantilla(req: Request, res: Response) {
+    const { EquipoVirtualID } = req.params as unknown as { EquipoVirtualID: number };
+    const result = await equiposVirtualesService.migrarAPlantilla(EquipoVirtualID);
+    return success(res, 'Equipo virtual migrado a plantilla correctamente', result, 201);
+  }
 }
 
 export const equiposVirtualesController = new EquiposVirtualesController();

@@ -605,6 +605,77 @@ class EquiposVirtualesService {
     };
   }
 
+  /**
+   * Migra un equipo virtual a una plantilla de equipo
+   * Crea una nueva plantilla con el nombre "EQUIPO VIRTUAL - [Nombre]"
+   * y copia los detalles (RefaccionID + Cantidad)
+   */
+  async migrarAPlantilla(equipoVirtualId: number) {
+    return await prisma.$transaction(
+      async (tx) => {
+        // 1. Obtener equipo virtual con detalles
+        const equipoVirtual = await tx.equipos_virtuales.findUnique({
+          where: { EquipoVirtualID: equipoVirtualId },
+          include: { detalles: { where: { IsActive: true } } },
+        });
+
+        if (!equipoVirtual || !equipoVirtual.IsActive) {
+          throw new HttpError('Equipo virtual no encontrado', 404);
+        }
+
+        if (!equipoVirtual.detalles || equipoVirtual.detalles.length === 0) {
+          throw new HttpError('El equipo virtual no tiene detalles para migrar', 400);
+        }
+
+        // 2. Verificar que no existe plantilla con mismo código (si tiene código)
+        if (equipoVirtual.Codigo) {
+          const existente = await tx.plantillas_equipo.findFirst({
+            where: { Codigo: equipoVirtual.Codigo, IsActive: 1 },
+          });
+          if (existente) {
+            throw new HttpError(`Ya existe una plantilla con código ${equipoVirtual.Codigo}`, 400);
+          }
+        }
+
+        // 3. Crear plantilla (nombre incluye prefijo para identificación)
+        const plantilla = await tx.plantillas_equipo.create({
+          data: {
+            Codigo: equipoVirtual.Codigo || null,
+            NombreEquipo: `EQUIPO VIRTUAL - ${equipoVirtual.Nombre}`,
+            Observaciones: equipoVirtual.Descripcion || null,
+            EsExterno: 0,
+            PorcentajeVenta: 35.00,
+            PorcentajeRenta: 15.00,
+            IsActive: 1,
+            FechaCreacion: new Date(),
+          },
+        });
+
+        // 4. Copiar detalles (solo RefaccionID y Cantidad)
+        for (const detalle of equipoVirtual.detalles) {
+          await tx.plantillas_equipo_detalle.create({
+            data: {
+              PlantillaEquipoID: plantilla.PlantillaEquipoID,
+              RefaccionID: detalle.RefaccionID,
+              Cantidad: detalle.Cantidad || 1,
+              IsActive: 1,
+            },
+          });
+        }
+
+        return {
+          PlantillaEquipoID: plantilla.PlantillaEquipoID,
+          NombreEquipo: plantilla.NombreEquipo,
+          TotalRefacciones: equipoVirtual.detalles.length,
+        };
+      },
+      {
+        maxWait: 10000,
+        timeout: 30000,
+      }
+    );
+  }
+
   private redondear(valor: number): number {
     return Math.round(valor * 100) / 100;
   }
