@@ -258,10 +258,25 @@ class NotasCreditoService {
       throw new HttpError('La nota de crédito no pertenece al proveedor de esta compra', 400);
     }
 
-    const montoAplicar = dto.MontoAplicado || notaCredito.Monto;
+    // Calcular saldo pendiente real de la compra
+    const totalNeto = Number(compra.TotalNeto) || 0;
+    const totalPagado = Number(compra.TotalPagado) || 0;
+    const totalNotasCredito = Number(compra.TotalNotasCredito) || 0;
+    const saldoPendiente = totalNeto - totalPagado - totalNotasCredito;
 
-    if (montoAplicar > notaCredito.Monto) {
-      throw new HttpError('El monto a aplicar no puede ser mayor al monto de la nota de crédito', 400);
+    // Si la compra ya está pagada, no permitir aplicar más notas
+    if (saldoPendiente <= 0) {
+      throw new HttpError('Esta compra ya está completamente pagada', 400);
+    }
+
+    const montoNota = Number(notaCredito.Monto);
+    let montoAplicar = dto.MontoAplicado ? Number(dto.MontoAplicado) : montoNota;
+    let montoExcedente = 0;
+
+    // Si el monto a aplicar supera el saldo pendiente, calcular excedente
+    if (montoAplicar > saldoPendiente) {
+      montoExcedente = montoAplicar - saldoPendiente;
+      montoAplicar = saldoPendiente; // Aplicar solo lo necesario para liquidar
     }
 
     return await prisma.$transaction(async (tx) => {
@@ -275,24 +290,70 @@ class NotasCreditoService {
         },
       });
 
-      // Cambiar estado de la nota a APLICADO
+      // Cambiar estado de la nota original a APLICADO
       await tx.notas_credito.update({
         where: { NotaCreditoID: id },
         data: { Estado: 'APLICADO' },
       });
 
+      // Si hay excedente, crear nueva nota de crédito con el monto restante
+      let notaExcedenteCreada: any = null;
+      if (montoExcedente > 0) {
+        notaExcedenteCreada = await tx.notas_credito.create({
+          data: {
+            ProveedorID: notaCredito.ProveedorID,
+            Monto: montoExcedente,
+            Fecha: new Date(),
+            NumeroReferencia: `EXC-${notaCredito.NumeroReferencia || id}`,
+            Descripcion: `Excedente de NC #${id} - ${notaCredito.Descripcion}`,
+            Observaciones: `Generada automáticamente por excedente de $${montoExcedente.toFixed(2)}`,
+            Estado: 'DISPONIBLE',
+            UsuarioID: usuarioId,
+            IsActive: 1,
+          },
+        });
+      }
+
       // Actualizar TotalNotasCredito en la compra
-      const totalNotasActual = compra.TotalNotasCredito || 0;
+      const nuevoTotalNotasCredito = totalNotasCredito + montoAplicar;
+
+      // Calcular nuevo saldo y determinar EstadoPago
+      const nuevoSaldoPendiente = totalNeto - totalPagado - nuevoTotalNotasCredito;
+      let nuevoEstadoPago = compra.EstadoPago;
+
+      if (nuevoSaldoPendiente <= 0) {
+        nuevoEstadoPago = 'PAGADO';
+      } else if (totalPagado + nuevoTotalNotasCredito > 0) {
+        nuevoEstadoPago = 'PARCIAL';
+      }
+
       await tx.compras_encabezado.update({
         where: { CompraEncabezadoID: dto.CompraEncabezadoID },
         data: {
-          TotalNotasCredito: totalNotasActual + montoAplicar,
+          TotalNotasCredito: nuevoTotalNotasCredito,
+          EstadoPago: nuevoEstadoPago,
         },
       });
 
+      // Construir mensaje de respuesta
+      let mensaje = 'Nota de crédito aplicada correctamente';
+      if (notaExcedenteCreada) {
+        mensaje = `Nota aplicada. Se creó NC #${notaExcedenteCreada.NotaCreditoID} con excedente de $${montoExcedente.toFixed(2)}`;
+      }
+      if (nuevoEstadoPago === 'PAGADO') {
+        mensaje += '. La compra ha sido liquidada.';
+      }
+
       return {
-        message: 'Nota de crédito aplicada correctamente',
-        data: await this.findOne(id),
+        message: mensaje,
+        data: {
+          notaAplicada: await this.findOne(id),
+          montoAplicado: montoAplicar,
+          montoExcedente: montoExcedente,
+          notaExcedenteID: notaExcedenteCreada?.NotaCreditoID || null,
+          nuevoEstadoPago,
+          saldoPendienteFinal: nuevoSaldoPendiente,
+        },
       };
     });
   }
