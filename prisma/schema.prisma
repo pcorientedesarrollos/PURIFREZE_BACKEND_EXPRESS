@@ -337,6 +337,7 @@ model compras_encabezado {
   TotalNotasCredito         Float?                      @db.Float @default(0)
   CotizacionCompraID        Int?
   NumeroPedido              String?                     @db.VarChar(100)
+  Factura                   String?                     @db.VarChar(100)
 
   // Relaciones
   compras_detalle           compras_detalle[]           @relation("CompraDetalles")

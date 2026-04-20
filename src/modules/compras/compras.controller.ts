@@ -41,6 +41,12 @@ class ComprasController {
     const result = await comprasService.aplicarDescuentos(CompraEncabezadoID, req.body);
     return success(res, result.message, result.data);
   }
+
+  async updateFactura(req: Request, res: Response) {
+    const { CompraEncabezadoID } = req.params as unknown as { CompraEncabezadoID: number };
+    const result = await comprasService.updateFactura(CompraEncabezadoID, req.body);
+    return success(res, result.message, result.data);
+  }
 }
 
 export const comprasController = new ComprasController();

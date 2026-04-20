@@ -100,9 +100,15 @@ export const aplicarDescuentosSchema = z.object({
   { message: 'Debe especificar al menos un tipo de descuento (porcentaje o efectivo)' }
 );
 
+// Schema para actualizar factura desde modal de pagos
+export const updateFacturaSchema = z.object({
+  Factura: z.string().max(100).nullish(),
+});
+
 // Types
 export type CreateCompraDetalleDto = z.infer<typeof createCompraDetalleSchema>;
 export type CreateCompraDto = z.infer<typeof createCompraSchema>;
 export type UpdateCompraDetalleDto = z.infer<typeof updateCompraDetalleSchema>;
 export type UpdateCompraDto = z.infer<typeof updateCompraSchema>;
 export type AplicarDescuentosDto = z.infer<typeof aplicarDescuentosSchema>;
+export type UpdateFacturaDto = z.infer<typeof updateFacturaSchema>;

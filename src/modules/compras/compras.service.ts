@@ -906,6 +906,36 @@ class ComprasService {
 
     return { message: 'Descuentos aplicados correctamente', data: result };
   }
+
+  /**
+   * Actualiza el número de factura de una compra
+   */
+  async updateFactura(id: number, dto: { Factura?: string | null }) {
+    const compra = await prisma.compras_encabezado.findUnique({
+      where: { CompraEncabezadoID: id },
+    });
+
+    if (!compra) {
+      throw new HttpError('Compra no encontrada', 404);
+    }
+
+    if (!compra.IsActive) {
+      throw new HttpError('La compra no está activa', 400);
+    }
+
+    const compraActualizada = await prisma.compras_encabezado.update({
+      where: { CompraEncabezadoID: id },
+      data: { Factura: dto.Factura || null },
+    });
+
+    return {
+      message: 'Factura actualizada correctamente',
+      data: {
+        CompraEncabezadoID: id,
+        Factura: compraActualizada.Factura,
+      },
+    };
+  }
 }
 
 export const comprasService = new ComprasService();

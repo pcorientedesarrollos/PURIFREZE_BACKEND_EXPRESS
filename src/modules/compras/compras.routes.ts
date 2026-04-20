@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { comprasController } from './compras.controller';
 import { validateBody, validateParams } from '../../middlewares/validateRequest';
-import { createCompraSchema, updateCompraSchema, compraIdParamSchema, aplicarDescuentosSchema } from './compras.schema';
+import { createCompraSchema, updateCompraSchema, compraIdParamSchema, aplicarDescuentosSchema, updateFacturaSchema } from './compras.schema';
 
 const router = Router();
 
@@ -219,5 +219,8 @@ router.delete('/:CompraEncabezadoID', validateParams(compraIdParamSchema), (req,
  *         description: Error de validación
  */
 router.patch('/:CompraEncabezadoID/descuentos', validateParams(compraIdParamSchema), validateBody(aplicarDescuentosSchema), (req, res) => comprasController.aplicarDescuentos(req, res));
+
+/** PATCH /compras/:id/factura - Actualizar número de factura */
+router.patch('/:CompraEncabezadoID/factura', validateParams(compraIdParamSchema), validateBody(updateFacturaSchema), (req, res) => comprasController.updateFactura(req, res));
 
 export default router;
