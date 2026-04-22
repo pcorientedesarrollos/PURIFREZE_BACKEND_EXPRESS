@@ -663,7 +663,7 @@ class CotizacionesCompraService {
 
     return {
       Folio: cotizacion.Folio,
-      FechaCotizacion: moment(cotizacion.FechaCotizacion).format('DD/MM/YYYY'),
+      FechaCotizacion: moment.utc(cotizacion.FechaCotizacion).format('DD/MM/YYYY'),
       Observaciones: cotizacion.Observaciones,
       Detalles: detallesConRefaccion,
     };
@@ -728,7 +728,7 @@ class CotizacionesCompraService {
     const mensaje = encodeURIComponent(
       `*Cotización de Compra*\n\n` +
       `Folio: ${cotizacion.Folio}\n` +
-      `Fecha: ${moment(cotizacion.FechaCotizacion).format('DD/MM/YYYY')}\n` +
+      `Fecha: ${moment.utc(cotizacion.FechaCotizacion).format('DD/MM/YYYY')}\n` +
       `Refacciones: ${cotizacion.detalles.length}\n\n` +
       `${cotizacion.Observaciones ? `Observaciones: ${cotizacion.Observaciones}\n\n` : ''}` +
       `Ver cotización: ${frontendUrl}/cotizaciones-compra/${id}`

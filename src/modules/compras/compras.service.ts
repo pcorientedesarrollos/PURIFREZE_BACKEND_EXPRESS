@@ -112,7 +112,7 @@ class ComprasService {
 
       return await tx.compras_encabezado.findUnique({
         where: { CompraEncabezadoID: id },
-        include: { compras_detalle: true },
+        include: { compras_detalle: { where: { IsActive: true } } },
       });
     });
 
@@ -134,6 +134,7 @@ class ComprasService {
     const compras = await prisma.compras_encabezado.findMany({
       include: {
         compras_detalle: {
+          where: { IsActive: true },
           include: {
             refaccion: {
               select: {
@@ -184,6 +185,7 @@ class ComprasService {
       where: { CompraEncabezadoID: id },
       include: {
         compras_detalle: {
+          where: { IsActive: true },
           include: {
             refaccion: {
               select: {
