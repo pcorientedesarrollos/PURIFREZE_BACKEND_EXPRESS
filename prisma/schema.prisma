@@ -337,6 +337,7 @@ model compras_encabezado {
   TotalNotasCredito         Float?                      @db.Float @default(0)
   CotizacionCompraID        Int?
   NumeroPedido              String?                     @db.VarChar(100)
+  Observaciones             String?                     @db.VarChar(500)
   Factura                   String?                     @db.VarChar(100)
 
   // Relaciones
@@ -1806,6 +1807,8 @@ model notas_credito {
   Monto             Float                        @db.Float
   Fecha             DateTime                     @db.Date
   NumeroReferencia  String?                      @db.VarChar(100)
+  NumeroFactura     String?                      @db.VarChar(100)
+  NumeroCredito     String?                      @db.VarChar(100)
   Descripcion       String                       @db.VarChar(500)
   Observaciones     String?                      @db.Text
   Estado            notas_credito_Estado?        @default(DISPONIBLE)

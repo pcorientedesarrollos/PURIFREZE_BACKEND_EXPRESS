@@ -30,6 +30,8 @@ class NotasCreditoService {
         Monto: dto.Monto,
         Fecha: moment(dto.Fecha).toDate(),
         NumeroReferencia: dto.NumeroReferencia || null,
+        NumeroFactura: dto.NumeroFactura || null,
+        NumeroCredito: dto.NumeroCredito || null,
         Descripcion: dto.Descripcion,
         Observaciones: dto.Observaciones || null,
         Estado: 'DISPONIBLE',
@@ -189,6 +191,8 @@ class NotasCreditoService {
     if (dto.Monto !== undefined) dataUpdate.Monto = dto.Monto;
     if (dto.Fecha !== undefined) dataUpdate.Fecha = moment(dto.Fecha).toDate();
     if (dto.NumeroReferencia !== undefined) dataUpdate.NumeroReferencia = dto.NumeroReferencia;
+    if (dto.NumeroFactura !== undefined) dataUpdate.NumeroFactura = dto.NumeroFactura;
+    if (dto.NumeroCredito !== undefined) dataUpdate.NumeroCredito = dto.NumeroCredito;
     if (dto.Descripcion !== undefined) dataUpdate.Descripcion = dto.Descripcion;
     if (dto.Observaciones !== undefined) dataUpdate.Observaciones = dto.Observaciones;
 
@@ -373,6 +377,8 @@ class NotasCreditoService {
       Monto: nc.Monto,
       Fecha: moment.utc(nc.Fecha).format('YYYY-MM-DD'),
       NumeroReferencia: nc.NumeroReferencia,
+      NumeroFactura: nc.NumeroFactura,
+      NumeroCredito: nc.NumeroCredito,
       Descripcion: nc.Descripcion,
       Observaciones: nc.Observaciones,
       Estado: nc.Estado,

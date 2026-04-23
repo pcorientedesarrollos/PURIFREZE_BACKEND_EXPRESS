@@ -40,6 +40,7 @@ export const createCompraSchema = z.object({
   FechaVencimientoCredito: z.string().optional().transform((val) => val ? new Date(val) : undefined),
   // Número de pedido del proveedor (ingresado por usuario)
   NumeroPedido: z.string().max(100).optional(),
+  Observaciones: z.string().max(500).optional().nullable(),
 });
 
 // Schema para detalle de compra (actualizar)
@@ -84,6 +85,7 @@ export const updateCompraSchema = z.object({
   FechaVencimientoCredito: z.string().optional().transform((val) => val ? new Date(val) : undefined),
   // Número de pedido del proveedor (ingresado por usuario)
   NumeroPedido: z.string().max(100).optional(),
+  Observaciones: z.string().max(500).optional().nullable(),
 });
 
 // Schema para params

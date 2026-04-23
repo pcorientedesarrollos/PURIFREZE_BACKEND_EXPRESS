@@ -15,6 +15,8 @@ export const createNotaCreditoSchema = z.object({
   Monto: z.number({ required_error: 'Monto es requerido' }).positive('El monto debe ser positivo'),
   Fecha: z.string({ required_error: 'Fecha es requerida' }),
   NumeroReferencia: z.string().max(100, 'Número de referencia máximo 100 caracteres').optional(),
+  NumeroFactura: z.string().max(100, 'Número de factura máximo 100 caracteres').optional(),
+  NumeroCredito: z.string().max(100, 'Número de crédito máximo 100 caracteres').optional(),
   Descripcion: z.string({ required_error: 'Descripción es requerida' }).max(500, 'Descripción máximo 500 caracteres'),
   Observaciones: z.string().max(1000, 'Observaciones máximo 1000 caracteres').optional(),
 });
@@ -27,6 +29,8 @@ export const updateNotaCreditoSchema = z.object({
   Monto: z.number().positive('El monto debe ser positivo').optional(),
   Fecha: z.string().optional(),
   NumeroReferencia: z.string().max(100, 'Número de referencia máximo 100 caracteres').optional().nullable(),
+  NumeroFactura: z.string().max(100, 'Número de factura máximo 100 caracteres').optional().nullable(),
+  NumeroCredito: z.string().max(100, 'Número de crédito máximo 100 caracteres').optional().nullable(),
   Descripcion: z.string().max(500, 'Descripción máximo 500 caracteres').optional(),
   Observaciones: z.string().max(1000, 'Observaciones máximo 1000 caracteres').optional().nullable(),
 });

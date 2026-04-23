@@ -453,6 +453,7 @@ class ComprasService {
         DiasCredito: dto.DiasCredito || null,
         FechaVencimientoCredito: fechaVencimientoCredito,
         NumeroPedido: dto.NumeroPedido || null,
+        Observaciones: dto.Observaciones || null,
       },
     });
   }
