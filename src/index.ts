@@ -55,6 +55,8 @@ import { notasCreditoRoutes } from './modules/notas-credito';
 import { cotizacionesCompraRoutes } from './modules/cotizaciones-compra';
 import { equiposVirtualesRoutes } from './modules/equipos-virtuales';
 import { cotizacionesProveedorRoutes } from './modules/cotizaciones-proveedor';
+import { gastosCategoriasRoutes } from './modules/gastos-categorias';
+import { gastosRoutes } from './modules/gastos';
 
 const app = express();
 
@@ -132,6 +134,8 @@ app.use('/notas-credito', notasCreditoRoutes);
 app.use('/cotizaciones-compra', cotizacionesCompraRoutes);
 app.use('/equipos-virtuales', equiposVirtualesRoutes);
 app.use('/cotizaciones-proveedor', cotizacionesProveedorRoutes);
+app.use('/gastos-categorias', gastosCategoriasRoutes);
+app.use('/gastos', gastosRoutes);
 
 // Error handler (debe ir al final)
 app.use(errorHandler);
