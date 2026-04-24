@@ -233,6 +233,15 @@ class ComprasService {
           select: {
             ProveedorID: true,
             NombreProveedor: true,
+            contactos: {
+              where: { IsActive: true },
+              select: {
+                ContactoID: true,
+                NombreContacto: true,
+                Puesto: true,
+                Celular: true,
+              },
+            },
           },
         },
       },
@@ -242,9 +251,16 @@ class ComprasService {
       throw new HttpError('Compra no encontrada', 404);
     }
 
-    // Formatear fechas - Usar moment.utc() para evitar conversión de timezone
+    const usuario = compra.UsuarioID
+      ? await prisma.usuarios.findUnique({
+          where: { UsuarioID: compra.UsuarioID },
+          select: { UsuarioID: true, NombreCompleto: true },
+        })
+      : null;
+
     const compraFormateada = {
       ...compra,
+      usuario,
       FechaCompra: compra.FechaCompra ? moment.utc(compra.FechaCompra).format('YYYY-MM-DD') : null,
       FechaVencimientoCredito: compra.FechaVencimientoCredito
         ? moment.utc(compra.FechaVencimientoCredito).format('YYYY-MM-DD')
