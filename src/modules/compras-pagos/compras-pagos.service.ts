@@ -6,6 +6,10 @@ import { CreateCompraPagoDto } from './compras-pagos.schema';
 import { validarSaldoCuentaBancaria } from '../../shared/shared-operations.service';
 
 class ComprasPagosService {
+  private round2(value: number): number {
+    return Math.round(value * 100) / 100;
+  }
+
   /**
    * Registra un nuevo pago para una compra
    */
@@ -15,23 +19,24 @@ class ComprasPagosService {
       const compra = await this.obtenerCompraOError(tx, dto.CompraEncabezadoID);
 
       // 2. Calcular saldo pendiente (considerando notas de crédito)
-      const totalPagado = compra.TotalPagado || 0;
-      const totalNeto = compra.TotalNeto || 0;
-      const totalNotasCredito = compra.TotalNotasCredito || 0;
-      const saldoPendiente = totalNeto - totalPagado - totalNotasCredito;
+      const totalPagado = this.round2(Number(compra.TotalPagado) || 0);
+      const totalNeto = this.round2(Number(compra.TotalNeto) || 0);
+      const totalNotasCredito = this.round2(Number(compra.TotalNotasCredito) || 0);
+      const saldoPendiente = this.round2(totalNeto - totalPagado - totalNotasCredito);
+      const montoRedondeado = this.round2(dto.Monto);
 
       // 3. Validar que no exceda el saldo pendiente
-      if (dto.Monto > saldoPendiente) {
+      if (montoRedondeado > saldoPendiente) {
         throw new HttpError(
-          `El monto ($${dto.Monto}) excede el saldo pendiente ($${saldoPendiente})`,
+          `El monto ($${montoRedondeado.toFixed(2)}) excede el saldo pendiente ($${saldoPendiente.toFixed(2)})`,
           400
         );
       }
 
       // 4. Si es CONTADO y es el primer pago, debe ser el total
-      if (compra.FormaPago === 'CONTADO' && totalPagado === 0 && dto.Monto < totalNeto) {
+      if (compra.FormaPago === 'CONTADO' && totalPagado === 0 && montoRedondeado < totalNeto) {
         throw new HttpError(
-          `Las compras de CONTADO requieren pago completo. Total: $${totalNeto}`,
+          `Las compras de CONTADO requieren pago completo. Total: $${totalNeto.toFixed(2)}`,
           400
         );
       }
@@ -42,13 +47,13 @@ class ComprasPagosService {
       }
 
       // 6. Crear el registro de pago
-      const descuento = dto.Descuento || 0;
+      const descuento = this.round2(dto.Descuento || 0);
       const pago = await tx.compras_pagos.create({
         data: {
           CompraEncabezadoID: dto.CompraEncabezadoID,
           MetodoPagoID: dto.MetodoPagoID,
           CuentaBancariaID: dto.CuentaBancariaID || null,
-          Monto: dto.Monto,
+          Monto: montoRedondeado,
           Descuento: descuento,
           FechaPago: new Date(dto.FechaPago),
           Referencia: dto.Referencia || null,
@@ -107,16 +112,17 @@ class ComprasPagosService {
       FechaRegistro: moment.utc(pago.FechaRegistro).format('YYYY-MM-DD HH:mm:ss'),
     }));
 
-    const totalPagado = pagos.reduce((sum, pago) => sum + pago.Monto, 0);
-    const totalNotasCredito = compra.TotalNotasCredito || 0;
-    const saldoPendiente = (compra.TotalNeto || 0) - totalPagado - totalNotasCredito;
+    const totalPagado = this.round2(pagos.reduce((sum, pago) => sum + Number(pago.Monto), 0));
+    const totalNotasCredito = this.round2(Number(compra.TotalNotasCredito) || 0);
+    const totalNeto = this.round2(Number(compra.TotalNeto) || 0);
+    const saldoPendiente = this.round2(totalNeto - totalPagado - totalNotasCredito);
 
     return {
       message: 'Pagos obtenidos',
       data: {
         pagos: pagosFormateados,
         resumen: {
-          TotalCompra: compra.TotalNeto || 0,
+          TotalCompra: totalNeto,
           TotalPagado: totalPagado,
           TotalNotasCredito: totalNotasCredito,
           SaldoPendiente: saldoPendiente,
@@ -264,7 +270,7 @@ class ComprasPagosService {
       },
     });
 
-    const totalPagado = pagos.reduce((sum, pago) => sum + pago.Monto, 0);
+    const totalPagado = this.round2(pagos.reduce((sum, pago) => sum + Number(pago.Monto), 0));
 
     // Obtener total de la compra
     const compra = await tx.compras_encabezado.findUnique({
@@ -273,10 +279,10 @@ class ComprasPagosService {
 
     if (!compra) return;
 
-    const totalNeto = compra.TotalNeto || 0;
-    const totalNotasCredito = compra.TotalNotasCredito || 0;
+    const totalNeto = this.round2(Number(compra.TotalNeto) || 0);
+    const totalNotasCredito = this.round2(Number(compra.TotalNotasCredito) || 0);
     // El saldo real considera pagos + notas de crédito
-    const totalCubierto = totalPagado + totalNotasCredito;
+    const totalCubierto = this.round2(totalPagado + totalNotasCredito);
 
     // Determinar nuevo estado de pago
     let nuevoEstadoPago: EstadoPagoCompra;

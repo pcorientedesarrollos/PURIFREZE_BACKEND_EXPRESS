@@ -851,29 +851,31 @@ class ComprasService {
         throw new HttpError('No se pueden aplicar descuentos a una compra ya pagada', 400);
       }
 
+      const round2 = (v: number) => Math.round(v * 100) / 100;
+
       // 3. Calcular nuevos totales
-      const totalBruto = compra.TotalBruto || 0;
-      const gastosOperativos = compra.TotalGastosOperativos || 0;
-      const gastosImportacion = compra.TotalGastosImportacion || 0;
-      const totalPagado = compra.TotalPagado || 0;
-      const totalNotasCredito = compra.TotalNotasCredito || 0;
+      const totalBruto = round2(Number(compra.TotalBruto) || 0);
+      const gastosOperativos = round2(Number(compra.TotalGastosOperativos) || 0);
+      const gastosImportacion = round2(Number(compra.TotalGastosImportacion) || 0);
+      const totalPagado = round2(Number(compra.TotalPagado) || 0);
+      const totalNotasCredito = round2(Number(compra.TotalNotasCredito) || 0);
 
       // Descuentos nuevos a aplicar (se SUMAN a los existentes)
       const descuentoPorcentajeNuevo = dto.DescuentoPorcentaje || 0;
-      const descuentoEfectivoNuevo = dto.DescuentoEfectivo || 0;
+      const descuentoEfectivoNuevo = round2(dto.DescuentoEfectivo || 0);
 
       // Calcular monto del descuento por porcentaje (sobre el total bruto)
-      const montoDescuentoPorcentaje = totalBruto * (descuentoPorcentajeNuevo / 100);
+      const montoDescuentoPorcentaje = round2(totalBruto * (descuentoPorcentajeNuevo / 100));
 
       // Total de descuentos nuevos
-      const totalDescuentosNuevos = montoDescuentoPorcentaje + descuentoEfectivoNuevo;
+      const totalDescuentosNuevos = round2(montoDescuentoPorcentaje + descuentoEfectivoNuevo);
 
       // Nuevo total de descuentos (acumulando con los existentes)
-      const descuentosPrevios = (compra.TotalDescuentosPorcentaje || 0) + (compra.TotalDescuentoEfectivo || 0);
-      const totalDescuentosFinal = descuentosPrevios + totalDescuentosNuevos;
+      const descuentosPrevios = round2((Number(compra.TotalDescuentosPorcentaje) || 0) + (Number(compra.TotalDescuentoEfectivo) || 0));
+      const totalDescuentosFinal = round2(descuentosPrevios + totalDescuentosNuevos);
 
       // Nuevo TotalNeto
-      const nuevoTotalNeto = totalBruto - totalDescuentosFinal + gastosOperativos + gastosImportacion;
+      const nuevoTotalNeto = round2(totalBruto - totalDescuentosFinal + gastosOperativos + gastosImportacion);
 
       // 4. Validar que el total no quede negativo
       if (nuevoTotalNeto < 0) {
@@ -881,7 +883,7 @@ class ComprasService {
       }
 
       // 5. Validar que no quede un saldo pendiente negativo
-      const nuevoSaldoPendiente = nuevoTotalNeto - totalPagado - totalNotasCredito;
+      const nuevoSaldoPendiente = round2(nuevoTotalNeto - totalPagado - totalNotasCredito);
       if (nuevoSaldoPendiente < 0) {
         throw new HttpError(
           `El descuento generaría un saldo negativo. Total pagado + notas de crédito ($${(totalPagado + totalNotasCredito).toFixed(2)}) excede el nuevo total ($${nuevoTotalNeto.toFixed(2)})`,
@@ -890,23 +892,21 @@ class ComprasService {
       }
 
       // 6. Calcular IVA del nuevo total (los precios ya incluyen IVA 16%)
-      const ivaFactor = 1.16;
-      const totalSinIva = nuevoTotalNeto / ivaFactor;
-      const nuevoTotalIva = totalSinIva * 0.16;
+      const nuevoTotalIva = round2((nuevoTotalNeto / 1.16) * 0.16);
 
       // 7. Actualizar compra
       const compraActualizada = await tx.compras_encabezado.update({
         where: { CompraEncabezadoID: id },
         data: {
-          TotalDescuentosPorcentaje: (compra.TotalDescuentosPorcentaje || 0) + montoDescuentoPorcentaje,
-          TotalDescuentoEfectivo: (compra.TotalDescuentoEfectivo || 0) + descuentoEfectivoNuevo,
+          TotalDescuentosPorcentaje: round2((Number(compra.TotalDescuentosPorcentaje) || 0) + montoDescuentoPorcentaje),
+          TotalDescuentoEfectivo: round2((Number(compra.TotalDescuentoEfectivo) || 0) + descuentoEfectivoNuevo),
           TotalIVA: nuevoTotalIva,
           TotalNeto: nuevoTotalNeto,
         },
       });
 
       // 8. Actualizar estado de pago si el saldo pendiente es 0
-      if (nuevoSaldoPendiente === 0) {
+      if (nuevoSaldoPendiente <= 0) {
         await tx.compras_encabezado.update({
           where: { CompraEncabezadoID: id },
           data: { EstadoPago: 'PAGADO' },
