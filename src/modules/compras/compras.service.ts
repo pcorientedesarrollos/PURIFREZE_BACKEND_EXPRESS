@@ -191,6 +191,7 @@ class ComprasService {
               select: {
                 RefaccionID: true,
                 NombrePieza: true,
+                Modelo: true,
                 Codigo: true,
                 NombreCorto: true,
               },

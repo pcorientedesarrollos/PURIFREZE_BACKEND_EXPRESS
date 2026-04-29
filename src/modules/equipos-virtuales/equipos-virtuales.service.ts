@@ -334,7 +334,7 @@ class EquiposVirtualesService {
       });
 
       return id;
-    });
+    }, { timeout: 30000 });
 
     const equipoActualizado = await this.findOne(result);
     return { message: 'Equipo virtual actualizado correctamente', data: equipoActualizado.data };
