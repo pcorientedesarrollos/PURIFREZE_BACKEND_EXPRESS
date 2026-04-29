@@ -57,6 +57,7 @@ class ComprasPagosService {
           Descuento: descuento,
           FechaPago: new Date(dto.FechaPago),
           Referencia: dto.Referencia || null,
+          Factura: dto.Factura || null,
           Observaciones: dto.Observaciones || null,
           UsuarioID: dto.UsuarioID,
           IsActive: 1,
