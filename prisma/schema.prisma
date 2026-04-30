@@ -2084,34 +2084,61 @@ model cotizaciones_compra_equipos_virtuales {
   @@index([EquipoVirtualID], map: "idx_ccev_equipo")
 }
 
+model sat_cuentas_gastos {
+  SATCuentaID Int                  @id @default(autoincrement())
+  Clave       String               @db.VarChar(20)
+  Descripcion String               @db.VarChar(255)
+  Nivel       Int                  @db.TinyInt
+  ParentID    Int?
+  IsActive    Boolean              @default(true)
+  parent      sat_cuentas_gastos?  @relation("SATParent", fields: [ParentID], references: [SATCuentaID])
+  children    sat_cuentas_gastos[] @relation("SATParent")
+  catalogos   catalogo_gastos[]
+}
+
+model catalogo_gastos {
+  CatalogoGastoID Int                 @id @default(autoincrement())
+  ParentID        Int?
+  Nivel           Int                 @db.TinyInt
+  Nombre          String              @db.VarChar(150)
+  Descripcion     String?             @db.VarChar(255)
+  Periodicidad    String?             @db.VarChar(20)
+  EsOpcional      Boolean             @default(false)
+  SATCuentaID     Int?
+  IsActive        Boolean             @default(true)
+  FechaCreacion   DateTime            @default(now())
+  parent          catalogo_gastos?    @relation("CatalogoParent", fields: [ParentID], references: [CatalogoGastoID])
+  children        catalogo_gastos[]   @relation("CatalogoParent")
+  sat_cuenta      sat_cuentas_gastos? @relation(fields: [SATCuentaID], references: [SATCuentaID])
+  detalles        gastos_detalle[]
+}
+
 model gastos_categorias {
-  CategoriaGastoID Int                 @id @default(autoincrement())
-  Nombre           String              @db.VarChar(100)
-  Descripcion      String?             @db.VarChar(255)
-  Grupo            String?             @db.VarChar(50)
-  IsActive         Boolean             @default(true)
-  gastos           gastos_encabezado[]
+  CategoriaGastoID Int     @id @default(autoincrement())
+  Nombre           String  @db.VarChar(100)
+  Descripcion      String? @db.VarChar(255)
+  Grupo            String? @db.VarChar(50)
+  IsActive         Boolean @default(true)
 }
 
 model gastos_encabezado {
-  GastoID          Int               @id @default(autoincrement())
-  CategoriaGastoID Int
-  Fecha            DateTime          @db.Date
-  Monto            Float             @db.Float
-  Descripcion      String            @db.VarChar(500)
-  Referencia       String?           @db.VarChar(100)
-  UsuarioID        Int?
-  FechaRegistro    DateTime          @default(now())
-  IsActive         Boolean           @default(true)
-  categoria        gastos_categorias @relation(fields: [CategoriaGastoID], references: [CategoriaGastoID])
-  detalles         gastos_detalle[]
+  GastoID       Int              @id @default(autoincrement())
+  Fecha         DateTime         @db.Date
+  Descripcion   String           @db.VarChar(500)
+  Referencia    String?          @db.VarChar(100)
+  UsuarioID     Int?
+  FechaRegistro DateTime         @default(now())
+  IsActive      Boolean          @default(true)
+  detalles      gastos_detalle[]
 }
 
 model gastos_detalle {
-  GastoDetalleID Int               @id @default(autoincrement())
-  GastoID        Int
-  Concepto       String            @db.VarChar(255)
-  Monto          Float             @db.Float
-  IsActive       Boolean           @default(true)
-  gasto          gastos_encabezado @relation(fields: [GastoID], references: [GastoID])
+  GastoDetalleID  Int               @id @default(autoincrement())
+  GastoID         Int
+  CatalogoGastoID Int?
+  Concepto        String            @db.VarChar(255)
+  Monto           Float             @db.Float
+  IsActive        Boolean           @default(true)
+  gasto           gastos_encabezado @relation(fields: [GastoID], references: [GastoID])
+  catalogo        catalogo_gastos?  @relation(fields: [CatalogoGastoID], references: [CatalogoGastoID])
 }
