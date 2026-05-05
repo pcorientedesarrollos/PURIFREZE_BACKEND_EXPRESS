@@ -92,11 +92,6 @@ class CatalogoGastosService {
             if (dto.Nivel !== 1) throw new HttpError('Una cuenta raíz debe ser nivel 1', 400);
         }
 
-        if (dto.SATCuentaID) {
-            const sat = await prisma.sat_cuentas_gastos.findUnique({ where: { SATCuentaID: dto.SATCuentaID } });
-            if (!sat) throw new HttpError('Cuenta SAT no encontrada', 404);
-        }
-
         const Codigo = await this.generarCodigo(dto.Nivel, dto.ParentID);
 
         const data = await prisma.catalogo_gastos.create({
@@ -118,11 +113,6 @@ class CatalogoGastosService {
     async update(CatalogoGastoID: number, dto: UpdateCatalogoGastoDto) {
         const exist = await prisma.catalogo_gastos.findUnique({ where: { CatalogoGastoID } });
         if (!exist) throw new HttpError('Registro no encontrado', 404);
-
-        if (dto.SATCuentaID) {
-            const sat = await prisma.sat_cuentas_gastos.findUnique({ where: { SATCuentaID: dto.SATCuentaID } });
-            if (!sat) throw new HttpError('Cuenta SAT no encontrada', 404);
-        }
 
         const data = await prisma.catalogo_gastos.update({
             where: { CatalogoGastoID },
