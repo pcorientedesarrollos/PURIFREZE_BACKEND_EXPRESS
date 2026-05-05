@@ -8,16 +8,14 @@ export const createCatalogoGastoSchema = z.object({
     Nombre: z.string().min(1, 'El nombre es requerido').max(150),
     Descripcion: z.string().max(255).optional().nullable(),
     Periodicidad: z.enum(PERIODICIDADES).optional().nullable(),
-    EsOpcional: z.boolean().optional().default(false),
-    SATCuentaID: z.number().int().positive().optional().nullable(),
+    FechaInicio: z.string().regex(/^\d{4}-\d{2}$/, 'Formato inválido YYYY-MM').optional().nullable(),
 });
 
 export const updateCatalogoGastoSchema = z.object({
     Nombre: z.string().min(1).max(150).optional(),
     Descripcion: z.string().max(255).optional().nullable(),
     Periodicidad: z.enum(PERIODICIDADES).optional().nullable(),
-    EsOpcional: z.boolean().optional(),
-    SATCuentaID: z.number().int().positive().optional().nullable(),
+    FechaInicio: z.string().regex(/^\d{4}-\d{2}$/, 'Formato inválido YYYY-MM').optional().nullable(),
 });
 
 export const catalogoGastoIdParamSchema = z.object({

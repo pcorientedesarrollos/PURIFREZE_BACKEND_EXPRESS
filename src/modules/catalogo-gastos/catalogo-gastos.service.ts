@@ -107,8 +107,7 @@ class CatalogoGastosService {
                 Nombre: dto.Nombre,
                 Descripcion: dto.Descripcion ?? null,
                 Periodicidad: dto.Periodicidad ?? null,
-                EsOpcional: dto.EsOpcional ?? false,
-                SATCuentaID: dto.SATCuentaID ?? null,
+                FechaInicio: dto.FechaInicio ? new Date(`${dto.FechaInicio}-01`) : null,
                 IsActive: true,
             },
             include: INCLUDE_SAT,
@@ -131,8 +130,9 @@ class CatalogoGastosService {
                 Nombre: dto.Nombre,
                 Descripcion: dto.Descripcion,
                 Periodicidad: dto.Periodicidad,
-                EsOpcional: dto.EsOpcional,
-                SATCuentaID: dto.SATCuentaID,
+                FechaInicio: dto.FechaInicio !== undefined
+                    ? (dto.FechaInicio ? new Date(`${dto.FechaInicio}-01`) : null)
+                    : undefined,
             },
             include: INCLUDE_SAT,
         });

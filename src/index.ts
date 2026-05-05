@@ -59,6 +59,7 @@ import { gastosCategoriasRoutes } from './modules/gastos-categorias';
 import { gastosRoutes } from './modules/gastos';
 import { satCuentasGastosRoutes } from './modules/sat-cuentas-gastos';
 import { catalogoGastosRoutes } from './modules/catalogo-gastos';
+import { gastosProyeccionRoutes } from './modules/gastos-proyeccion';
 
 const app = express();
 
@@ -139,6 +140,7 @@ app.use('/cotizaciones-proveedor', cotizacionesProveedorRoutes);
 app.use('/gastos-categorias', gastosCategoriasRoutes);
 app.use('/sat-cuentas-gastos', satCuentasGastosRoutes);
 app.use('/catalogo-gastos', catalogoGastosRoutes);
+app.use('/gastos-proyeccion', gastosProyeccionRoutes);
 app.use('/gastos', gastosRoutes);
 
 // Error handler (debe ir al final)

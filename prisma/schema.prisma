@@ -2104,6 +2104,7 @@ model catalogo_gastos {
   Nombre          String              @db.VarChar(150)
   Descripcion     String?             @db.VarChar(255)
   Periodicidad    String?             @db.VarChar(20)
+  FechaInicio     DateTime?           @db.Date
   EsOpcional      Boolean             @default(false)
   SATCuentaID     Int?
   IsActive        Boolean             @default(true)
@@ -2112,6 +2113,32 @@ model catalogo_gastos {
   children        catalogo_gastos[]   @relation("CatalogoParent")
   sat_cuenta      sat_cuentas_gastos? @relation(fields: [SATCuentaID], references: [SATCuentaID])
   detalles        gastos_detalle[]
+  proyeccion_items gastos_proyeccion_item[]
+}
+
+model gastos_proyeccion {
+  ProyeccionID  Int                      @id @default(autoincrement())
+  Año           Int                      @db.SmallInt
+  Mes           Int                      @db.TinyInt
+  UsuarioID     Int?
+  FechaCreacion DateTime                 @default(now())
+  items         gastos_proyeccion_item[]
+
+  @@unique([Año, Mes], name: "uk_anio_mes")
+}
+
+model gastos_proyeccion_item {
+  ItemID          Int               @id @default(autoincrement())
+  ProyeccionID    Int
+  CatalogoGastoID Int
+  Ocurrencia      Int               @db.TinyInt @default(1)
+  Monto           Decimal?          @db.Decimal(12, 2)
+  Aplica          Boolean           @default(true)
+  Notas           String?           @db.VarChar(255)
+  proyeccion      gastos_proyeccion @relation(fields: [ProyeccionID], references: [ProyeccionID], onDelete: Cascade)
+  catalogo        catalogo_gastos   @relation(fields: [CatalogoGastoID], references: [CatalogoGastoID])
+
+  @@unique([ProyeccionID, CatalogoGastoID, Ocurrencia], name: "uk_item")
 }
 
 model gastos_categorias {
