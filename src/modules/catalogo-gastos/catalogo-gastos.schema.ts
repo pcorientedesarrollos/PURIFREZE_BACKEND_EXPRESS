@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-const PERIODICIDADES = ['mensual', 'bimestral', 'trimestral', 'semestral', 'anual', 'eventual'] as const;
+const PERIODICIDADES = ['semanal', 'quincenal', 'mensual', 'bimestral', 'trimestral', 'semestral', 'anual', 'eventual'] as const;
 
 export const createCatalogoGastoSchema = z.object({
     ParentID: z.number().int().positive().optional().nullable(),

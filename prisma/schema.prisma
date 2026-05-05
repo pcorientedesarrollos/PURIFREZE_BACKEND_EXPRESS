@@ -2100,6 +2100,7 @@ model catalogo_gastos {
   CatalogoGastoID Int                 @id @default(autoincrement())
   ParentID        Int?
   Nivel           Int                 @db.TinyInt
+  Codigo          String?             @db.VarChar(20)
   Nombre          String              @db.VarChar(150)
   Descripcion     String?             @db.VarChar(255)
   Periodicidad    String?             @db.VarChar(20)

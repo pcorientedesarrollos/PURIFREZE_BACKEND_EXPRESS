@@ -45,6 +45,11 @@ class CatalogoGastosController {
         const result = await catalogoGastosService.activar(Number(CatalogoGastoID));
         return success(res, result.message, result.data);
     }
+
+    async backfill(_req: Request, res: Response) {
+        const result = await catalogoGastosService.backfillCodigos();
+        return success(res, result.message, result.data);
+    }
 }
 
 export const catalogoGastosController = new CatalogoGastosController();

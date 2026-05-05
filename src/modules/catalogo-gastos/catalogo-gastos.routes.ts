@@ -12,6 +12,8 @@ import {
 const router = Router();
 
 // Rutas específicas antes de /:CatalogoGastoID
+router.post('/backfill', (req, res) => catalogoGastosController.backfill(req, res));
+
 router.get('/admin', (req, res) => catalogoGastosController.getTreeAdmin(req, res));
 
 router.get('/nivel/:nivel', validateParams(nivelParamSchema), (req, res) =>

@@ -21,7 +21,7 @@ class CatalogoGastosService {
         const items = await prisma.catalogo_gastos.findMany({
             where: { IsActive: true },
             include: INCLUDE_SAT,
-            orderBy: [{ Nivel: 'asc' }, { Nombre: 'asc' }],
+            orderBy: [{ Nivel: 'asc' }, { Codigo: 'asc' }],
         });
         return { message: 'Catálogo de gastos obtenido', data: buildTree(items as CatalogoNodo[]) };
     }
@@ -29,7 +29,7 @@ class CatalogoGastosService {
     async getTreeAdmin() {
         const items = await prisma.catalogo_gastos.findMany({
             include: INCLUDE_SAT,
-            orderBy: [{ Nivel: 'asc' }, { Nombre: 'asc' }],
+            orderBy: [{ Nivel: 'asc' }, { Codigo: 'asc' }],
         });
         return { message: 'Catálogo de gastos (admin) obtenido', data: buildTree(items as CatalogoNodo[]) };
     }
@@ -52,6 +52,37 @@ class CatalogoGastosService {
         return { message: 'Hijos obtenidos', data };
     }
 
+    private async generarCodigo(nivel: number, parentId?: number | null): Promise<string> {
+        if (nivel === 1) {
+            const existentes = await prisma.catalogo_gastos.findMany({
+                where: { Nivel: 1 },
+                select: { Codigo: true },
+            });
+            const max = existentes.reduce((acc, c) => Math.max(acc, Number(c.Codigo) || 600), 600);
+            return String(max + 1);
+        }
+
+        const parent = await prisma.catalogo_gastos.findUnique({
+            where: { CatalogoGastoID: parentId! },
+            select: { Codigo: true },
+        });
+        const parentCodigo = parent?.Codigo ?? String(parentId);
+
+        const hermanos = await prisma.catalogo_gastos.findMany({
+            where: { ParentID: parentId },
+            select: { Codigo: true },
+        });
+        const maxSuffix = hermanos.reduce((acc, s) => {
+            const partes = (s.Codigo ?? '').split('.');
+            return Math.max(acc, Number(partes[partes.length - 1]) || 0);
+        }, 0);
+        const n = maxSuffix + 1;
+
+        return nivel === 2
+            ? `${parentCodigo}.${String(n).padStart(2, '0')}`
+            : `${parentCodigo}.${String(n).padStart(3, '0')}`;
+    }
+
     async create(dto: CreateCatalogoGastoDto) {
         if (dto.ParentID) {
             const parent = await prisma.catalogo_gastos.findUnique({ where: { CatalogoGastoID: dto.ParentID } });
@@ -66,10 +97,13 @@ class CatalogoGastosService {
             if (!sat) throw new HttpError('Cuenta SAT no encontrada', 404);
         }
 
+        const Codigo = await this.generarCodigo(dto.Nivel, dto.ParentID);
+
         const data = await prisma.catalogo_gastos.create({
             data: {
                 ParentID: dto.ParentID ?? null,
                 Nivel: dto.Nivel,
+                Codigo,
                 Nombre: dto.Nombre,
                 Descripcion: dto.Descripcion ?? null,
                 Periodicidad: dto.Periodicidad ?? null,
@@ -121,6 +155,52 @@ class CatalogoGastosService {
 
         await prisma.catalogo_gastos.update({ where: { CatalogoGastoID }, data: { IsActive: true } });
         return { message: 'Registro activado', data: { CatalogoGastoID } };
+    }
+
+    async backfillCodigos() {
+        const todos = await prisma.catalogo_gastos.findMany({
+            orderBy: [{ Nivel: 'asc' }, { CatalogoGastoID: 'asc' }],
+        });
+
+        const codigoMap = new Map<number, string>();
+
+        todos.filter(i => i.Nivel === 1).forEach((item, idx) => {
+            codigoMap.set(item.CatalogoGastoID, String(601 + idx));
+        });
+
+        const nivel2ByParent = new Map<number, typeof todos>();
+        todos.filter(i => i.Nivel === 2).forEach(item => {
+            const key = item.ParentID!;
+            if (!nivel2ByParent.has(key)) nivel2ByParent.set(key, []);
+            nivel2ByParent.get(key)!.push(item);
+        });
+        nivel2ByParent.forEach((items, parentId) => {
+            const parentCodigo = codigoMap.get(parentId) ?? String(parentId);
+            items.forEach((item, idx) => {
+                codigoMap.set(item.CatalogoGastoID, `${parentCodigo}.${String(idx + 1).padStart(2, '0')}`);
+            });
+        });
+
+        const nivel3ByParent = new Map<number, typeof todos>();
+        todos.filter(i => i.Nivel === 3).forEach(item => {
+            const key = item.ParentID!;
+            if (!nivel3ByParent.has(key)) nivel3ByParent.set(key, []);
+            nivel3ByParent.get(key)!.push(item);
+        });
+        nivel3ByParent.forEach((items, parentId) => {
+            const parentCodigo = codigoMap.get(parentId) ?? String(parentId);
+            items.forEach((item, idx) => {
+                codigoMap.set(item.CatalogoGastoID, `${parentCodigo}.${String(idx + 1).padStart(3, '0')}`);
+            });
+        });
+
+        await prisma.$transaction(
+            Array.from(codigoMap.entries()).map(([id, codigo]) =>
+                prisma.catalogo_gastos.update({ where: { CatalogoGastoID: id }, data: { Codigo: codigo } })
+            )
+        );
+
+        return { message: `${codigoMap.size} registros actualizados`, data: { total: codigoMap.size } };
     }
 }
 
