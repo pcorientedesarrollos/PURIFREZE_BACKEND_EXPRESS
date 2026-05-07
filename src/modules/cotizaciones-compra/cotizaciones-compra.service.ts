@@ -213,6 +213,7 @@ class CotizacionesCompraService {
           ? {
               RefaccionID: refaccion.RefaccionID,
               Codigo: refaccion.Codigo,
+              Modelo: refaccion.Modelo,
               NombrePieza: refaccion.NombrePieza,
               Observaciones: refaccion.Observaciones,
             }
@@ -625,13 +626,12 @@ class CotizacionesCompraService {
   /**
    * Obtiene datos para generar el PDF
    */
-  async getDatosParaPdf(id: number) {
+  async getDatosParaPdf(id: number, proveedorId?: number) {
     const cotizacion = await prisma.cotizaciones_compra_encabezado.findUnique({
       where: { CotizacionCompraID: id },
       include: {
-        detalles: {
-          where: { IsActive: true },
-        },
+        detalles: { where: { IsActive: true } },
+        usuario: { select: { NombreCompleto: true } },
       },
     });
 
@@ -643,7 +643,7 @@ class CotizacionesCompraService {
       throw new HttpError('La cotización no está activa', 400);
     }
 
-    // Obtener información de refacciones
+    // Refacciones con Modelo
     const refaccionIds = cotizacion.detalles.map((d) => d.RefaccionID);
     const refacciones = await prisma.catalogo_refacciones.findMany({
       where: { RefaccionID: { in: refaccionIds } },
@@ -654,17 +654,44 @@ class CotizacionesCompraService {
     const detallesConRefaccion = cotizacion.detalles.map((detalle) => {
       const refaccion = refaccionesMap.get(detalle.RefaccionID);
       return {
-        Codigo: refaccion?.Codigo || '',
+        Modelo: refaccion?.Modelo || '',
         NombrePieza: refaccion?.NombrePieza || 'Sin nombre',
         Cantidad: detalle.Cantidad,
         Observaciones: detalle.Observaciones || '',
       };
     });
 
+    // Datos del proveedor (si se especifica)
+    let proveedorData: { Nombre: string; NombreContacto?: string; Telefono?: string; Correo?: string } | undefined;
+    if (proveedorId) {
+      const proveedor = await prisma.catalogo_proveedores.findUnique({
+        where: { ProveedorID: proveedorId },
+      });
+
+      if (proveedor) {
+        const envio = await prisma.cotizaciones_compra_envios.findFirst({
+          where: { CotizacionCompraID: id, ProveedorID: proveedorId },
+          include: {
+            contacto: { select: { NombreContacto: true, Celular: true, Correo: true } },
+          },
+          orderBy: { FechaEnvio: 'desc' },
+        });
+
+        proveedorData = {
+          Nombre: proveedor.NombreProveedor || '',
+          NombreContacto: envio?.contacto?.NombreContacto ?? undefined,
+          Telefono: envio?.Telefono ?? envio?.contacto?.Celular ?? undefined,
+          Correo: envio?.contacto?.Correo ?? undefined,
+        };
+      }
+    }
+
     return {
       Folio: cotizacion.Folio,
       FechaCotizacion: moment.utc(cotizacion.FechaCotizacion).format('DD/MM/YYYY'),
       Observaciones: cotizacion.Observaciones,
+      Solicitante: { Nombre: cotizacion.usuario?.NombreCompleto || '' },
+      Proveedor: proveedorData,
       Detalles: detallesConRefaccion,
     };
   }

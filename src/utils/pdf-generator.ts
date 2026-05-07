@@ -45,8 +45,10 @@ export interface CotizacionPdfData {
   Folio: string;
   FechaCotizacion: string;
   Observaciones: string | null;
+  Solicitante?: { Nombre: string };
+  Proveedor?: { Nombre: string; NombreContacto?: string; Telefono?: string; Correo?: string };
   Detalles: Array<{
-    Codigo: string;
+    Modelo: string;
     NombrePieza: string;
     Cantidad: number;
     Observaciones: string;
@@ -90,7 +92,7 @@ function createPdfContent(data: CotizacionPdfData): Buffer {
   for (let i = 0; i < data.Detalles.length; i++) {
     const det = data.Detalles[i];
     text += `${i + 1}. ${det.NombrePieza}\n`;
-    text += `   Codigo: ${det.Codigo || 'N/A'}\n`;
+    text += `   Modelo: ${det.Modelo || 'N/A'}\n`;
     text += `   Cantidad: ${det.Cantidad}\n`;
     if (det.Observaciones) {
       text += `   Obs: ${det.Observaciones}\n`;

@@ -45,7 +45,8 @@ class CotizacionesCompraController {
 
   async getPdf(req: Request, res: Response) {
     const { CotizacionCompraID } = req.params as unknown as { CotizacionCompraID: number };
-    const datos = await cotizacionesCompraService.getDatosParaPdf(CotizacionCompraID);
+    const proveedorId = req.query.proveedorId ? parseInt(req.query.proveedorId as string) : undefined;
+    const datos = await cotizacionesCompraService.getDatosParaPdf(CotizacionCompraID, proveedorId);
     return success(res, 'Datos para PDF obtenidos', datos);
   }
 
