@@ -492,6 +492,9 @@ model usuarios {
   Usuario              String?                @db.VarChar(255)
   Password             String?                @db.VarChar(255)
   NombreCompleto       String?                @db.VarChar(255)
+  Celular              String?                @db.VarChar(20)
+  Direccion            String?                @db.VarChar(500)
+  CorreoElectronico    String?                @db.VarChar(255)
   IsActive             Boolean
   IsAdmin              Boolean
   ProveedorID          Int?
