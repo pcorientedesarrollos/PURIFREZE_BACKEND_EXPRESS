@@ -16,6 +16,12 @@ function buildTree(items: CatalogoNodo[], parentId: number | null = null): Catal
         .map(i => ({ ...i, children: buildTree(items, i.CatalogoGastoID) }));
 }
 
+// Si la cadena es YYYY-MM (7 chars) agrega el día 01; si es YYYY-MM-DD úsala directo
+function parsearFecha(valor: string | null | undefined): Date | null {
+    if (!valor) return null;
+    return new Date(valor.length === 7 ? `${valor}-01` : valor);
+}
+
 class CatalogoGastosService {
     async getTree() {
         const items = await prisma.catalogo_gastos.findMany({
@@ -102,7 +108,8 @@ class CatalogoGastosService {
                 Nombre: dto.Nombre,
                 Descripcion: dto.Descripcion ?? null,
                 Periodicidad: dto.Periodicidad ?? null,
-                FechaInicio: dto.FechaInicio ? new Date(`${dto.FechaInicio}-01`) : null,
+                FechaInicio: parsearFecha(dto.FechaInicio),
+                FechaFin: parsearFecha(dto.FechaFin),
                 IsActive: true,
             },
             include: INCLUDE_SAT,
@@ -120,9 +127,8 @@ class CatalogoGastosService {
                 Nombre: dto.Nombre,
                 Descripcion: dto.Descripcion,
                 Periodicidad: dto.Periodicidad,
-                FechaInicio: dto.FechaInicio !== undefined
-                    ? (dto.FechaInicio ? new Date(`${dto.FechaInicio}-01`) : null)
-                    : undefined,
+                FechaInicio: dto.FechaInicio !== undefined ? parsearFecha(dto.FechaInicio) : undefined,
+                FechaFin: dto.FechaFin !== undefined ? parsearFecha(dto.FechaFin) : undefined,
             },
             include: INCLUDE_SAT,
         });

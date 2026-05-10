@@ -2,20 +2,30 @@ import { z } from 'zod';
 
 const PERIODICIDADES = ['semanal', 'quincenal', 'mensual', 'bimestral', 'trimestral', 'semestral', 'anual', 'eventual'] as const;
 
+// Acepta YYYY-MM (para mes de inicio de periodicidades largas)
+// y YYYY-MM-DD (para día exacto de semanal/quincenal)
+const fechaSchema = z
+    .string()
+    .regex(/^\d{4}-\d{2}(-\d{2})?$/, 'Formato inválido: use YYYY-MM o YYYY-MM-DD')
+    .optional()
+    .nullable();
+
 export const createCatalogoGastoSchema = z.object({
     ParentID: z.number().int().positive().optional().nullable(),
     Nivel: z.number().int().min(1).max(3),
     Nombre: z.string().min(1, 'El nombre es requerido').max(150),
     Descripcion: z.string().max(255).optional().nullable(),
     Periodicidad: z.enum(PERIODICIDADES).optional().nullable(),
-    FechaInicio: z.string().regex(/^\d{4}-\d{2}$/, 'Formato inválido YYYY-MM').optional().nullable(),
+    FechaInicio: fechaSchema,
+    FechaFin: fechaSchema,
 });
 
 export const updateCatalogoGastoSchema = z.object({
     Nombre: z.string().min(1).max(150).optional(),
     Descripcion: z.string().max(255).optional().nullable(),
     Periodicidad: z.enum(PERIODICIDADES).optional().nullable(),
-    FechaInicio: z.string().regex(/^\d{4}-\d{2}$/, 'Formato inválido YYYY-MM').optional().nullable(),
+    FechaInicio: fechaSchema,
+    FechaFin: fechaSchema,
 });
 
 export const catalogoGastoIdParamSchema = z.object({

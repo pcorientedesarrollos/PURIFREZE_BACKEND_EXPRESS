@@ -2108,6 +2108,7 @@ model catalogo_gastos {
   Descripcion     String?             @db.VarChar(255)
   Periodicidad    String?             @db.VarChar(20)
   FechaInicio     DateTime?           @db.Date
+  FechaFin        DateTime?           @db.Date
   EsOpcional      Boolean             @default(false)
   SATCuentaID     Int?
   IsActive        Boolean             @default(true)
