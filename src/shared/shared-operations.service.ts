@@ -15,12 +15,12 @@ export interface CrearPagoParams {
 const UBICACION_BODEGA_GENERAL = 1;
 
 /**
- * Valida que la cuenta bancaria tenga saldo suficiente
+ * Valida que la cuenta bancaria exista (sin restricción de saldo)
  */
 export async function validarSaldoCuentaBancaria(
   tx: Prisma.TransactionClient,
   cuentaBancariaID: number,
-  montoRequerido: number,
+  _montoRequerido?: number,
 ) {
   const cuentaBancaria = await tx.catalogo_cuentasBancarias.findUnique({
     where: { CuentaBancariaID: cuentaBancariaID },
@@ -28,13 +28,6 @@ export async function validarSaldoCuentaBancaria(
 
   if (!cuentaBancaria) {
     throw new HttpError('La cuenta bancaria no existe', 404);
-  }
-
-  if ((cuentaBancaria.Saldo || 0) < montoRequerido) {
-    throw new HttpError(
-      `Saldo insuficiente. Saldo actual: $${cuentaBancaria.Saldo || 0}, Monto requerido: $${montoRequerido}`,
-      400,
-    );
   }
 
   return cuentaBancaria;
