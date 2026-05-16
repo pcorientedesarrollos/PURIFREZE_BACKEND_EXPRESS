@@ -126,12 +126,12 @@ export class RevisionCarteraService {
     const clientesInactivos = guardados.filter(g => !g.ClienteActivo).length;
 
     const equiposActivos = guardados.reduce((sum, g) => {
-      const equipos = g.Equipos as EquipoCartera[];
+      const equipos = g.Equipos as unknown as EquipoCartera[];
       return sum + equipos.filter(e => e.activo).length;
     }, 0);
 
     const equiposInactivos = guardados.reduce((sum, g) => {
-      const equipos = g.Equipos as EquipoCartera[];
+      const equipos = g.Equipos as unknown as EquipoCartera[];
       return sum + equipos.filter(e => !e.activo).length;
     }, 0);
 
