@@ -2174,3 +2174,14 @@ model gastos_detalle {
   gasto           gastos_encabezado @relation(fields: [GastoID], references: [GastoID])
   catalogo        catalogo_gastos?  @relation(fields: [CatalogoGastoID], references: [CatalogoGastoID])
 }
+
+model revision_cartera {
+  ID             Int      @id @default(autoincrement())
+  ClienteViejoID Int      @unique
+  NombreCliente  String?  @db.VarChar(255)
+  ClienteActivo  Boolean  @default(true)
+  Equipos        Json
+  PagoMensual    Float?
+  FechaRevision  DateTime @default(now())
+  UsuarioID      Int?
+}
