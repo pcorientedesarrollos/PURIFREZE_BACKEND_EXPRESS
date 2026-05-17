@@ -3,6 +3,48 @@ import { HttpError } from '../../utils/response';
 import { CreateRefaccionDto, UpdateRefaccionDto } from './refacciones.schema';
 
 class RefaccionesService {
+  /**
+   * Genera el siguiente código único para una clasificación.
+   * Usa MAX del número de secuencia existente en lugar de COUNT para evitar
+   * duplicados cuando se eliminan o reclasifican refacciones.
+   */
+  private async generarCodigoUnico(prefixCodigo: string, excludeRefaccionID?: number): Promise<string> {
+    const existentes = await prisma.catalogo_refacciones.findMany({
+      where: {
+        Codigo: { startsWith: `${prefixCodigo}-` },
+        ...(excludeRefaccionID ? { RefaccionID: { not: excludeRefaccionID } } : {}),
+      },
+      select: { Codigo: true },
+    });
+
+    let maxSeq = 0;
+    for (const r of existentes) {
+      const m = r.Codigo?.match(/-(\d+)$/);
+      if (m) {
+        const seq = parseInt(m[1]);
+        if (seq > maxSeq) maxSeq = seq;
+      }
+    }
+
+    // Verificar unicidad iterando hasta encontrar un código libre
+    let nextSeq = maxSeq + 1;
+    let candidato = `${prefixCodigo}-${String(nextSeq).padStart(3, '0')}`;
+
+    while (true) {
+      const ocupado = await prisma.catalogo_refacciones.findFirst({
+        where: {
+          Codigo: candidato,
+          ...(excludeRefaccionID ? { RefaccionID: { not: excludeRefaccionID } } : {}),
+        },
+      });
+      if (!ocupado) break;
+      nextSeq++;
+      candidato = `${prefixCodigo}-${String(nextSeq).padStart(3, '0')}`;
+    }
+
+    return candidato;
+  }
+
   async create(data: CreateRefaccionDto) {
     const { NombrePieza, UnidadID, ClasificacionRefaccionID } = data;
 
@@ -34,13 +76,8 @@ class RefaccionesService {
       throw new HttpError('La unidad no existe', 300);
     }
 
-    // Generar código automático: {CodigoClasificacion}-{Consecutivo}
-    const countRefacciones = await prisma.catalogo_refacciones.count({
-      where: { ClasificacionID: ClasificacionRefaccionID },
-    });
-
-    const consecutivo = (countRefacciones + 1).toString().padStart(3, '0');
-    const codigoRefaccion = `${findClasificacion.Codigo}-${consecutivo}`;
+    // Generar código único usando MAX de secuencia existente (no COUNT)
+    const codigoRefaccion = await this.generarCodigoUnico(findClasificacion.Codigo);
 
     // Mapear ClasificacionRefaccionID a ClasificacionID (nombre en Prisma)
     const { ClasificacionRefaccionID: ClasificacionID, ...restData } = data;
@@ -116,13 +153,8 @@ class RefaccionesService {
         throw new HttpError('La clasificación no tiene código asignado', 300);
       }
 
-      // Generar nuevo código: {CodigoClasificacion}-{Consecutivo}
-      const countRefacciones = await prisma.catalogo_refacciones.count({
-        where: { ClasificacionID: ClasificacionRefaccionID },
-      });
-
-      const consecutivo = (countRefacciones + 1).toString().padStart(3, '0');
-      const nuevoCodigo = `${newClasificacion.Codigo}-${consecutivo}`;
+      // Generar nuevo código único usando MAX de secuencia (no COUNT)
+      const nuevoCodigo = await this.generarCodigoUnico(newClasificacion.Codigo!, RefaccionID);
 
       updateData.ClasificacionID = ClasificacionRefaccionID;
       updateData.Codigo = nuevoCodigo;

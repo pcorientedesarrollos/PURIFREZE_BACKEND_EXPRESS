@@ -247,14 +247,23 @@ class PlantillasEquipoService {
         }
       }
 
+      // Desactivar todos los detalles actuales antes de procesar los nuevos
+      // (estrategia replace-all: los que no vienen en el payload quedan inactivos)
+      if (dto.Detalles !== undefined) {
+        await tx.plantillas_equipo_detalle.updateMany({
+          where: { PlantillaEquipoID: id, IsActive: 1 },
+          data: { IsActive: 0 },
+        });
+      }
+
       // Actualizar o crear detalles
       if (dto.Detalles?.length) {
         for (const detalle of dto.Detalles) {
           if (detalle.PlantillaDetalleID) {
-            // Actualizar existente
+            // Actualizar existente y reactivar
             await tx.plantillas_equipo_detalle.updateMany({
               where: { PlantillaDetalleID: detalle.PlantillaDetalleID, PlantillaEquipoID: id },
-              data: { Cantidad: detalle.Cantidad },
+              data: { Cantidad: detalle.Cantidad, IsActive: 1 },
             });
           } else {
             // Verificar si ya existe la refacción (activa o inactiva)
