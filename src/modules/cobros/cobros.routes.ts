@@ -62,6 +62,8 @@ router.get('/', validateQuery(cobrosQuerySchema), (req, res) => cobrosController
 /** Obtener cobros vencidos */
 router.get('/vencidos', (req, res) => cobrosController.getVencidos(req, res));
 
+router.get('/kardex', (req, res) => cobrosController.getKardex(req, res));
+
 /** Obtener cobros de un contrato */
 router.get('/contrato/:ContratoID', validateParams(contratoIdParamSchema), (req, res) =>
   cobrosController.findByContrato(req, res)

@@ -87,6 +87,7 @@ model catalogo_cuentasBancarias {
   NombrePropietario String?  @db.VarChar(255)
   Saldo             Float?   @db.Float
   IsActive          Boolean?
+  EsCuentaCobros    Int?     @db.TinyInt @default(0)
 }
 
 model catalogo_metodos_pago {

@@ -1,3 +1,4 @@
+import { Prisma } from '@prisma/client';
 import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import {
@@ -495,6 +496,8 @@ class CobrosService {
         },
       });
 
+      await this.registrarMovimientoCobro(tx, cobroId, data.MontoPagado, fechaPago, `Cobro ${cobro.NumeroCobro}`);
+
       return updated;
     });
 
@@ -550,6 +553,8 @@ class CobrosService {
           UsuarioID: data.UsuarioID,
         },
       });
+
+      await this.registrarMovimientoCobro(tx, cobroId, data.MontoPagado, fechaPago, `Cobro ${cobro.NumeroCobro}`);
 
       return updated;
     });
@@ -765,6 +770,10 @@ class CobrosService {
           UsuarioID: data.UsuarioID,
         },
       });
+
+      if (!esRegalo) {
+        await this.registrarMovimientoCobro(tx, cobroId, montoFinal, fechaPago, `Cobro ${cobro.NumeroCobro}`);
+      }
 
       return updated;
     });
@@ -1025,6 +1034,8 @@ class CobrosService {
           },
         });
 
+        await this.registrarMovimientoCobro(tx, cobro.CobroID, cobro.MontoFinal, fechaPagoReal, `Cobro ${cobro.NumeroCobro}`);
+
         updated.push(cobroUpdated);
       }
 
@@ -1066,8 +1077,116 @@ class CobrosService {
   }
 
   // =============================================
+  // KARDEX
+  // =============================================
+
+  async getKardex(filters: { FechaDesde?: string; FechaHasta?: string }) {
+    const cuentaCobros = await prisma.catalogo_cuentasBancarias.findFirst({
+      where: { EsCuentaCobros: 1, IsActive: true },
+    });
+
+    if (!cuentaCobros) {
+      throw new HttpError('No hay cuenta de cobros configurada', 404);
+    }
+
+    const movimientos = await prisma.historial_movimientos_bancarios.findMany({
+      where: { CuentaBancariaID: cuentaCobros.CuentaBancariaID },
+      orderBy: [{ FechaMovimiento: 'asc' }, { MovimientosBancariosID: 'asc' }],
+    });
+
+    const cobroIds = movimientos
+      .filter((m) => m.CobrosID && m.CobrosID > 0)
+      .map((m) => m.CobrosID as number);
+
+    const cobrosMap = new Map<number, { NumeroCobro: string; NombreComercio: string | null }>();
+
+    if (cobroIds.length) {
+      const cobros = await prisma.cobros.findMany({
+        where: { CobroID: { in: cobroIds } },
+        include: {
+          contrato: {
+            include: {
+              cliente: { select: { NombreComercio: true } },
+            },
+          },
+        },
+      });
+      cobros.forEach((c) =>
+        cobrosMap.set(c.CobroID, {
+          NumeroCobro: c.NumeroCobro,
+          NombreComercio: c.contrato?.cliente?.NombreComercio ?? null,
+        })
+      );
+    }
+
+    let saldoAcumulado = 0;
+    const kardex = movimientos.map((m) => {
+      const monto = m.MontoMovimiento ?? 0;
+      saldoAcumulado += m.EoI ? monto : -monto;
+      const cobro = m.CobrosID ? cobrosMap.get(m.CobrosID) : null;
+      return {
+        MovimientosBancariosID: m.MovimientosBancariosID,
+        FechaMovimiento: m.FechaMovimiento,
+        DescripcionMovimiento: m.DescripcionMovimiento,
+        NumeroCobro: cobro?.NumeroCobro ?? null,
+        Cliente: cobro?.NombreComercio ?? null,
+        MontoEntrada: m.EoI ? monto : 0,
+        SaldoAcumulado: saldoAcumulado,
+      };
+    });
+
+    const filtrado = kardex.filter((k) => {
+      if (!k.FechaMovimiento) return true;
+      const fecha = new Date(k.FechaMovimiento);
+      if (filters.FechaDesde && fecha < new Date(filters.FechaDesde)) return false;
+      if (filters.FechaHasta && fecha > new Date(filters.FechaHasta)) return false;
+      return true;
+    });
+
+    return {
+      message: 'Kardex de cobros obtenido',
+      data: {
+        cuenta: cuentaCobros,
+        saldoActual: cuentaCobros.Saldo ?? 0,
+        movimientos: filtrado,
+      },
+    };
+  }
+
+  // =============================================
   // HELPERS
   // =============================================
+
+  private async registrarMovimientoCobro(
+    tx: Prisma.TransactionClient,
+    cobroId: number,
+    monto: number,
+    fecha: Date,
+    descripcion: string
+  ): Promise<void> {
+    const cuentaCobros = await tx.catalogo_cuentasBancarias.findFirst({
+      where: { EsCuentaCobros: 1, IsActive: true },
+    });
+    if (!cuentaCobros) return;
+
+    await tx.historial_movimientos_bancarios.create({
+      data: {
+        CuentaBancariaID: cuentaCobros.CuentaBancariaID,
+        CuentaContableID: '',
+        DescripcionMovimiento: descripcion,
+        FechaMovimiento: fecha,
+        EoI: true,
+        MontoMovimiento: monto,
+        PagosID: 0,
+        CobrosID: cobroId,
+      },
+    });
+
+    await tx.catalogo_cuentasBancarias.update({
+      where: { CuentaBancariaID: cuentaCobros.CuentaBancariaID },
+      data: { Saldo: { increment: monto } },
+    });
+  }
 
   /**
    * Calcular el multiplicador de meses según la frecuencia

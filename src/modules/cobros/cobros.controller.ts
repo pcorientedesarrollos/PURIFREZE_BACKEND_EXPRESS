@@ -54,6 +54,12 @@ class CobrosController {
     return success(res, result.message, result.data);
   }
 
+  async getKardex(req: Request, res: Response) {
+    const { FechaDesde, FechaHasta } = req.query as { FechaDesde?: string; FechaHasta?: string };
+    const result = await cobrosService.getKardex({ FechaDesde, FechaHasta });
+    return success(res, result.message, result.data);
+  }
+
   async getResumenCliente(req: Request, res: Response) {
     const { ClienteID } = req.params as unknown as { ClienteID: number };
     const result = await cobrosService.getResumenCliente(ClienteID);
