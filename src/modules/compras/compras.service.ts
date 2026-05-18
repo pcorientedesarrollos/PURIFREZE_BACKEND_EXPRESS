@@ -132,6 +132,7 @@ class ComprasService {
    */
   async findAll() {
     const compras = await prisma.compras_encabezado.findMany({
+      where: { IsActive: true },
       include: {
         compras_detalle: {
           where: { IsActive: true },
