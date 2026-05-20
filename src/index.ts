@@ -62,6 +62,7 @@ import { catalogoGastosRoutes } from './modules/catalogo-gastos';
 import { gastosProyeccionRoutes } from './modules/gastos-proyeccion';
 import { reportesBancariosRoutes } from './modules/reportes-bancarios';
 import { revisionCarteraRoutes } from './modules/revision-cartera';
+import { empresaRoutes } from './modules/empresa';
 
 const app = express();
 
@@ -146,6 +147,7 @@ app.use('/gastos-proyeccion', gastosProyeccionRoutes);
 app.use('/gastos', gastosRoutes);
 app.use('/reportes-bancarios', reportesBancariosRoutes);
 app.use('/revision-cartera', revisionCarteraRoutes);
+app.use('/empresa', empresaRoutes);
 
 // Error handler (debe ir al final)
 app.use(errorHandler);

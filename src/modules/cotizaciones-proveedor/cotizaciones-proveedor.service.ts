@@ -318,6 +318,8 @@ class CotizacionesProveedorService {
           TotalConDescuentoGlobal: Math.round(totalConDescuento * (1 - Number(respuesta.DescuentoGlobal) / 100) * 100) / 100,
           TotalEquiposVirtuales: Math.round(totalEquiposVirtuales * 100) / 100,
           TotalEquiposCotizados: Math.round(totalEquiposCotizados * 100) / 100,
+          TotalIVA: Math.round(totalConDescuento * (1 - Number(respuesta.DescuentoGlobal) / 100) * 0.16 * 100) / 100,
+          TotalFinal: Math.round(totalConDescuento * (1 - Number(respuesta.DescuentoGlobal) / 100) * 1.16 * 100) / 100,
         },
       },
     };
@@ -345,10 +347,6 @@ class CotizacionesProveedorService {
 
       if (!respuesta) {
         throw new HttpError('Respuesta no encontrada', 404);
-      }
-
-      if (respuesta.Estado === 'COMPLETADA') {
-        throw new HttpError('Esta respuesta ya fue completada', 400);
       }
 
       if (respuesta.Estado === 'RECHAZADA') {
@@ -420,22 +418,35 @@ class CotizacionesProveedorService {
         }
       }
 
+      // Determinar si la respuesta está completa (todos los items respondidos)
+      const allDetalleIds = respuesta.encabezado.detalles.map((d: any) => d.CotizacionDetalleID);
+      const allEquipoIds = respuesta.encabezado.equiposVirtuales.map((e: any) => e.ID);
+      const submittedDetalleIds = (dto.Detalles || []).map((d: any) => d.CotizacionDetalleID);
+      const submittedEquipoIds = (dto.EquiposVirtuales || []).map((e: any) => e.CotizacionEquipoVirtualID);
+
+      const isComplete =
+        allDetalleIds.every((id: number) => submittedDetalleIds.includes(id)) &&
+        allEquipoIds.every((id: number) => submittedEquipoIds.includes(id));
+
       // Actualizar respuesta
       await tx.cotizaciones_compra_respuestas.update({
         where: { RespuestaID: respuestaId },
         data: {
-          Estado: 'COMPLETADA',
+          Estado: isComplete ? 'COMPLETADA' : 'PENDIENTE',
           DescuentoGlobal: dto.DescuentoGlobal || 0,
           NumeroPedido: dto.NumeroPedido || null,
           Observaciones: dto.Observaciones || null,
-          FechaRespuesta: new Date(),
+          FechaRespuesta: isComplete ? new Date() : null,
         },
       });
 
-      return { RespuestaID: respuestaId };
+      return { RespuestaID: respuestaId, isComplete };
     });
 
-    return { message: 'Respuesta registrada correctamente', data: result };
+    return {
+      message: result.isComplete ? 'Respuesta completada correctamente' : 'Respuesta guardada parcialmente',
+      data: { RespuestaID: result.RespuestaID, Estado: result.isComplete ? 'COMPLETADA' : 'PENDIENTE' },
+    };
   }
 
   /**
@@ -848,6 +859,8 @@ class CotizacionesProveedorService {
         // Aplicar descuento global
         const descuentoGlobal = Number(respuesta.DescuentoGlobal || 0);
         const totalConDescuento = totalBruto * (1 - descuentoGlobal / 100);
+        const totalIva = Math.round(totalConDescuento * 0.16 * 100) / 100;
+        const totalNeto = Math.round((totalConDescuento + totalIva) * 100) / 100;
 
         // Crear encabezado de compra
         const compra = await tx.compras_encabezado.create({
@@ -858,13 +871,13 @@ class CotizacionesProveedorService {
             EstadoPago: 'PENDIENTE',
             EstadoEntrega: 'PEDIDO',
             FormaPago: 'CREDITO',
-            TotalBruto: totalBruto,
+            TotalBruto: Math.round(totalBruto * 100) / 100,
             TotalDescuentosPorcentaje: descuentoGlobal,
-            TotalDescuentoEfectivo: totalBruto - totalConDescuento,
+            TotalDescuentoEfectivo: Math.round((totalBruto - totalConDescuento) * 100) / 100,
             TotalGastosOperativos: 0,
             TotalGastosImportacion: 0,
-            TotalIVA: 0,
-            TotalNeto: totalConDescuento,
+            TotalIVA: totalIva,
+            TotalNeto: totalNeto,
             TotalPagado: 0,
             TotalRecibido: 0,
             TotalNotasCredito: 0,
@@ -1088,12 +1101,17 @@ class CotizacionesProveedorService {
           });
 
           const nuevoTotalBruto = Number(compraActual?.TotalBruto || 0) + totalEquiposProveedor;
-          const nuevoTotalNeto = Number(compraActual?.TotalNeto || 0) + totalEquiposProveedor;
+          // Base sin IVA = TotalNeto anterior sin su IVA + equipos nuevos
+          const baseAnteriorSinIva = Number(compraActual?.TotalNeto || 0) - Number(compraActual?.TotalIVA || 0);
+          const nuevaBase = baseAnteriorSinIva + totalEquiposProveedor;
+          const nuevoTotalIva = Math.round(nuevaBase * 0.16 * 100) / 100;
+          const nuevoTotalNeto = Math.round((nuevaBase + nuevoTotalIva) * 100) / 100;
 
           await tx.compras_encabezado.update({
             where: { CompraEncabezadoID: compraEncabezadoId },
             data: {
-              TotalBruto: nuevoTotalBruto,
+              TotalBruto: Math.round(nuevoTotalBruto * 100) / 100,
+              TotalIVA: nuevoTotalIva,
               TotalNeto: nuevoTotalNeto,
             },
           });

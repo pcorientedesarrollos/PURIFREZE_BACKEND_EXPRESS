@@ -493,6 +493,7 @@ model usuarios {
   Usuario              String?                @db.VarChar(255)
   Password             String?                @db.VarChar(255)
   NombreCompleto       String?                @db.VarChar(255)
+  Puesto               String?                @db.VarChar(255)
   Celular              String?                @db.VarChar(20)
   Direccion            String?                @db.VarChar(500)
   CorreoElectronico    String?                @db.VarChar(255)
@@ -1995,6 +1996,22 @@ enum EstadoRespuestaCotizacion {
   EN_PROCESO
   COMPLETADA
   RECHAZADA
+}
+
+// =============================================
+// CONFIGURACIÓN DE EMPRESA (Singleton)
+// =============================================
+
+model configuracion_empresa {
+  EmpresaID          Int      @id @default(autoincrement())
+  NombreEmpresa      String   @db.VarChar(255)
+  NombreComercial    String?  @db.VarChar(255)
+  Propietario        String   @db.VarChar(255)
+  Celular            String   @db.VarChar(20)
+  CorreoElectronico  String   @db.VarChar(100)
+  Direccion          String?  @db.VarChar(500)
+  Slogan             String?  @db.VarChar(255)
+  FechaActualizacion DateTime @updatedAt
 }
 
 // ============================================================================

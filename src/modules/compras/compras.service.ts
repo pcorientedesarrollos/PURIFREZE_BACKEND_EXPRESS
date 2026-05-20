@@ -256,7 +256,7 @@ class ComprasService {
     const usuario = compra.UsuarioID
       ? await prisma.usuarios.findUnique({
           where: { UsuarioID: compra.UsuarioID },
-          select: { UsuarioID: true, NombreCompleto: true },
+          select: { UsuarioID: true, NombreCompleto: true, Celular: true, Puesto: true },
         })
       : null;
 
