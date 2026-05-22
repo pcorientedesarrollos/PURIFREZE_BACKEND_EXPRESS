@@ -53,6 +53,7 @@ import { serviciosAdicionalesRoutes } from './modules/servicios-adicionales';
 import { refaccionPeriodoCambioRoutes } from './modules/refaccion-periodo-cambio';
 import { notasCreditoRoutes } from './modules/notas-credito';
 import { cotizacionesCompraRoutes } from './modules/cotizaciones-compra';
+import { publicRoutes } from './modules/public/public.routes';
 import { equiposVirtualesRoutes } from './modules/equipos-virtuales';
 import { cotizacionesProveedorRoutes } from './modules/cotizaciones-proveedor';
 import { gastosCategoriasRoutes } from './modules/gastos-categorias';
@@ -84,6 +85,7 @@ app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec));
 
 // Rutas públicas (sin autenticación)
 app.use('/auth', authRoutes);
+app.use('/public', publicRoutes);
 
 // Middleware de autenticación para rutas protegidas
 app.use(authMiddleware);
