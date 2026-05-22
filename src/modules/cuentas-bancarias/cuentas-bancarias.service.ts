@@ -45,11 +45,31 @@ class CuentasBancariasService {
   }
 
   async findAll() {
-    const allCuentas = await prisma.catalogo_cuentasBancarias.findMany({
-      orderBy: {
-        CuentaBancariaID: 'desc',
-      },
-    });
+    const rows = await prisma.$queryRaw<any[]>`
+      SELECT
+        cb.CuentaBancariaID,
+        cb.BancoID,
+        cb.CuentaBancaria,
+        cb.NombrePropietario,
+        cb.Saldo,
+        cb.IsActive,
+        cb.EsCuentaCobros,
+        b.NombreBanco
+      FROM catalogo_cuentasBancarias cb
+      LEFT JOIN catalogo_bancos b ON cb.BancoID = b.BancoID
+      ORDER BY cb.CuentaBancariaID DESC
+    `;
+
+    const allCuentas = rows.map(row => ({
+      CuentaBancariaID: row.CuentaBancariaID,
+      BancoID: row.BancoID,
+      CuentaBancaria: row.CuentaBancaria,
+      NombrePropietario: row.NombrePropietario,
+      Saldo: row.Saldo,
+      IsActive: Boolean(row.IsActive),
+      EsCuentaCobros: row.EsCuentaCobros,
+      banco: row.NombreBanco ? { NombreBanco: row.NombreBanco } : null,
+    }));
 
     return { message: 'Cuentas Bancarias obtenidas', data: allCuentas };
   }

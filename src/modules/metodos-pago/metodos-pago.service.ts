@@ -15,15 +15,16 @@ export class MetodosPagoService {
   }
 
   async findAll() {
-    return await prisma.catalogo_metodos_pago.findMany({
+    const metodos = await prisma.catalogo_metodos_pago.findMany({
       orderBy: { MetodosDePagoID: 'desc' },
     });
+    return metodos.map(m => ({ ...m, EsBancario: m.EsBancario === 1 }));
   }
 
   async findOne(MetodosDePagoID: number) {
     const metodo = await prisma.catalogo_metodos_pago.findUnique({ where: { MetodosDePagoID } });
     if (!metodo) throw new HttpError('Método de pago no encontrado', 404);
-    return metodo;
+    return { ...metodo, EsBancario: metodo.EsBancario === 1 };
   }
 
   async update(MetodosDePagoID: number, data: UpdateMetodoPagoDto) {
