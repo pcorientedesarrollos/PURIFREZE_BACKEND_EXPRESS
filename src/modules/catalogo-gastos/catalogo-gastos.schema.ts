@@ -18,6 +18,7 @@ export const createCatalogoGastoSchema = z.object({
     Periodicidad: z.enum(PERIODICIDADES).optional().nullable(),
     FechaInicio: fechaSchema,
     FechaFin: fechaSchema,
+    Monto: z.number().min(0).optional().nullable(),
 });
 
 export const updateCatalogoGastoSchema = z.object({
@@ -26,6 +27,7 @@ export const updateCatalogoGastoSchema = z.object({
     Periodicidad: z.enum(PERIODICIDADES).optional().nullable(),
     FechaInicio: fechaSchema,
     FechaFin: fechaSchema,
+    Monto: z.number().min(0).optional().nullable(),
 });
 
 export const catalogoGastoIdParamSchema = z.object({

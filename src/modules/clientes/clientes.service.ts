@@ -44,25 +44,28 @@ class ClientesService {
   async findAll(search?: string, isActive?: boolean) {
     const where: any = {};
 
-    // Filtro por búsqueda
     if (search && search.trim()) {
       where.OR = [
         { NombreComercio: { contains: search.trim() } },
         { Observaciones: { contains: search.trim() } },
+        { sucursales: { some: { NombreSucursal: { contains: search.trim() } } } },
       ];
     }
 
-    // Filtro por estado activo
     if (isActive !== undefined) {
       where.IsActive = isActive;
     }
 
     const allClientes = await prisma.catalogo_clientes.findMany({
       where,
-      orderBy: {
-        ClienteID: 'desc',
+      orderBy: { ClienteID: 'desc' },
+      include: {
+        sucursales: {
+          select: { SucursalID: true, NombreSucursal: true, EsMatriz: true },
+          where: { IsActive: true },
+          orderBy: [{ EsMatriz: 'desc' }, { NombreSucursal: 'asc' }],
+        },
       },
-      take: search ? 20 : undefined, // Limitar resultados en búsqueda
     });
 
     return { message: 'Clientes obtenidos', data: allClientes };

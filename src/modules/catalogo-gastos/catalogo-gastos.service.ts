@@ -110,6 +110,7 @@ class CatalogoGastosService {
                 Periodicidad: dto.Periodicidad ?? null,
                 FechaInicio: parsearFecha(dto.FechaInicio),
                 FechaFin: parsearFecha(dto.FechaFin),
+                Monto: dto.Monto ?? null,
                 IsActive: true,
             },
             include: INCLUDE_SAT,
@@ -129,6 +130,7 @@ class CatalogoGastosService {
                 Periodicidad: dto.Periodicidad,
                 FechaInicio: dto.FechaInicio !== undefined ? parsearFecha(dto.FechaInicio) : undefined,
                 FechaFin: dto.FechaFin !== undefined ? parsearFecha(dto.FechaFin) : undefined,
+                Monto: dto.Monto !== undefined ? dto.Monto : undefined,
             },
             include: INCLUDE_SAT,
         });

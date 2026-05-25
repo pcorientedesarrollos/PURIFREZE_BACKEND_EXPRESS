@@ -12,6 +12,7 @@ type CatalogoItem = {
     Periodicidad: string | null;
     FechaInicio: Date | null;
     FechaFin: Date | null;
+    Monto: number | null;
     IsActive: boolean;
     parent: (ParentRef & { parent: ParentRef | null }) | null;
 };
@@ -152,7 +153,9 @@ class GastosProyeccionService {
                     grupoCodigo: grupo.codigo,
                     ocurrencia: ocu.numero,
                     ocurrenciaLabel: ocu.label,
-                    monto: saved?.Monto != null ? Number(saved.Monto) : null,
+                    monto: saved
+                        ? (saved.Monto != null ? Number(saved.Monto) : null)
+                        : (cat.Monto != null ? Number(cat.Monto) : null),
                     aplica: saved ? saved.Aplica : !isEventual,
                     itemId: saved?.ItemID ?? null,
                 });
