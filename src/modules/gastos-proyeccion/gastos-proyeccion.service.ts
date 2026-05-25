@@ -153,8 +153,8 @@ class GastosProyeccionService {
                     grupoCodigo: grupo.codigo,
                     ocurrencia: ocu.numero,
                     ocurrenciaLabel: ocu.label,
-                    monto: saved
-                        ? (saved.Monto != null ? Number(saved.Monto) : null)
+                    monto: saved?.Monto != null
+                        ? Number(saved.Monto)
                         : (cat.Monto != null ? Number(cat.Monto) : null),
                     aplica: saved ? saved.Aplica : !isEventual,
                     itemId: saved?.ItemID ?? null,
