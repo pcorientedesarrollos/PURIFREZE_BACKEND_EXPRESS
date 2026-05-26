@@ -26,6 +26,15 @@ export class AuthController {
   }
 
   /**
+   * POST /auth/tecnicos - Login de técnico
+   */
+  async loginTecnico(req: Request, res: Response) {
+    const data = req.body as LoginDto;
+    const clientIp = getClientIp(req);
+    const result = await authService.loginTecnico(data, clientIp);
+    return success(res, result.message || '¡Bienvenido!', result);
+  }
+  /**
    * POST /auth/refreshToken - Refrescar token
    */
   async refreshToken(req: Request, res: Response) {
