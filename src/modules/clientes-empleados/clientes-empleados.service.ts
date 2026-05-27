@@ -225,8 +225,8 @@ class ClientesEmpleadosService {
       throw new HttpError('No existe el empleado', 404);
     }
 
-    const sucursalIDs = Asignaciones.map(a => a.SucursalID);
-    const puestoIDs = Asignaciones.map(a => a.PuestoTrabajoID);
+    const sucursalIDs = [...new Set(Asignaciones.map(a => a.SucursalID))];
+    const puestoIDs = [...new Set(Asignaciones.map(a => a.PuestoTrabajoID))];
 
     const sucursalesExistentes = await prisma.clientes_sucursales.findMany({
       where: { SucursalID: { in: sucursalIDs }, ClienteID: empleadoExist.ClienteID! },
@@ -252,8 +252,8 @@ class ClientesEmpleadosService {
 
       for (const a of Asignaciones) {
         await tx.empleados_asignaciones.upsert({
-          where: { EmpleadoID_SucursalID: { EmpleadoID, SucursalID: a.SucursalID } },
-          update: { PuestoTrabajoID: a.PuestoTrabajoID, IsActive: true },
+          where: { EmpleadoID_SucursalID_PuestoTrabajoID: { EmpleadoID, SucursalID: a.SucursalID, PuestoTrabajoID: a.PuestoTrabajoID } },
+          update: { IsActive: true },
           create: { EmpleadoID, SucursalID: a.SucursalID, PuestoTrabajoID: a.PuestoTrabajoID, IsActive: true },
         });
       }

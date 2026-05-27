@@ -291,7 +291,7 @@ model empleados_asignaciones {
   sucursal        clientes_sucursales     @relation(fields: [SucursalID], references: [SucursalID])
   puesto          catalogo_puestosTrabajo @relation(fields: [PuestoTrabajoID], references: [PuestoTrabajoID])
 
-  @@unique([EmpleadoID, SucursalID])
+  @@unique([EmpleadoID, SucursalID, PuestoTrabajoID])
   @@index([EmpleadoID])
   @@index([SucursalID])
 }
