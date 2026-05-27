@@ -12,6 +12,44 @@ const router = Router();
 
 /**
  * @swagger
+ * /auth/tecnicos:
+ *   post:
+ *     summary: Iniciar sesión como técnico
+ *     tags: [Auth]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             required:
+ *               - Usuario
+ *               - Password
+ *             properties:
+ *               Usuario:
+ *                 type: string
+ *                 description: Nombre de usuario
+ *               Password:
+ *                 type: string
+ *                 description: Contraseña del usuario
+ *     responses:
+ *       200:
+ *         description: Login técnico exitoso
+ *       401:
+ *         description: Contraseña incorrecta
+ *       403:
+ *         description: El usuario no está registrado como técnico o está inactivo
+ *       404:
+ *         description: El usuario no existe
+ */
+router.post(
+  '/tecnicos',
+  validateBody(loginSchema),
+  (req, res) => authController.loginTecnico(req, res),
+);
+
+/**
+ * @swagger
  * /auth:
  *   post:
  *     summary: Iniciar sesión

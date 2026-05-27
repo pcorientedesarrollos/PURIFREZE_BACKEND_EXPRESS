@@ -12,7 +12,6 @@ export class AuthService {
    */
   async login(data: LoginDto, clientIp: string) {
     const { Usuario, Password } = data;
-
     // Buscar usuario
     const usuario = await prisma.usuarios.findFirst({
       where: { Usuario },
@@ -41,7 +40,6 @@ export class AuthService {
           clientIp,
           TOKEN_EXPIRY,
         );
-
         return {
           message: 'Este usuario ya contaba con una sesión activa',
           Usuario: usuario.Usuario,
@@ -61,10 +59,8 @@ export class AuthService {
     if (!validPassword) {
       throw new HttpError('Contraseña incorrecta', 401);
     }
-
     // Generar nuevo SessionID
     const SessionID = generateSessionId();
-
     // Generar tokens
     const Token = generateToken(usuario.UsuarioID, SessionID, clientIp, TOKEN_EXPIRY);
     const refreshToken = generateToken(usuario.UsuarioID, SessionID, clientIp, REFRESH_TOKEN_EXPIRY);
@@ -91,6 +87,98 @@ export class AuthService {
       TipoUsuario: usuario.TipoUsuario || 'INTERNO',
       ProveedorID: usuario.ProveedorID || null,
       IsAdmin: usuario.IsAdmin,
+    };
+  }
+
+  async loginTecnico(data: LoginDto, clientIp: string) {
+    const { Usuario, Password } = data;
+
+    const usuario = await prisma.usuarios.findFirst({
+      where: { Usuario },
+    });
+
+    if (!usuario) {
+      throw new HttpError('El usuario no existe', 404);
+    }
+
+    const validPassword = await bcrypt.compare(Password, usuario.Password || '');
+    if (!validPassword) {
+      throw new HttpError('Contraseña incorrecta', 401);
+    }
+
+    const tecnico = await prisma.catalogo_tecnicos.findUnique({
+      where: { UsuarioID: usuario.UsuarioID },
+      select: {
+        TecnicoID: true,
+        IsActive: true,
+      },
+    });
+
+    if (!tecnico) {
+      throw new HttpError('El usuario no está registrado como técnico', 403);
+    }
+
+    if (!tecnico.IsActive) {
+      throw new HttpError('El técnico está inactivo', 403);
+    }
+
+    const existingSession = await prisma.sesiones.findFirst({
+      where: {
+        UsuarioID: usuario.UsuarioID,
+        IsActive: true,
+        IsActiveAdmin: true,
+      },
+    });
+
+    if (existingSession) {
+      const validRT = validateToken(existingSession.RefreshToken || '');
+      if (validRT) {
+        const Token = generateToken(
+          usuario.UsuarioID,
+          existingSession.SessionID,
+          clientIp,
+          TOKEN_EXPIRY,
+        );
+
+        return {
+          message: 'Este usuario ya contaba con una sesión activa',
+          Usuario: usuario.Usuario,
+          UsuarioID: usuario.UsuarioID,
+          SessionID: existingSession.SessionID,
+          Token,
+          TipoUsuario: usuario.TipoUsuario || 'INTERNO',
+          ProveedorID: usuario.ProveedorID || null,
+          IsAdmin: usuario.IsAdmin,
+          TecnicoID: tecnico.TecnicoID,
+        };
+      }
+    }
+
+    const SessionID = generateSessionId();
+    const Token = generateToken(usuario.UsuarioID, SessionID, clientIp, TOKEN_EXPIRY);
+    const refreshToken = generateToken(usuario.UsuarioID, SessionID, clientIp, REFRESH_TOKEN_EXPIRY);
+
+    await prisma.sesiones.create({
+      data: {
+        RefreshToken: refreshToken,
+        UsuarioID: usuario.UsuarioID,
+        SessionID,
+        IsActive: true,
+        IsActiveAdmin: true,
+        IpAdress: clientIp,
+        FechaAlta: moment().format('YYYY-MM-DD HH:mm:ss'),
+      },
+    });
+
+    return {
+      Usuario: usuario.Usuario,
+      UsuarioID: usuario.UsuarioID,
+      SessionID,
+      Token,
+      TipoUsuario: usuario.TipoUsuario || 'INTERNO',
+      ProveedorID: usuario.ProveedorID || null,
+      IsAdmin: usuario.IsAdmin,
+      TecnicoID: tecnico.TecnicoID,
     };
   }
 
