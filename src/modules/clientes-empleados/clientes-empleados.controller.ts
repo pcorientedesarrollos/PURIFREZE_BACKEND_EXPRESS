@@ -47,6 +47,16 @@ class ClientesEmpleadosController {
   }
 
   // =============================================
+  // ASIGNACIONES SUCURSAL-PUESTO
+  // =============================================
+
+  async asignarAsignaciones(req: Request, res: Response) {
+    const { EmpleadoID } = req.params as unknown as { EmpleadoID: number };
+    const result = await clientesEmpleadosService.asignarAsignaciones(EmpleadoID, req.body);
+    return success(res, result.message, result.data);
+  }
+
+  // =============================================
   // GESTIÓN DE PUESTOS
   // =============================================
 

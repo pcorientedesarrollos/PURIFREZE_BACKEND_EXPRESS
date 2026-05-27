@@ -6,6 +6,7 @@ import {
   updateClienteEmpleadoSchema,
   empleadoIdParamSchema,
   empleadosIdParamSchema,
+  asignarAsignacionesSchema,
   asignarPuestosSchema,
   agregarPuestoSchema,
   empleadoPuestoParamSchema,
@@ -125,6 +126,12 @@ router.get('/:EmpleadoID', validateParams(empleadoIdParamSchema), (req, res) => 
  *         description: Actualizado
  */
 router.put('/:EmpleadoID', validateParams(empleadoIdParamSchema), validateBody(updateClienteEmpleadoSchema), (req, res) => clientesEmpleadosController.update(req, res));
+
+// =============================================
+// ENDPOINT DE ASIGNACIONES SUCURSAL-PUESTO
+// =============================================
+
+router.put('/:EmpleadoID/asignaciones', validateParams(empleadoIdParamSchema), validateBody(asignarAsignacionesSchema), (req, res) => clientesEmpleadosController.asignarAsignaciones(req, res));
 
 // =============================================
 // ENDPOINTS DE GESTIÓN DE PUESTOS

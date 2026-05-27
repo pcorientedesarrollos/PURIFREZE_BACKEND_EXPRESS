@@ -1,12 +1,16 @@
 import { z } from 'zod';
 
-// Schema para crear empleado (vinculado a múltiples sucursales)
+const asignacionItemSchema = z.object({
+  SucursalID: z.number({ required_error: 'El SucursalID es requerido' }),
+  PuestoTrabajoID: z.number({ required_error: 'El PuestoTrabajoID es requerido' }),
+});
+
+// Schema para crear empleado con asignaciones (sucursal + puesto por fila)
 export const createClienteEmpleadoSchema = z.object({
   ClienteID: z.number({ required_error: 'El ClienteID es requerido' }),
   NombreEmpleado: z.string().min(1, 'El nombre del empleado es requerido'),
   Observaciones: z.string().optional(),
-  PuestosTrabajoIDs: z.array(z.number()).min(1, 'Debe asignar al menos un puesto de trabajo'),
-  SucursalesIDs: z.array(z.number()).min(1, 'Debe asignar al menos una sucursal'),
+  Asignaciones: z.array(asignacionItemSchema).min(1, 'Debe asignar al menos una combinación sucursal-puesto'),
 });
 
 // Schema para actualizar empleado
@@ -15,22 +19,27 @@ export const updateClienteEmpleadoSchema = z.object({
   Observaciones: z.string().optional(),
 });
 
-// Schema para asignar puestos a un empleado
+// Schema para asignar/reemplazar asignaciones (sucursal-puesto) de un empleado
+export const asignarAsignacionesSchema = z.object({
+  Asignaciones: z.array(asignacionItemSchema).min(1, 'Debe asignar al menos una combinación sucursal-puesto'),
+});
+
+// Schema para asignar puestos a un empleado (legacy)
 export const asignarPuestosSchema = z.object({
   PuestosTrabajoIDs: z.array(z.number()).min(1, 'Debe asignar al menos un puesto de trabajo'),
 });
 
-// Schema para agregar un puesto
+// Schema para agregar un puesto (legacy)
 export const agregarPuestoSchema = z.object({
   PuestoTrabajoID: z.number({ required_error: 'El PuestoTrabajoID es requerido' }),
 });
 
-// Schema para asignar sucursales a un empleado (reemplaza las existentes)
+// Schema para asignar sucursales a un empleado (legacy)
 export const asignarSucursalesSchema = z.object({
   SucursalesIDs: z.array(z.number()).min(1, 'Debe asignar al menos una sucursal'),
 });
 
-// Schema para agregar una sucursal
+// Schema para agregar una sucursal (legacy)
 export const agregarSucursalSchema = z.object({
   SucursalID: z.number({ required_error: 'El SucursalID es requerido' }),
 });
@@ -65,6 +74,7 @@ export const sucursalIdParamSchema = z.object({
 // Types inferidos
 export type CreateClienteEmpleadoDto = z.infer<typeof createClienteEmpleadoSchema>;
 export type UpdateClienteEmpleadoDto = z.infer<typeof updateClienteEmpleadoSchema>;
+export type AsignarAsignacionesDto = z.infer<typeof asignarAsignacionesSchema>;
 export type AsignarPuestosDto = z.infer<typeof asignarPuestosSchema>;
 export type AgregarPuestoDto = z.infer<typeof agregarPuestoSchema>;
 export type AsignarSucursalesDto = z.infer<typeof asignarSucursalesSchema>;

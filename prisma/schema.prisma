@@ -70,7 +70,8 @@ model clientes_sucursales {
 
   cliente               catalogo_clientes          @relation(fields: [ClienteID], references: [ClienteID])
   datosFiscales         clientes_datosFiscales?    @relation(fields: [DatosFiscalesID], references: [DatosFiscalesID])
-  empleados_sucursales  empleados_sucursales[]
+  empleados_sucursales       empleados_sucursales[]
+  empleados_asignaciones     empleados_asignaciones[]
   presupuestos          presupuestos_encabezado[]
   equipos               equipos[]
   contratos             contratos[]
@@ -106,7 +107,8 @@ model catalogo_proveedores {
   Pais               String?                   @db.VarChar(255)
   Correo             String?                   @db.VarChar(255)
   Observaciones      String?                   @db.VarChar(255)
-  IsActive           Boolean?
+  IsActive              Boolean?
+  ApareceCotizaciones   Boolean?              @default(false)
   compras_encabezado compras_encabezado[]      @relation("ProveedorCompras")
   contactos          proveedores_contactos[]
   notas_credito      notas_credito[]
@@ -135,7 +137,8 @@ model catalogo_puestosTrabajo {
   PuestoTrabajo     String?             @db.VarChar(255)
   Observaciones     String?             @db.VarChar(255)
   IsActive          Boolean?
-  empleados_puestos empleados_puestos[]
+  empleados_puestos      empleados_puestos[]
+  empleados_asignaciones empleados_asignaciones[]
 }
 
 model catalogo_giros_negocio {
@@ -246,8 +249,9 @@ model clientes_empleados {
   Observaciones     String?                @db.VarChar(255)
   IsActive          Boolean?
 
-  empleados_puestos     empleados_puestos[]
-  empleados_sucursales  empleados_sucursales[]
+  empleados_puestos      empleados_puestos[]
+  empleados_sucursales   empleados_sucursales[]
+  empleados_asignaciones empleados_asignaciones[]
 }
 
 model empleados_sucursales {
@@ -274,6 +278,22 @@ model empleados_puestos {
   puesto           catalogo_puestosTrabajo  @relation(fields: [PuestoTrabajoID], references: [PuestoTrabajoID])
 
   @@unique([EmpleadoID, PuestoTrabajoID])
+}
+
+model empleados_asignaciones {
+  AsignacionID    Int                     @id @default(autoincrement())
+  EmpleadoID      Int
+  SucursalID      Int
+  PuestoTrabajoID Int
+  IsActive        Boolean                 @default(true)
+
+  empleado        clientes_empleados      @relation(fields: [EmpleadoID], references: [EmpleadoID])
+  sucursal        clientes_sucursales     @relation(fields: [SucursalID], references: [SucursalID])
+  puesto          catalogo_puestosTrabajo @relation(fields: [PuestoTrabajoID], references: [PuestoTrabajoID])
+
+  @@unique([EmpleadoID, SucursalID])
+  @@index([EmpleadoID])
+  @@index([SucursalID])
 }
 
 model clientes_telefonos {

@@ -11,6 +11,7 @@ export const createProveedorSchema = z.object({
     z.literal('')
   ]).optional(),
   Observaciones: z.string().optional(),
+  ApareceCotizaciones: z.boolean().optional(),
 });
 
 export const updateProveedorSchema = z.object({
@@ -24,6 +25,7 @@ export const updateProveedorSchema = z.object({
     z.literal('')
   ]).optional(),
   Observaciones: z.string().optional(),
+  ApareceCotizaciones: z.boolean().optional(),
 });
 
 export const proveedorIdParamSchema = z.object({
