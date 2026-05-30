@@ -7,7 +7,6 @@ import {
   actualizarInventario,
   crearKardex,
   actualizarCostoPromedioRefaccion,
-  obtenerCantidadesRecibidasCompra,
 } from '../../shared/shared-operations.service';
 
 const ESTATUS_FINALIZADO: compras_encabezado_Estatus = 'Finalizado';
@@ -461,7 +460,6 @@ class ComprasRecepcionesService {
    * basado en las recepciones realizadas
    */
   private async actualizarEstadoEntrega(tx: Prisma.TransactionClient, compraEncabezadoID: number) {
-    // Obtener compra con detalles
     const compra = await tx.compras_encabezado.findUnique({
       where: { CompraEncabezadoID: compraEncabezadoID },
       include: { compras_detalle: { where: { IsActive: true } } },
@@ -469,19 +467,30 @@ class ComprasRecepcionesService {
 
     if (!compra) return;
 
-    // Obtener cantidades recibidas por refacción
-    const cantidadesRecibidas = await obtenerCantidadesRecibidasCompra(tx, compraEncabezadoID);
+    // Obtener cantidades recibidas por CompraDetalleID (cubre refacciones Y equipos virtuales)
+    const recepciones = await tx.compras_recepciones_encabezado.findMany({
+      where: { CompraEncabezadoID: compraEncabezadoID, IsActive: 1 },
+      include: { compras_recepciones_detalle: { where: { IsActive: 1 } } },
+    });
 
-    // Calcular totales
+    const cantidadesRecibidasPorDetalle = new Map<number, number>();
+    for (const recepcion of recepciones) {
+      for (const detalleRec of recepcion.compras_recepciones_detalle) {
+        if (detalleRec.CompraDetalleID) {
+          const actual = cantidadesRecibidasPorDetalle.get(detalleRec.CompraDetalleID) || 0;
+          cantidadesRecibidasPorDetalle.set(detalleRec.CompraDetalleID, actual + (detalleRec.CantidadEstablecida || 0));
+        }
+      }
+    }
+
+    // Calcular totales incluyendo todos los ítems (refacciones + equipos virtuales)
     let totalCantidadComprada = 0;
     let totalCantidadRecibida = 0;
     let totalMontoRecibido = 0;
 
     for (const detalle of compra.compras_detalle) {
-      if (!detalle.RefaccionID) continue;
-
       const cantidadComprada = detalle.Cantidad || 0;
-      const cantidadRecibida = cantidadesRecibidas.get(detalle.RefaccionID) || 0;
+      const cantidadRecibida = cantidadesRecibidasPorDetalle.get(detalle.CompraDetalleID) || 0;
       const precioUnitario = detalle.PrecioUnitario || 0;
 
       totalCantidadComprada += cantidadComprada;
@@ -499,7 +508,6 @@ class ComprasRecepcionesService {
       nuevoEstado = 'PEDIDO';
     }
 
-    // Actualizar compra
     await tx.compras_encabezado.update({
       where: { CompraEncabezadoID: compraEncabezadoID },
       data: {
