@@ -60,7 +60,13 @@ class EstadosCuentaService {
         const inicioRango = new Date(hoy.getFullYear(), hoy.getMonth() - maxMeses + 1, 1, 0, 0, 0, 0);
         const finRango = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0, 23, 59, 59, 999);
 
-        const [cobros, gastosRaw, pagosProveedoresRaw, serviciosRaw] = await Promise.all([
+        const mesRangos: { Año: number; Mes: number }[] = [];
+        for (let i = 0; i < maxMeses; i++) {
+            const f = new Date(hoy.getFullYear(), hoy.getMonth() - i, 1);
+            mesRangos.push({ Año: f.getFullYear(), Mes: f.getMonth() + 1 });
+        }
+
+        const [cobros, gastosRaw, pagosProveedoresRaw, serviciosRaw, proyeccionesRaw] = await Promise.all([
             prisma.cobros.findMany({
                 where: {
                     IsActive: 1,
@@ -92,6 +98,15 @@ class EstadosCuentaService {
                 },
                 select: { CostoTotal: true, FechaEjecucion: true },
             }),
+            prisma.gastos_proyeccion.findMany({
+                where: { OR: mesRangos },
+                include: {
+                    items: {
+                        where: { Aplica: true },
+                        select: { Monto: true, catalogo: { select: { Monto: true } } },
+                    },
+                },
+            }),
         ]);
 
         const getMesKey = (fecha: Date | null) => {
@@ -100,8 +115,8 @@ class EstadosCuentaService {
         };
 
         const mapaIngresos = new Map<string, number>();
-        const mapaEgresos = new Map<string, number>();
-        const mapaCostoOp = new Map<string, number>();
+        const mapaEgresos  = new Map<string, number>();
+        const mapaCostoOp  = new Map<string, number>();
 
         for (const cobro of cobros) {
             const key = getMesKey(cobro.FechaPago);
@@ -129,6 +144,12 @@ class EstadosCuentaService {
             const key = getMesKey(servicio.FechaEjecucion);
             if (!key) continue;
             mapaCostoOp.set(key, (mapaCostoOp.get(key) ?? 0) + (servicio.CostoTotal ?? 0));
+        }
+
+        for (const proy of proyeccionesRaw) {
+            const key = `${proy.Año}-${proy.Mes}`;
+            const total = proy.items.reduce((s, item) => s + Number(item.Monto ?? item.catalogo.Monto ?? 0), 0);
+            mapaEgresos.set(key, (mapaEgresos.get(key) ?? 0) + total);
         }
 
         const resultados = [];
@@ -201,7 +222,10 @@ class EstadosCuentaService {
     }
 
     private async getEgresos(inicio: Date, fin: Date) {
-        const [gastosRaw, pagosProveedoresRaw] = await Promise.all([
+        const año = inicio.getFullYear();
+        const mes  = inicio.getMonth() + 1;
+
+        const [gastosRaw, pagosProveedoresRaw, proyeccionRaw] = await Promise.all([
             prisma.gastos_encabezado.findMany({
                 where: { IsActive: true, Fecha: { gte: inicio, lte: fin } },
                 include: {
@@ -217,8 +241,30 @@ class EstadosCuentaService {
                 where: { IsActive: 1, FechaPago: { gte: inicio, lte: fin } },
                 select: { CompraPagoID: true, Monto: true, FechaPago: true, CompraEncabezadoID: true },
             }),
+            prisma.gastos_proyeccion.findFirst({
+                where: { Año: año, Mes: mes },
+                include: {
+                    items: {
+                        where: { Aplica: true },
+                        include: {
+                            catalogo: {
+                                select: {
+                                    Nombre: true, Codigo: true, Nivel: true, Monto: true,
+                                    parent: {
+                                        select: {
+                                            Nombre: true, Codigo: true, Nivel: true,
+                                            parent: { select: { Nombre: true, Codigo: true, Nivel: true } },
+                                        },
+                                    },
+                                },
+                            },
+                        },
+                    },
+                },
+            }),
         ]);
 
+        // ── gastos_encabezado ──────────────────────────────────────────────
         const mapaCategoria = new Map<string, number>();
         let totalGastos = 0;
 
@@ -236,8 +282,45 @@ class EstadosCuentaService {
 
         const totalPagosProveedores = pagosProveedoresRaw.reduce((s, p) => s + (p.Monto ?? 0), 0);
 
+        // ── gastos_proyeccion ─────────────────────────────────────────────
+        const mapaGrupo = new Map<string, { codigo: string; nombre: string; total: number }>();
+        let totalProyeccion = 0;
+
+        if (proyeccionRaw) {
+            for (const item of proyeccionRaw.items) {
+                const monto = Number(item.Monto ?? item.catalogo.Monto ?? 0);
+                totalProyeccion += monto;
+
+                // Escalar hasta el ancestro Nivel 1
+                const cat = item.catalogo;
+                let nivel1: { codigo: string | null; nombre: string } | null = null;
+
+                if (cat.Nivel === 1) {
+                    nivel1 = { codigo: cat.Codigo ?? '', nombre: cat.Nombre };
+                } else if (cat.Nivel === 2 && cat.parent) {
+                    nivel1 = { codigo: cat.parent.Codigo ?? '', nombre: cat.parent.Nombre };
+                } else if (cat.Nivel === 3 && cat.parent?.parent) {
+                    nivel1 = { codigo: cat.parent.parent.Codigo ?? '', nombre: cat.parent.parent.Nombre };
+                } else if (cat.parent) {
+                    nivel1 = { codigo: cat.parent.Codigo ?? '', nombre: cat.parent.Nombre };
+                }
+
+                if (nivel1) {
+                    const key = nivel1.codigo || nivel1.nombre;
+                    const existing = mapaGrupo.get(key);
+                    if (existing) {
+                        existing.total += monto;
+                    } else {
+                        mapaGrupo.set(key, { codigo: nivel1.codigo ?? '', nombre: nivel1.nombre, total: monto });
+                    }
+                }
+            }
+        }
+
+        const porGrupo = Array.from(mapaGrupo.values()).sort((a, b) => b.total - a.total);
+
         return {
-            total: totalGastos + totalPagosProveedores,
+            total: totalGastos + totalPagosProveedores + totalProyeccion,
             gastos: {
                 total: totalGastos,
                 cantidad: gastosRaw.length,
@@ -246,6 +329,11 @@ class EstadosCuentaService {
             pagosProveedores: {
                 total: totalPagosProveedores,
                 cantidad: pagosProveedoresRaw.length,
+            },
+            gastosProyeccion: {
+                tieneProyeccion: proyeccionRaw !== null,
+                total: totalProyeccion,
+                porGrupo,
             },
         };
     }

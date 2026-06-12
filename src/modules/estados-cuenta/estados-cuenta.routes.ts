@@ -10,6 +10,11 @@ router.get('/', validateQuery(estadoCuentaQuerySchema), (req, res) =>
     estadosCuentaController.getHistorico(req, res)
 );
 
+// Kardex de movimientos de un mes (antes que /:anio/:mes para evitar conflictos)
+router.get('/:anio/:mes/kardex', validateParams(estadoCuentaParamSchema), (req, res) =>
+    estadosCuentaController.getKardex(req, res)
+);
+
 // Estado de cuenta de un mes específico
 router.get('/:anio/:mes', validateParams(estadoCuentaParamSchema), (req, res) =>
     estadosCuentaController.getEstadoCuenta(req, res)
