@@ -49,8 +49,8 @@ class ClientesEmpleadosService {
         throw new HttpError('El cliente no existe', 404);
       }
 
-      const sucursalIDs = Asignaciones.map(a => a.SucursalID);
-      const puestoIDs = Asignaciones.map(a => a.PuestoTrabajoID);
+      const sucursalIDs = [...new Set(Asignaciones.map(a => a.SucursalID))];
+      const puestoIDs = [...new Set(Asignaciones.map(a => a.PuestoTrabajoID))];
 
       const sucursalesExistentes = await tx.clientes_sucursales.findMany({
         where: { SucursalID: { in: sucursalIDs }, ClienteID },
