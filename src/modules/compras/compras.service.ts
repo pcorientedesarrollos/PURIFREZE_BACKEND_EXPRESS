@@ -158,6 +158,20 @@ class ComprasService {
           where: { IsActive: 1 },
           orderBy: { FechaPago: 'desc' },
         },
+        notas_credito_aplicaciones: {
+          include: {
+            nota_credito: {
+              select: {
+                NotaCreditoID: true,
+                NumeroCredito: true,
+                NumeroReferencia: true,
+                Monto: true,
+                Fecha: true,
+                Estado: true,
+              },
+            },
+          },
+        },
       },
       orderBy: { CompraEncabezadoID: 'desc' },
     });
@@ -173,6 +187,8 @@ class ComprasService {
         ...pago,
         FechaPago: moment.utc(pago.FechaPago).format('YYYY-MM-DD'),
       })),
+      TotalCubierto: (compra.TotalPagado ?? 0) + (compra.TotalNotasCredito ?? 0),
+      SaldoPendiente: (compra.TotalNeto ?? 0) - ((compra.TotalPagado ?? 0) + (compra.TotalNotasCredito ?? 0)),
     }));
 
     return { message: 'Compras obtenidas', data: comprasFormateadas };
