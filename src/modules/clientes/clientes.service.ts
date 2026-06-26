@@ -213,17 +213,33 @@ class ClientesService {
 
         const empleados_sucursales = await prisma.empleados_sucursales.findMany({
           where: { EmpleadoID: empleado.EmpleadoID, IsActive: true },
-          include: {
-            sucursal: true,
-          },
+          include: { sucursal: true },
         });
+
+        const empleados_asignaciones = await prisma.empleados_asignaciones.findMany({
+          where: { EmpleadoID: empleado.EmpleadoID, IsActive: true },
+          include: { sucursal: true },
+        });
+
+        // Combinar ambas fuentes, deduplicando por SucursalID
+        const sucursalesViaAsignaciones = empleados_asignaciones.map(a => ({
+          EmpleadoSucursalID: a.AsignacionID,
+          EmpleadoID: a.EmpleadoID,
+          SucursalID: a.SucursalID,
+          IsActive: a.IsActive,
+          sucursal: a.sucursal,
+        }));
+
+        const sucursalesIds = new Set(empleados_sucursales.map(es => es.SucursalID));
+        const sucursalesExtra = sucursalesViaAsignaciones.filter(a => !sucursalesIds.has(a.SucursalID));
+        const empleados_sucursales_merged = [...empleados_sucursales, ...sucursalesExtra];
 
         return {
           ...empleado,
           telefonos,
           correos,
           empleados_puestos,
-          empleados_sucursales,
+          empleados_sucursales: empleados_sucursales_merged,
         };
       })
     );
