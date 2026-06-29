@@ -101,6 +101,7 @@ model catalogo_metodos_pago {
 model catalogo_proveedores {
   ProveedorID        Int                       @id @default(autoincrement())
   NombreProveedor    String?                   @db.VarChar(255)
+  RFC                String?                   @db.VarChar(13)
   Direccion          String?                   @db.VarChar(255)
   Telefono           String?                   @db.VarChar(255)
   Contacto           String?                   @db.VarChar(255)
@@ -700,6 +701,13 @@ enum EstadoEntregaCompra {
   EN_ESPERA_DE_ENVIO
   PARCIAL
   ENTREGADO
+}
+
+enum pedidos_descuentos_TipoDescuento {
+  PRONTO_PAGO
+  AJUSTE
+  BONIFICACION
+  NOTA_CREDITO
 }
 
 enum TipoTraspaso {
@@ -2223,4 +2231,213 @@ model revision_cartera {
   PagoMensual    Float?
   FechaRevision  DateTime @default(now())
   UsuarioID      Int?
+}
+
+model emisores_factura {
+  EmisorFacturaID Int        @id @default(autoincrement())
+  RFC             String     @unique @db.VarChar(13)
+  RazonSocial     String?    @db.VarChar(254)
+  RegimenFiscal   String?    @db.VarChar(10)
+  Alias           String?    @db.VarChar(100)
+  FechaAlta       DateTime   @default(now())
+  IsActive        Boolean    @default(true)
+  facturas        facturas[]
+}
+
+model facturas {
+  FacturaID               Int                @id @default(autoincrement())
+  EmisorFacturaID         Int
+  UUID                    String             @unique @db.Char(36)
+  Version                 String?            @db.VarChar(10)
+  Serie                   String?            @db.VarChar(25)
+  Folio                   String?            @db.VarChar(40)
+  FechaEmision            DateTime
+  RFCReceptor             String             @db.VarChar(13)
+  NombreReceptor          String?            @db.VarChar(254)
+  UsoCFDI                 String?            @db.VarChar(10)
+  SubTotal                Decimal            @db.Decimal(18, 2)
+  Descuento               Decimal            @default(0) @db.Decimal(18, 2)
+  Total                   Decimal            @db.Decimal(18, 2)
+  TotalImpuestosTrasladados Decimal          @default(0) @db.Decimal(18, 2)
+  Moneda                  String             @db.VarChar(3)
+  TipoCambio              Decimal?           @db.Decimal(18, 6)
+  MetodoPago              String?            @db.VarChar(10)
+  FormaPago               String?            @db.VarChar(10)
+  LugarExpedicion         String             @db.VarChar(10)
+  XmlOriginal             Bytes?             @db.LongBlob
+  FechaCarga              DateTime           @default(now())
+  IsActive                Boolean            @default(true)
+  emisor                  emisores_factura   @relation(fields: [EmisorFacturaID], references: [EmisorFacturaID])
+  conceptos               factura_conceptos[]
+}
+
+model factura_conceptos {
+  FacturaConceptoID Int      @id @default(autoincrement())
+  FacturaID         Int
+  ClaveProdServ     String   @db.VarChar(10)
+  NoIdentificacion  String?  @db.VarChar(100)
+  Cantidad          Decimal  @db.Decimal(18, 6)
+  ClaveUnidad       String   @db.VarChar(20)
+  Unidad            String?  @db.VarChar(20)
+  Descripcion       String   @db.VarChar(1000)
+  ValorUnitario     Decimal  @db.Decimal(18, 6)
+  Importe           Decimal  @db.Decimal(18, 2)
+  Descuento         Decimal  @default(0) @db.Decimal(18, 2)
+  ObjetoImp         String?  @db.VarChar(2)
+  ImpuestoTrasladado Decimal @default(0) @db.Decimal(10, 2)
+  factura           facturas @relation(fields: [FacturaID], references: [FacturaID])
+}
+
+// =============================================
+// PEDIDOS
+// =============================================
+
+model pedidos_encabezado {
+  PedidoID                  Int                   @id @default(autoincrement())
+  ProveedorID               Int?
+  NumeroPedido              String?               @db.VarChar(100)
+  FechaPedido               DateTime?             @db.Date
+  TotalBruto                Decimal?              @db.Decimal(14,2) @default(0)
+  TotalIVA                  Decimal?              @db.Decimal(14,2) @default(0)
+  TotalNeto                 Decimal?              @db.Decimal(14,2) @default(0)
+  AplicaIVA                 Int                   @db.TinyInt @default(1)
+  TasaIVA                   Decimal               @db.Decimal(6,4) @default(0.1600)
+  TotalPagado               Decimal?              @db.Decimal(14,2) @default(0)
+  TotalRecibido             Decimal?              @db.Decimal(14,2) @default(0)
+  TotalNotasCredito         Decimal?              @db.Decimal(14,2) @default(0)
+  TotalDescuentos           Decimal?              @db.Decimal(14,2) @default(0)
+  FormaPago                 FormaPagoCompra       @default(CREDITO)
+  EstadoPago                EstadoPagoCompra      @default(PENDIENTE)
+  EstadoEntrega             EstadoEntregaCompra   @default(PEDIDO)
+  DiasCredito               Int?
+  FechaVencimientoCredito   DateTime?             @db.Date
+  Observaciones             String?               @db.VarChar(500)
+  UsuarioID                 Int?
+  FechaAlta                 DateTime?             @default(now())
+  IsActive                  Boolean?              @default(true)
+
+  // Relaciones (solo entre tablas nuevas)
+  pedidos_detalle                pedidos_detalle[]
+  pedidos_facturas               pedidos_facturas[]
+  pedidos_pagos                  pedidos_pagos[]
+  pedidos_descuentos             pedidos_descuentos[]
+  pedidos_recepciones_encabezado pedidos_recepciones_encabezado[]
+
+  @@index([ProveedorID])
+}
+
+model pedidos_detalle {
+  PedidoDetalleID     Int                  @id @default(autoincrement())
+  PedidoID            Int?
+  RefaccionID         Int?
+  EquipoID            Int?
+  EquipoVirtualID     Int?
+  Cantidad            Int?
+  PrecioUnitario      Decimal?             @db.Decimal(14,2)
+  SubTotal            Decimal?             @db.Decimal(14,2)
+  Total               Decimal?             @db.Decimal(14,2)
+  IsActive            Boolean?
+
+  // Relacion solo a pedidos_encabezado
+  pedidos_encabezado          pedidos_encabezado?           @relation(fields: [PedidoID], references: [PedidoID])
+  pedidos_recepciones_detalle pedidos_recepciones_detalle[]
+
+  @@index([PedidoID])
+  @@index([RefaccionID])
+  @@index([EquipoID])
+  @@index([EquipoVirtualID])
+}
+
+model pedidos_facturas {
+  PedidoFacturaID    Int                  @id @default(autoincrement())
+  PedidoID           Int
+  FacturaID          Int                  @unique
+  FechaAsociacion    DateTime?            @default(now())
+  UsuarioID          Int?
+  IsActive           Boolean?             @default(true)
+
+  // Relacion solo a pedidos_encabezado
+  pedidos_encabezado pedidos_encabezado   @relation(fields: [PedidoID], references: [PedidoID])
+  pedidos_descuentos pedidos_descuentos[]
+
+  @@index([PedidoID])
+}
+
+model pedidos_pagos {
+  PedidoPagoID      Int                   @id @default(autoincrement())
+  PedidoID          Int
+  FechaPago         DateTime              @db.Date
+  Monto             Decimal               @db.Decimal(14,2)
+  MetodoPagoID      Int?
+  CuentaBancariaID  Int?
+  Referencia        String?               @db.VarChar(150)
+  Observaciones     String?               @db.VarChar(500)
+  UsuarioID         Int?
+  FechaAlta         DateTime?             @default(now())
+  IsActive          Boolean?              @default(true)
+
+  pedidos_encabezado pedidos_encabezado   @relation(fields: [PedidoID], references: [PedidoID])
+  pedidos_descuentos pedidos_descuentos[]
+
+  @@index([PedidoID])
+  @@index([FechaPago])
+}
+
+model pedidos_descuentos {
+  PedidoDescuentoID   Int                              @id @default(autoincrement())
+  PedidoID            Int
+  PedidoFacturaID     Int?
+  PedidoPagoID        Int?
+  NotaCreditoID       Int?
+  TipoDescuento       pedidos_descuentos_TipoDescuento
+  MontoBase           Decimal                          @db.Decimal(14,2)
+  PorcentajeDescuento Decimal?                         @db.Decimal(5,2)
+  MontoDescuento      Decimal                          @db.Decimal(14,2)
+  FechaBase           DateTime?                        @db.Date
+  FechaLimite         DateTime?                        @db.Date
+  FechaAplicacion     DateTime                         @db.Date
+  Observaciones       String?                          @db.VarChar(500)
+  UsuarioID           Int?
+  FechaAlta           DateTime?                        @default(now())
+  IsActive            Boolean?                         @default(true)
+
+  pedidos_encabezado pedidos_encabezado @relation(fields: [PedidoID], references: [PedidoID])
+  pedidos_facturas   pedidos_facturas?  @relation(fields: [PedidoFacturaID], references: [PedidoFacturaID])
+  pedidos_pagos      pedidos_pagos?     @relation(fields: [PedidoPagoID], references: [PedidoPagoID])
+
+  @@index([PedidoID])
+  @@index([TipoDescuento])
+  @@index([NotaCreditoID])
+}
+
+model pedidos_recepciones_encabezado {
+  PedidoRecepcionID  Int                            @id @default(autoincrement())
+  PedidoID           Int
+  FechaRecepcion     DateTime?                      @db.Date
+  Observaciones      String?                        @db.VarChar(500)
+  MontoRecepcion     Decimal?                       @db.Decimal(14,2) @default(0)
+  NumeroFactura      String?                        @db.VarChar(100)
+  UsuarioID          Int?
+  FechaAlta          DateTime?                      @default(now())
+  IsActive           Boolean?                       @default(true)
+
+  pedidos_encabezado          pedidos_encabezado            @relation(fields: [PedidoID], references: [PedidoID])
+  pedidos_recepciones_detalle pedidos_recepciones_detalle[]
+
+  @@index([PedidoID])
+}
+
+model pedidos_recepciones_detalle {
+  PedidoRecepcionDetalleID Int                             @id @default(autoincrement())
+  PedidoRecepcionID        Int
+  PedidoDetalleID          Int?
+  RefaccionID              Int?
+  CantidadRecibida         Int                             @default(0)
+  IsActive                 Boolean?                        @default(true)
+
+  pedidos_recepciones_encabezado pedidos_recepciones_encabezado @relation(fields: [PedidoRecepcionID], references: [PedidoRecepcionID])
+  pedidos_detalle                pedidos_detalle?               @relation(fields: [PedidoDetalleID], references: [PedidoDetalleID])
+
+  @@index([PedidoRecepcionID])
+  @@index([PedidoDetalleID])
 }

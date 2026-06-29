@@ -30,8 +30,12 @@ import { clientesSucursalesRoutes } from './modules/clientes-sucursales';
 import { refaccionesRoutes } from './modules/refacciones';
 import { cuentasBancariasRoutes } from './modules/cuentas-bancarias';
 import { comprasRoutes } from './modules/compras';
+import { pedidosRoutes } from './modules/pedidos';
 import { comprasRecepcionesRoutes } from './modules/compras-recepciones';
 import { comprasPagosRoutes } from './modules/compras-pagos';
+import { pedidosPagosRoutes } from './modules/pedidos-pagos';
+import { pedidosRecepcionesRoutes } from './modules/pedidos-recepciones';
+import { pedidosDescuentosRoutes } from './modules/pedidos-descuentos';
 import { permisosRoutes } from './modules/permisos';
 import { inventarioRoutes } from './modules/inventario';
 import { tecnicosRoutes } from './modules/tecnicos';
@@ -65,6 +69,7 @@ import { reportesBancariosRoutes } from './modules/reportes-bancarios';
 import { revisionCarteraRoutes } from './modules/revision-cartera';
 import { empresaRoutes } from './modules/empresa';
 import { estadosCuentaRoutes } from './modules/estados-cuenta';
+import { facturasRoutes } from './modules/facturas';
 
 const app = express();
 
@@ -116,8 +121,12 @@ app.use('/refacciones', refaccionesRoutes);
 app.use('/catalogo-refacciones', refaccionesRoutes);
 app.use('/cuentas-bancarias', cuentasBancariasRoutes);
 app.use('/compras', comprasRoutes);
+app.use('/pedidos', pedidosRoutes);
 app.use('/compras-recepciones', comprasRecepcionesRoutes);
 app.use('/compras-pagos', comprasPagosRoutes);
+app.use('/pedidos-pagos', pedidosPagosRoutes);
+app.use('/pedidos-recepciones', pedidosRecepcionesRoutes);
+app.use('/pedidos-descuentos', pedidosDescuentosRoutes);
 app.use('/permisos', permisosRoutes);
 app.use('/inventario', inventarioRoutes);
 app.use('/tecnicos', tecnicosRoutes);
@@ -152,6 +161,7 @@ app.use('/reportes-bancarios', reportesBancariosRoutes);
 app.use('/revision-cartera', revisionCarteraRoutes);
 app.use('/empresa', empresaRoutes);
 app.use('/estados-cuenta', estadosCuentaRoutes);
+app.use('/facturas', facturasRoutes);
 
 // Error handler (debe ir al final)
 app.use(errorHandler);

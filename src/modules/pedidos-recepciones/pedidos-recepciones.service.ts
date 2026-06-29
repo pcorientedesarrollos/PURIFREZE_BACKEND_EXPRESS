@@ -1,0 +1,497 @@
+import prisma from '../../config/database';
+import { HttpError } from '../../utils/response';
+import { Prisma, EstadoEntregaCompra } from '@prisma/client';
+import moment from 'moment';
+import { CreatePedidoRecepcionDto } from './pedidos-recepciones.schema';
+import {
+  actualizarInventario,
+  crearKardex,
+  actualizarCostoPromedioRefaccion,
+} from '../../shared/shared-operations.service';
+
+
+class PedidosRecepcionesService {
+  private round2(value: number): number {
+    return Math.round(value * 100) / 100;
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CONSULTAS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Busca una recepcion cruda (sin formato ni 404). Reusable dentro y fuera de tx.
+   * Devuelve la recepcion con sus detalles activos, o null si no existe.
+   */
+  private async findOneRaw(tx: Prisma.TransactionClient | typeof prisma, id: number) {
+    const recepcion = await tx.pedidos_recepciones_encabezado.findUnique({
+      where: { PedidoRecepcionID: id },
+      include: {
+        pedidos_recepciones_detalle: {
+          where: { IsActive: true },
+        },
+      },
+    });
+
+    if (!recepcion) return null;
+    return recepcion;
+  }
+
+  /**
+   * GET /pedidos-recepciones/:PedidoRecepcionID
+   * Obtiene una recepcion por ID (404 si no existe).
+   */
+  async findOne(id: number) {
+    const recepcion = await this.findOneRaw(prisma, id);
+
+    if (!recepcion) {
+      throw new HttpError('Recepción no encontrada', 404);
+    }
+
+    return {
+      message: 'Recepción obtenida',
+      data: {
+        ...recepcion,
+        FechaRecepcion: recepcion.FechaRecepcion
+          ? moment.utc(recepcion.FechaRecepcion).format('YYYY-MM-DD')
+          : null,
+      },
+    };
+  }
+
+  /**
+   * GET /pedidos-recepciones/pedido/:PedidoID
+   * Lista todas las recepciones activas de un pedido.
+   */
+  async findByPedido(pedidoId: number) {
+    const recepciones = await prisma.pedidos_recepciones_encabezado.findMany({
+      where: { PedidoID: pedidoId, IsActive: true },
+      include: {
+        pedidos_recepciones_detalle: {
+          where: { IsActive: true },
+        },
+      },
+      orderBy: { PedidoRecepcionID: 'desc' },
+    });
+
+    const recepcionesFormateadas = recepciones.map((r) => ({
+      ...r,
+      FechaRecepcion: r.FechaRecepcion
+        ? moment.utc(r.FechaRecepcion).format('YYYY-MM-DD')
+        : null,
+    }));
+
+    return { message: 'Recepciones obtenidas', data: recepcionesFormateadas };
+  }
+
+  /**
+   * GET /pedidos-recepciones/pedido/:PedidoID/with-pagos
+   * Obtiene recepciones + pagos + detalle de items de un pedido (enriquecido).
+   * Replica de compras.findByCompraWithPagos adaptado a pedidos.
+   */
+  async findByPedidoWithPagos(pedidoId: number) {
+    // 1. Obtener el pedido con sus detalles
+    const pedido = await prisma.pedidos_encabezado.findUnique({
+      where: { PedidoID: pedidoId },
+      include: {
+        pedidos_detalle: {
+          where: { IsActive: true },
+        },
+      },
+    });
+
+    if (!pedido) {
+      throw new HttpError('Pedido no encontrado', 404);
+    }
+
+    // 2. Obtener recepciones con sus detalles
+    const recepciones = await prisma.pedidos_recepciones_encabezado.findMany({
+      where: { PedidoID: pedidoId, IsActive: true },
+      include: {
+        pedidos_recepciones_detalle: {
+          where: { IsActive: true },
+        },
+      },
+      orderBy: { PedidoRecepcionID: 'desc' },
+    });
+
+    // 3. Obtener pagos del pedido (tabla pedidos_pagos, NO pagos generica)
+    const pagos = await prisma.pedidos_pagos.findMany({
+      where: { PedidoID: pedidoId, IsActive: true },
+      orderBy: { PedidoPagoID: 'desc' },
+    });
+
+    // 4. IDs de refacciones y equipos virtuales
+    const refaccionIDs = pedido.pedidos_detalle
+      .map(d => d.RefaccionID)
+      .filter((id): id is number => id !== null);
+
+    const equipoVirtualIDs = pedido.pedidos_detalle
+      .map(d => d.EquipoVirtualID)
+      .filter((id): id is number => id !== null);
+
+    // 5. Info de refacciones y equipos virtuales
+    const refacciones = await prisma.catalogo_refacciones.findMany({
+      where: { RefaccionID: { in: refaccionIDs } },
+    });
+    const refaccionesMap = new Map(refacciones.map(r => [r.RefaccionID, r]));
+
+    const equiposVirtuales = equipoVirtualIDs.length > 0
+      ? await prisma.equipos_virtuales.findMany({
+          where: { EquipoVirtualID: { in: equipoVirtualIDs } },
+        })
+      : [];
+    const equiposVirtualesMap = new Map(equiposVirtuales.map(e => [e.EquipoVirtualID, e]));
+
+    // 6. Calcular cantidades recibidas por PedidoDetalleID
+    const cantidadesRecibidasPorDetalle = new Map<number, number>();
+    for (const recepcion of recepciones) {
+      for (const detalleRec of recepcion.pedidos_recepciones_detalle) {
+        if (detalleRec.PedidoDetalleID) {
+          const actual = cantidadesRecibidasPorDetalle.get(detalleRec.PedidoDetalleID) || 0;
+          cantidadesRecibidasPorDetalle.set(detalleRec.PedidoDetalleID, actual + (detalleRec.CantidadRecibida || 0));
+        } else if (detalleRec.RefaccionID) {
+          const detallePedido = pedido.pedidos_detalle.find(d => d.RefaccionID === detalleRec.RefaccionID);
+          if (detallePedido) {
+            const actual = cantidadesRecibidasPorDetalle.get(detallePedido.PedidoDetalleID) || 0;
+            cantidadesRecibidasPorDetalle.set(detallePedido.PedidoDetalleID, actual + (detalleRec.CantidadRecibida || 0));
+          }
+        }
+      }
+    }
+
+    // 7. Construir detalle de items (refacciones + equipos virtuales)
+    const refaccionesDetalle = pedido.pedidos_detalle.map(detalle => {
+      const esEquipoVirtual = detalle.EquipoVirtualID && !detalle.RefaccionID;
+
+      let nombre: string;
+      let descripcion: string;
+
+      if (esEquipoVirtual) {
+        const equipo = equiposVirtualesMap.get(detalle.EquipoVirtualID!);
+        nombre = equipo?.Nombre || 'Equipo Virtual';
+        descripcion = equipo?.Codigo || '';
+      } else {
+        const refaccion = refaccionesMap.get(detalle.RefaccionID!);
+        nombre = refaccion?.NombrePieza || 'Refacción no encontrada';
+        descripcion = refaccion?.Observaciones || '';
+      }
+
+      const cantidadRecibida = cantidadesRecibidasPorDetalle.get(detalle.PedidoDetalleID) || 0;
+      const cantidadPedida = detalle.Cantidad || 0;
+      const cantidadPendiente = cantidadPedida - cantidadRecibida;
+      const precioUnitario = Number(detalle.PrecioUnitario ?? 0);
+
+      return {
+        PedidoDetalleID: detalle.PedidoDetalleID,
+        RefaccionID: detalle.RefaccionID,
+        EquipoVirtualID: detalle.EquipoVirtualID,
+        EsEquipoVirtual: esEquipoVirtual,
+        NombreRefaccion: nombre,
+        Descripcion: descripcion,
+        CantidadPedida: cantidadPedida,
+        CantidadRecibida: cantidadRecibida,
+        CantidadPendiente: cantidadPendiente,
+        PrecioUnitario: precioUnitario,
+        SubtotalPedido: cantidadPedida * precioUnitario,
+        SubtotalRecibido: cantidadRecibida * precioUnitario,
+        SubtotalPendiente: cantidadPendiente * precioUnitario,
+        Completado: cantidadPendiente <= 0,
+      };
+    });
+
+    // 8. Calcular totales de pagos y recepciones
+    const totalPagado = pagos.reduce((sum, p) => sum + Number(p.Monto || 0), 0);
+    const totalRecibidoMonto = recepciones.reduce((sum, r) => sum + Number(r.MontoRecepcion || 0), 0);
+    const montoTotalPedido = Number(pedido.TotalNeto ?? 0);
+    const montoPendientePago = montoTotalPedido - totalPagado;
+
+    // 9. Calcular totales de items usando Math.min(recibida, pedida) como en compras
+    let totalItemsPedidos = 0;
+    let totalItemsRecibidos = 0;
+    let montoTotalRecibido = 0;
+
+    for (const d of pedido.pedidos_detalle) {
+      const pedida = d.Cantidad ?? 0;
+      const recibida = cantidadesRecibidasPorDetalle.get(d.PedidoDetalleID) || 0;
+      const precio = Number(d.PrecioUnitario ?? 0);
+
+      totalItemsPedidos += pedida;
+      totalItemsRecibidos += Math.min(recibida, pedida);
+      montoTotalRecibido += Math.min(recibida, pedida) * precio;
+    }
+
+    const totalItemsPendientes = totalItemsPedidos - totalItemsRecibidos;
+
+    return {
+      message: 'Recepciones con pagos del pedido obtenidas',
+      data: {
+        pedido: {
+          PedidoID: pedido.PedidoID,
+          ProveedorID: pedido.ProveedorID,
+          FechaPedido: pedido.FechaPedido ? moment.utc(pedido.FechaPedido).format('YYYY-MM-DD') : null,
+          TotalBruto: Number(pedido.TotalBruto ?? 0),
+          TotalIVA: Number(pedido.TotalIVA ?? 0),
+          TotalNeto: Number(pedido.TotalNeto ?? 0),
+        },
+        refacciones: refaccionesDetalle,
+        recepciones: recepciones.map(r => ({
+          ...r,
+          FechaRecepcion: r.FechaRecepcion ? moment.utc(r.FechaRecepcion).format('YYYY-MM-DD') : null,
+        })),
+        pagos: pagos.map(p => ({
+          ...p,
+          FechaPago: p.FechaPago ? moment.utc(p.FechaPago).format('YYYY-MM-DD') : null,
+        })),
+        resumen: {
+          totalRecepciones: recepciones.length,
+          totalPagos: pagos.length,
+          montoTotalPedido,
+          montoTotalRecibido: this.round2(montoTotalRecibido),
+          montoTotalPagado: totalPagado,
+          montoPendientePago,
+          totalItemsPedidos,
+          totalItemsRecibidos,
+          totalItemsPendientes,
+          recepcionCompleta: totalItemsPendientes <= 0,
+          pagoCompleto: montoPendientePago <= 0,
+        },
+      },
+    };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // CREAR RECEPCION
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * POST /pedidos-recepciones
+   * Registra una recepcion (parcial o total) de un pedido:
+   *  - valida pertenencia y que no exceda lo pendiente
+   *  - mueve inventario/kardex (solo refacciones)
+   *  - recalcula EstadoEntrega + TotalRecibido del pedido
+   * Todo dentro de una transaccion: si algo falla, rollback total.
+   */
+  async create(dto: CreatePedidoRecepcionDto) {
+    const fechaStr = dto.FechaRecepcion || moment().format('YYYY-MM-DD');
+    const usuarioID = dto.UsuarioID ?? null;
+
+    const result = await prisma.$transaction(async (tx) => {
+      // ─── PASO 1: traer el pedido + sus detalles activos ───
+      const pedido = await tx.pedidos_encabezado.findUnique({
+        where: { PedidoID: dto.PedidoID },
+        include: { pedidos_detalle: { where: { IsActive: true } } },
+      });
+
+      if (!pedido) {
+        throw new HttpError('Pedido no encontrado', 404);
+      }
+
+      // R1: no se recibe sobre un pedido ya completamente entregado
+      if (pedido.EstadoEntrega === 'ENTREGADO') {
+        throw new HttpError('El pedido ya está completamente entregado', 400);
+      }
+
+      // ─── PASO 2: mapa de detalles del pedido por PedidoDetalleID ───
+      // Permite validar pertenencia y leer RefaccionID + PrecioUnitario de cada renglon.
+      const detallesPedidoMap = new Map<number, {
+        RefaccionID: number | null;
+        EquipoVirtualID: number | null;
+        Cantidad: number;
+        PrecioUnitario: number;
+      }>();
+
+      for (const d of pedido.pedidos_detalle) {
+        detallesPedidoMap.set(d.PedidoDetalleID, {
+          RefaccionID: d.RefaccionID,
+          EquipoVirtualID: d.EquipoVirtualID,
+          Cantidad: d.Cantidad ?? 0,
+          PrecioUnitario: Number(d.PrecioUnitario ?? 0),
+        });
+      }
+
+      // ─── PASO 3: cuanto ya se recibio antes, por PedidoDetalleID ───
+      // Suma de recepciones previas activas, para calcular lo pendiente.
+      const recepcionesPrevias = await tx.pedidos_recepciones_detalle.findMany({
+        where: {
+          IsActive: true,
+          pedidos_recepciones_encabezado: {
+            PedidoID: dto.PedidoID,
+            IsActive: true,
+          },
+        },
+      });
+
+      const recibidoPrevioPorDetalle = new Map<number, number>();
+      for (const rec of recepcionesPrevias) {
+        if (rec.PedidoDetalleID) {
+          const actual = recibidoPrevioPorDetalle.get(rec.PedidoDetalleID) || 0;
+          recibidoPrevioPorDetalle.set(rec.PedidoDetalleID, actual + (rec.CantidadRecibida || 0));
+        }
+      }
+
+      // ─── PASO 4: validar cada detalle del dto ───
+      for (const det of dto.Detalles) {
+        const detPedido = detallesPedidoMap.get(det.PedidoDetalleID);
+
+        // pertenencia: el PedidoDetalleID debe ser un renglon de ESTE pedido
+        if (!detPedido) {
+          throw new HttpError(
+            `El detalle ${det.PedidoDetalleID} no pertenece al pedido ${dto.PedidoID}`,
+            400,
+          );
+        }
+
+        // R2: no exceder lo pendiente (pedido - ya recibido)
+        const yaRecibido = recibidoPrevioPorDetalle.get(det.PedidoDetalleID) || 0;
+        const pendiente = detPedido.Cantidad - yaRecibido;
+
+        if (det.CantidadRecibida > pendiente) {
+          throw new HttpError(
+            `La cantidad a recibir (${det.CantidadRecibida}) excede lo pendiente (${pendiente}) del detalle ${det.PedidoDetalleID}`,
+            400,
+          );
+        }
+      }
+
+      // ─── PASO 5: crear el encabezado de la recepcion ───
+      // R3: MontoRecepcion = suma de (CantidadRecibida * PrecioUnitario) de cada detalle.
+      let montoRecepcion = 0;
+      for (const det of dto.Detalles) {
+        const detPedido = detallesPedidoMap.get(det.PedidoDetalleID)!;
+        montoRecepcion += det.CantidadRecibida * detPedido.PrecioUnitario;
+      }
+      montoRecepcion = this.round2(montoRecepcion);
+
+      const recepcion = await tx.pedidos_recepciones_encabezado.create({
+        data: {
+          PedidoID: dto.PedidoID,
+          FechaRecepcion: new Date(fechaStr),
+          Observaciones: dto.Observaciones || null,
+          MontoRecepcion: montoRecepcion,
+          NumeroFactura: dto.NumeroFactura || null,
+          UsuarioID: usuarioID,
+          IsActive: true,
+        },
+      });
+
+      // ─── PASO 6: crear detalles de recepcion + mover inventario/kardex ───
+      for (const det of dto.Detalles) {
+        const detPedido = detallesPedidoMap.get(det.PedidoDetalleID)!;
+
+        // crear el detalle de recepcion
+        await tx.pedidos_recepciones_detalle.create({
+          data: {
+            PedidoRecepcionID: recepcion.PedidoRecepcionID,
+            PedidoDetalleID: det.PedidoDetalleID,
+            RefaccionID: detPedido.RefaccionID,
+            CantidadRecibida: det.CantidadRecibida,
+            IsActive: true,
+          },
+        });
+
+        // R4: solo las refacciones mueven inventario/kardex (equipos virtuales no)
+        const esRefaccion = detPedido.RefaccionID && !detPedido.EquipoVirtualID;
+        if (esRefaccion) {
+          const refaccionID = detPedido.RefaccionID!;
+
+          await actualizarInventario(tx, refaccionID, det.CantidadRecibida, fechaStr);
+
+          await crearKardex(
+            tx,
+            refaccionID,
+            det.CantidadRecibida,
+            detPedido.PrecioUnitario,
+            usuarioID ?? 0,
+            'Entrada_Compra',
+            `Entrada por recepción de pedido #${dto.PedidoID}`,
+            fechaStr,
+          );
+
+          await actualizarCostoPromedioRefaccion(
+            tx,
+            refaccionID,
+            detPedido.PrecioUnitario,
+            det.CantidadRecibida,
+          );
+        }
+      }
+
+      // ─── PASO 7: recalcular EstadoEntrega + TotalRecibido del pedido ───
+      await this.actualizarEstadoEntrega(tx, dto.PedidoID);
+
+      return await this.findOneRaw(tx, recepcion.PedidoRecepcionID);
+    });
+
+    return { message: 'Recepción registrada correctamente', data: result };
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // SISTEMA DE EJES INDEPENDIENTES
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Recalcula EstadoEntrega y TotalRecibido de un pedido,
+   * sumando todo lo recibido (todas las recepciones activas) contra lo pedido.
+   */
+  private async actualizarEstadoEntrega(tx: Prisma.TransactionClient, pedidoId: number) {
+    const pedido = await tx.pedidos_encabezado.findUnique({
+      where: { PedidoID: pedidoId },
+      include: { pedidos_detalle: { where: { IsActive: true } } },
+    });
+
+    if (!pedido) return;
+
+    // Sumar lo recibido por PedidoDetalleID (todas las recepciones activas)
+    const recepciones = await tx.pedidos_recepciones_encabezado.findMany({
+      where: { PedidoID: pedidoId, IsActive: true },
+      include: { pedidos_recepciones_detalle: { where: { IsActive: true } } },
+    });
+
+    const recibidoPorDetalle = new Map<number, number>();
+    for (const r of recepciones) {
+      for (const det of r.pedidos_recepciones_detalle) {
+        if (det.PedidoDetalleID) {
+          const actual = recibidoPorDetalle.get(det.PedidoDetalleID) || 0;
+          recibidoPorDetalle.set(det.PedidoDetalleID, actual + (det.CantidadRecibida || 0));
+        }
+      }
+    }
+
+    // Calcular totales (cantidad pedida vs recibida, y monto recibido)
+    let totalCantidadPedida = 0;
+    let totalCantidadRecibida = 0;
+    let totalMontoRecibido = 0;
+
+    for (const d of pedido.pedidos_detalle) {
+      const pedida = d.Cantidad ?? 0;
+      const recibida = recibidoPorDetalle.get(d.PedidoDetalleID) || 0;
+      const precio = Number(d.PrecioUnitario ?? 0);
+
+      totalCantidadPedida += pedida;
+      totalCantidadRecibida += Math.min(recibida, pedida);
+      totalMontoRecibido += Math.min(recibida, pedida) * precio;
+    }
+
+    // R5: determinar EstadoEntrega
+    let nuevoEstado: EstadoEntregaCompra;
+    if (totalCantidadRecibida >= totalCantidadPedida && totalCantidadPedida > 0) {
+      nuevoEstado = 'ENTREGADO';
+    } else if (totalCantidadRecibida > 0) {
+      nuevoEstado = 'PARCIAL';
+    } else {
+      nuevoEstado = 'PEDIDO';
+    }
+
+    await tx.pedidos_encabezado.update({
+      where: { PedidoID: pedidoId },
+      data: {
+        TotalRecibido: this.round2(totalMontoRecibido),
+        EstadoEntrega: nuevoEstado,
+      },
+    });
+  }
+
+}
+
+export const pedidosRecepcionesService = new PedidosRecepcionesService();
