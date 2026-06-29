@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const createProveedorSchema = z.object({
   NombreProveedor: z.string().min(1, 'El nombre del proveedor es requerido').max(255),
+  RFC: z.string().max(13).optional(),
   Direccion: z.string().max(255).optional(),
   Telefono: z.string().max(50).optional(),
   Contacto: z.string().max(100).optional(),
@@ -16,6 +17,7 @@ export const createProveedorSchema = z.object({
 
 export const updateProveedorSchema = z.object({
   NombreProveedor: z.string().min(1).max(255).optional(),
+  RFC: z.string().max(13).optional(),
   Direccion: z.string().max(255).optional(),
   Telefono: z.string().max(50).optional(),
   Contacto: z.string().max(100).optional(),
