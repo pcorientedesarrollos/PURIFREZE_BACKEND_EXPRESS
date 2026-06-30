@@ -178,7 +178,7 @@ export class FacturasService {
   /**
    * Listar facturas activas (máximo 200).
    */
-  async findAll(texto?: string) {
+  async findAll(texto?: string, fechaDesde?: string, fechaHasta?: string) {
     const where: any = { IsActive: true };
 
     if (texto) {
@@ -193,6 +193,16 @@ export class FacturasService {
         { conceptos: { some: { Descripcion: { contains: texto } } } },
         { conceptos: { some: { NoIdentificacion: { contains: texto } } } },
       ];
+    }
+
+    if (fechaDesde || fechaHasta) {
+      where.FechaEmision = {};
+      if (fechaDesde) {
+        where.FechaEmision.gte = new Date(`${fechaDesde}T00:00:00.000Z`);
+      }
+      if (fechaHasta) {
+        where.FechaEmision.lte = new Date(`${fechaHasta}T23:59:59.999Z`);
+      }
     }
 
     const facturas = await prisma.facturas.findMany({

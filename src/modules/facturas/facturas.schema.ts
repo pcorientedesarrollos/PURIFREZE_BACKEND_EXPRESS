@@ -6,6 +6,8 @@ export const facturaIdParamSchema = z.object({
 
 export const listFacturasQuerySchema = z.object({
   texto: z.string().optional(),
+  fechaDesde: z.string().optional(),
+  fechaHasta: z.string().optional(),
 });
 
 export type ListFacturasQueryDto = z.infer<typeof listFacturasQuerySchema>;

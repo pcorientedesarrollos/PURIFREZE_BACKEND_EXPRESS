@@ -22,7 +22,9 @@ export class FacturasController {
    */
   async findAll(req: Request, res: Response) {
     const texto = req.query.texto as string | undefined;
-    const facturas = await facturasService.findAll(texto);
+    const fechaDesde = req.query.fechaDesde as string | undefined;
+    const fechaHasta = req.query.fechaHasta as string | undefined;
+    const facturas = await facturasService.findAll(texto, fechaDesde, fechaHasta);
     return success(res, 'Facturas obtenidas', facturas);
   }
 
