@@ -187,7 +187,11 @@ export class FacturasService {
         { UUID: { contains: texto } },
         { emisor: { RFC: { contains: texto } } },
         { emisor: { RazonSocial: { contains: texto } } },
+        { emisor: { Alias: { contains: texto } } },
         { Moneda: { contains: texto } },
+        { conceptos: { some: { ClaveProdServ: { contains: texto } } } },
+        { conceptos: { some: { Descripcion: { contains: texto } } } },
+        { conceptos: { some: { NoIdentificacion: { contains: texto } } } },
       ];
     }
 
