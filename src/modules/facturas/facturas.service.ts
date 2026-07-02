@@ -247,12 +247,48 @@ export class FacturasService {
    * NumeroPedido no vacío. Alimenta el selector al crear un pedido.
    */
   async findPedidosAgrupados() {
+    // Facturas ya asociadas a un pedido activo: su N° de pedido ya se usó,
+    // por lo que se excluyen del selector (no deben poder reutilizarse).
+    const asociaciones = await prisma.pedidos_facturas.findMany({
+      where: { IsActive: true },
+      select: { FacturaID: true },
+    });
+    const idsAsociadas = new Set(asociaciones.map((a) => a.FacturaID));
+
+    // Números de pedido que YA tienen un pedido creado (aunque sus facturas no
+    // se hayan asociado). Se desambigua por el RFC del proveedor del pedido,
+    // que corresponde al RFC del emisor de las facturas. Clave: "Numero__RFC".
+    const pedidosExistentes = await prisma.pedidos_encabezado.findMany({
+      where: { IsActive: true, NOT: { NumeroPedido: null } },
+      select: { NumeroPedido: true, ProveedorID: true },
+    });
+    const provIds = [
+      ...new Set(pedidosExistentes.map((p) => p.ProveedorID).filter((x): x is number => x != null)),
+    ];
+    const proveedores = provIds.length
+      ? await prisma.catalogo_proveedores.findMany({
+          where: { ProveedorID: { in: provIds } },
+          select: { ProveedorID: true, RFC: true },
+        })
+      : [];
+    const rfcPorProveedor = new Map(
+      proveedores.map((p) => [p.ProveedorID, (p.RFC || '').trim().toUpperCase()]),
+    );
+    const pedidosUsados = new Set<string>();
+    for (const p of pedidosExistentes) {
+      const num = (p.NumeroPedido || '').trim();
+      if (!num) continue;
+      const rfc = p.ProveedorID != null ? rfcPorProveedor.get(p.ProveedorID) || '' : '';
+      pedidosUsados.add(`${num}__${rfc}`);
+    }
+
     const facturas = await prisma.facturas.findMany({
       where: {
         IsActive: true,
         NOT: { NumeroPedido: null },
       },
       select: {
+        FacturaID: true,
         NumeroPedido: true,
         Total: true,
         EmisorFacturaID: true,
@@ -272,6 +308,9 @@ export class FacturasService {
     }>();
 
     for (const f of facturas) {
+      // Saltar facturas ya asociadas a un pedido (no quedan "libres" para ese N°).
+      if (idsAsociadas.has(f.FacturaID)) continue;
+
       const numeroPedido = (f.NumeroPedido || '').trim();
       if (!numeroPedido) continue;
 
@@ -292,6 +331,8 @@ export class FacturasService {
     }
 
     return [...groups.values()]
+      // Excluir grupos cuyo N° de pedido ya tiene un pedido creado para ese emisor/proveedor.
+      .filter((g) => !pedidosUsados.has(`${g.NumeroPedido}__${(g.RFC || '').trim().toUpperCase()}`))
       .map((g) => ({ ...g, sumaTotal: Math.round(g.sumaTotal * 100) / 100 }))
       .sort((a, b) => a.NumeroPedido.localeCompare(b.NumeroPedido));
   }

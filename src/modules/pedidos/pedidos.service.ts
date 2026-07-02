@@ -270,7 +270,13 @@ class PedidosService {
         where: { FacturaID: facturaId, IsActive: true },
       });
       if (existenteActiva) {
-        throw new HttpError('La factura ya está asociada a un pedido', 400);
+        // Idempotente: si ya está asociada a ESTE mismo pedido, no es error
+        // (el autoasociar por N° de pedido y la sincronización del form se
+        // solapan; la segunda llamada no debe romper ni ensuciar el log).
+        if (existenteActiva.PedidoID === pedidoId) {
+          return;
+        }
+        throw new HttpError('La factura ya está asociada a otro pedido', 400);
       }
 
       // Reactivar si existe soft-deleted
@@ -344,6 +350,7 @@ class PedidosService {
       UUID: f.UUID,
       Serie: f.Serie,
       Folio: f.Folio,
+      NumeroPedido: f.NumeroPedido,
       FechaEmision: f.FechaEmision ? moment.utc(f.FechaEmision).format('YYYY-MM-DD') : null,
       SubTotal: Number(f.SubTotal),
       Descuento: Number(f.Descuento),
@@ -358,6 +365,7 @@ class PedidosService {
         ClaveProdServ: c.ClaveProdServ,
         NoIdentificacion: c.NoIdentificacion,
         Cantidad: Number(c.Cantidad),
+        ClaveUnidad: c.ClaveUnidad,
         Unidad: c.Unidad,
         Descripcion: c.Descripcion,
         ValorUnitario: Number(c.ValorUnitario),
