@@ -2264,11 +2264,14 @@ model facturas {
   MetodoPago              String?            @db.VarChar(10)
   FormaPago               String?            @db.VarChar(10)
   LugarExpedicion         String             @db.VarChar(10)
+  NumeroPedido            String?            @db.VarChar(100)
   XmlOriginal             Bytes?             @db.LongBlob
   FechaCarga              DateTime           @default(now())
   IsActive                Boolean            @default(true)
   emisor                  emisores_factura   @relation(fields: [EmisorFacturaID], references: [EmisorFacturaID])
   conceptos               factura_conceptos[]
+
+  @@index([NumeroPedido, EmisorFacturaID], map: "idx_numero_pedido")
 }
 
 model factura_conceptos {

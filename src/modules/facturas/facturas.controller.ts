@@ -13,8 +13,41 @@ export class FacturasController {
       throw new HttpError('No se recibieron archivos', 400);
     }
 
-    const resultados = await facturasService.uploadFacturas(files);
+    // Asignaciones opcionales de N° de pedido por UUID (form-data campo 'asignaciones' como JSON).
+    let asignaciones: { uuid: string; numeroPedido: string }[] | undefined;
+    if (typeof req.body?.asignaciones === 'string' && req.body.asignaciones.trim()) {
+      try {
+        const parsed = JSON.parse(req.body.asignaciones);
+        if (Array.isArray(parsed)) {
+          asignaciones = parsed.filter(
+            (a) => a && typeof a.uuid === 'string' && typeof a.numeroPedido === 'string',
+          );
+        }
+      } catch {
+        throw new HttpError('El campo asignaciones no es un JSON válido', 400);
+      }
+    }
+
+    const resultados = await facturasService.uploadFacturas(files, asignaciones);
     return success(res, 'Carga procesada', { resultados }, 200);
+  }
+
+  /**
+   * GET /facturas/pedidos-agrupados
+   */
+  async findPedidosAgrupados(_req: Request, res: Response) {
+    const grupos = await facturasService.findPedidosAgrupados();
+    return success(res, 'Números de pedido obtenidos', grupos);
+  }
+
+  /**
+   * GET /facturas/por-numero-pedido?numeroPedido=X&rfc=Y
+   */
+  async findByNumeroPedido(req: Request, res: Response) {
+    const numeroPedido = (req.query.numeroPedido as string) || '';
+    const rfc = (req.query.rfc as string) || '';
+    const facturas = await facturasService.findByNumeroPedido(numeroPedido, rfc);
+    return success(res, 'Facturas del pedido obtenidas', facturas);
   }
 
   /**
@@ -26,6 +59,15 @@ export class FacturasController {
     const fechaHasta = req.query.fechaHasta as string | undefined;
     const facturas = await facturasService.findAll(texto, fechaDesde, fechaHasta);
     return success(res, 'Facturas obtenidas', facturas);
+  }
+
+  /**
+   * GET /facturas/agrupadas
+   */
+  async findAllAgrupadas(req: Request, res: Response) {
+    const texto = req.query.texto as string | undefined;
+    const agrupadas = await facturasService.findAllAgrupadas(texto);
+    return success(res, 'Facturas agrupadas obtenidas', agrupadas);
   }
 
   /**

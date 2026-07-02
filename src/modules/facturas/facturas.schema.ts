@@ -10,4 +10,8 @@ export const listFacturasQuerySchema = z.object({
   fechaHasta: z.string().optional(),
 });
 
+export const listAgrupadasQuerySchema = z.object({
+  texto: z.string().optional(),
+});
+
 export type ListFacturasQueryDto = z.infer<typeof listFacturasQuerySchema>;

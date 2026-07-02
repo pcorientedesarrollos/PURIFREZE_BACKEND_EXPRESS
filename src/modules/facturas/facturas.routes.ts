@@ -2,7 +2,7 @@ import { Router } from 'express';
 import multer from 'multer';
 import { facturasController } from './facturas.controller';
 import { validateParams, validateQuery } from '../../middlewares/validateRequest';
-import { facturaIdParamSchema, listFacturasQuerySchema } from './facturas.schema';
+import { facturaIdParamSchema, listFacturasQuerySchema, listAgrupadasQuerySchema } from './facturas.schema';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -58,6 +58,54 @@ router.post('/upload', upload.array('archivos'), (req, res) => facturasControlle
  *         description: Lista de facturas
  */
 router.get('/', validateQuery(listFacturasQuerySchema), (req, res) => facturasController.findAll(req, res));
+
+/**
+ * @swagger
+ * /facturas/agrupadas:
+ *   get:
+ *     summary: Listar facturas agrupadas por emisor
+ *     tags: [Facturas]
+ *     parameters:
+ *       - in: query
+ *         name: texto
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Lista de emisores con conteo y suma
+ */
+router.get('/agrupadas', validateQuery(listAgrupadasQuerySchema), (req, res) => facturasController.findAllAgrupadas(req, res));
+
+/**
+ * @swagger
+ * /facturas/pedidos-agrupados:
+ *   get:
+ *     summary: Listar números de pedido registrados en facturas (agrupados por emisor)
+ *     tags: [Facturas]
+ *     responses:
+ *       200:
+ *         description: Lista de grupos { NumeroPedido, EmisorFacturaID, RFC, RazonSocial, totalFacturas, sumaTotal }
+ */
+router.get('/pedidos-agrupados', (req, res) => facturasController.findPedidosAgrupados(req, res));
+
+/**
+ * @swagger
+ * /facturas/por-numero-pedido:
+ *   get:
+ *     summary: Facturas de un N° de pedido (por RFC del emisor) con conceptos
+ *     tags: [Facturas]
+ *     parameters:
+ *       - in: query
+ *         name: numeroPedido
+ *         schema: { type: string }
+ *       - in: query
+ *         name: rfc
+ *         schema: { type: string }
+ *     responses:
+ *       200:
+ *         description: Facturas del pedido con conceptos
+ */
+router.get('/por-numero-pedido', (req, res) => facturasController.findByNumeroPedido(req, res));
 
 /**
  * @swagger

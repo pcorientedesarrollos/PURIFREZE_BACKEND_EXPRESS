@@ -19,15 +19,97 @@ class PedidosService {
   async create(dto: CreatePedidoDto) {
     this.validarDetallesRequeridos(dto.Detalles);
 
-    const result = await prisma.$transaction(async (tx) => {
+    const { pedidoId, result } = await prisma.$transaction(async (tx) => {
       const encabezado = await this.crearEncabezadoPedido(tx, dto);
       await this.crearDetallesPedido(tx, encabezado.PedidoID, dto.Detalles);
       await this.recalcularTotalesPedido(tx, encabezado.PedidoID);
 
-      return this.findOneRaw(tx, encabezado.PedidoID);
+      return { pedidoId: encabezado.PedidoID, result: await this.findOneRaw(tx, encabezado.PedidoID) };
     });
 
-    return { message: 'Pedido registrado correctamente', data: result };
+    let message = 'Pedido registrado correctamente';
+
+    // Autoasociar facturas por Número de Pedido (fuera de la transacción:
+    // asociarFactura abre su propia transacción y ya maneja @unique/reactivar).
+    const numeroPedido = dto.NumeroPedido?.trim();
+    if (numeroPedido && dto.ProveedorID) {
+      const { asociadas, warning } = await this.autoasociarFacturasPorNumeroPedido(
+        pedidoId,
+        numeroPedido,
+        dto.ProveedorID,
+      );
+      if (asociadas > 0) {
+        message += `. ${asociadas} factura(s) asociada(s) automáticamente`;
+      }
+      if (warning) {
+        message += `. Advertencia: ${warning}`;
+      }
+      // Refrescar el pedido con las facturas ya asociadas
+      const refrescado = await this.findOneRaw(prisma, pedidoId);
+      return { message, data: refrescado };
+    }
+
+    return { message, data: result };
+  }
+
+  /**
+   * Busca facturas con el NumeroPedido dado y las asocia al pedido.
+   * Desambigua el emisor por el RFC del proveedor del pedido. Si el proveedor
+   * no tiene RFC cargado, asocia todas las facturas con ese NumeroPedido y
+   * devuelve una advertencia blanda (no lanza error).
+   */
+  private async autoasociarFacturasPorNumeroPedido(
+    pedidoId: number,
+    numeroPedido: string,
+    proveedorId: number,
+  ): Promise<{ asociadas: number; warning?: string }> {
+    let warning: string | undefined;
+
+    const proveedor = await prisma.catalogo_proveedores.findUnique({
+      where: { ProveedorID: proveedorId },
+      select: { RFC: true },
+    });
+
+    const rfcProveedor = proveedor?.RFC?.trim() || null;
+    const facturaWhere: any = { NumeroPedido: numeroPedido, IsActive: true };
+
+    if (rfcProveedor) {
+      const emisor = await prisma.emisores_factura.findUnique({
+        where: { RFC: rfcProveedor },
+        select: { EmisorFacturaID: true },
+      });
+      if (!emisor) {
+        // No hay facturas de ese emisor; nada que asociar de forma coherente.
+        return { asociadas: 0, warning: `No se encontró emisor con RFC ${rfcProveedor} para las facturas del pedido ${numeroPedido}` };
+      }
+      facturaWhere.EmisorFacturaID = emisor.EmisorFacturaID;
+    } else {
+      warning = 'El proveedor no tiene RFC cargado; se asociaron todas las facturas con ese número de pedido sin validar el emisor';
+    }
+
+    const facturas = await prisma.facturas.findMany({
+      where: facturaWhere,
+      select: { FacturaID: true },
+    });
+
+    let asociadas = 0;
+    for (const f of facturas) {
+      // Saltar las que ya tienen una asociación activa (asociarFactura lanzaría error).
+      const yaAsociada = await prisma.pedidos_facturas.findFirst({
+        where: { FacturaID: f.FacturaID, IsActive: true },
+      });
+      if (yaAsociada) continue;
+
+      try {
+        await this.asociarFactura(pedidoId, f.FacturaID);
+        asociadas++;
+      } catch {
+        // Si otra condición impide asociar, se ignora silenciosamente:
+        // el pedido ya está creado y la asociación es best-effort.
+      }
+    }
+
+    return { asociadas, warning };
   }
 
   async update(id: number, dto: UpdatePedidoDto) {

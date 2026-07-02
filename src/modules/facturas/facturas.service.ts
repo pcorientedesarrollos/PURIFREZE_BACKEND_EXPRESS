@@ -16,7 +16,19 @@ export class FacturasService {
   /**
    * Procesar upload de múltiples XML CFDI.
    */
-  async uploadFacturas(files: Express.Multer.File[]): Promise<UploadResult[]> {
+  async uploadFacturas(
+    files: Express.Multer.File[],
+    asignaciones?: { uuid: string; numeroPedido: string }[],
+  ): Promise<UploadResult[]> {
+    // Mapa UUID (normalizado) -> NumeroPedido para asignar por grupo.
+    const mapaNumeroPedido = new Map<string, string>();
+    for (const a of asignaciones ?? []) {
+      const uuid = a.uuid?.trim().toLowerCase();
+      const numero = a.numeroPedido?.trim();
+      if (uuid && numero) {
+        mapaNumeroPedido.set(uuid, numero);
+      }
+    }
     const limit = pLimit(8);
 
     // 1. Parsear todos los XML en paralelo con límite de concurrencia
@@ -89,7 +101,8 @@ export class FacturasService {
       setProcesados.add(item.uuid);
 
       try {
-        const facturaCreada = await this.crearFacturaConConceptos(item.parsed, item.buffer);
+        const numeroPedidoFactura = mapaNumeroPedido.get(item.uuid.trim().toLowerCase()) || null;
+        const facturaCreada = await this.crearFacturaConConceptos(item.parsed, item.buffer, numeroPedidoFactura);
         resultados.push({
           archivo: item.archivo,
           status: 'ok',
@@ -112,7 +125,7 @@ export class FacturasService {
   /**
    * Crear emisor (findOrCreate) y factura con conceptos anidados.
    */
-  private async crearFacturaConConceptos(parsed: CfdiParseResult, xmlBuffer: Buffer) {
+  private async crearFacturaConConceptos(parsed: CfdiParseResult, xmlBuffer: Buffer, numeroPedido: string | null = null) {
     const { encabezado, emisor, conceptos } = parsed;
     const xmlBytes = new Uint8Array(xmlBuffer);
 
@@ -151,6 +164,7 @@ export class FacturasService {
         MetodoPago: encabezado.metodoPago || null,
         FormaPago: encabezado.formaPago || null,
         LugarExpedicion: encabezado.lugarExpedicion,
+        NumeroPedido: numeroPedido,
         XmlOriginal: xmlBytes,
         FechaCarga: new Date(),
         IsActive: true,
@@ -176,8 +190,171 @@ export class FacturasService {
   }
 
   /**
-   * Listar facturas activas (máximo 200).
+   * Listar facturas activas agrupadas por emisor — misma búsqueda que findAll.
    */
+  async findAllAgrupadas(texto?: string) {
+    const where: any = { IsActive: true };
+
+    if (texto) {
+      where.OR = [
+        { UUID: { contains: texto } },
+        { Folio: { contains: texto } },
+        { emisor: { RFC: { contains: texto } } },
+        { emisor: { RazonSocial: { contains: texto } } },
+        { conceptos: { some: { Descripcion: { contains: texto } } } },
+        { conceptos: { some: { NoIdentificacion: { contains: texto } } } },
+      ];
+    }
+
+    const facturas = await prisma.facturas.findMany({
+      where,
+      select: {
+        FacturaID: true,
+        Total: true,
+        EmisorFacturaID: true,
+        emisor: {
+          select: {
+            EmisorFacturaID: true,
+            RFC: true,
+            RazonSocial: true,
+            Alias: true,
+          },
+        },
+      },
+    });
+
+    const groups = new Map<number, {
+      emisor: { idEmisor: number; rfc: string; razonSocial: string; alias: string | null };
+      totalFacturas: number;
+      sumaTotal: number;
+    }>();
+
+    for (const f of facturas) {
+      const eid = f.EmisorFacturaID;
+      if (!groups.has(eid)) {
+        groups.set(eid, {
+          emisor: {
+            idEmisor: eid,
+            rfc: f.emisor.RFC,
+            razonSocial: f.emisor.RazonSocial || '',
+            alias: f.emisor.Alias,
+          },
+          totalFacturas: 0,
+          sumaTotal: 0,
+        });
+      }
+      const g = groups.get(eid)!;
+      g.totalFacturas++;
+      g.sumaTotal += Number(f.Total);
+    }
+
+    return [...groups.values()]
+      .map(g => ({ ...g.emisor, totalFacturas: g.totalFacturas, sumaTotal: g.sumaTotal }))
+      .sort((a, b) => a.razonSocial.localeCompare(b.razonSocial));
+  }
+
+  /**
+   * Listar los grupos de "Número de Pedido" registrados en facturas.
+   * Agrupa por (NumeroPedido, EmisorFacturaID). Solo facturas activas con
+   * NumeroPedido no vacío. Alimenta el selector al crear un pedido.
+   */
+  async findPedidosAgrupados() {
+    const facturas = await prisma.facturas.findMany({
+      where: {
+        IsActive: true,
+        NOT: { NumeroPedido: null },
+      },
+      select: {
+        NumeroPedido: true,
+        Total: true,
+        EmisorFacturaID: true,
+        emisor: {
+          select: { RFC: true, RazonSocial: true },
+        },
+      },
+    });
+
+    const groups = new Map<string, {
+      NumeroPedido: string;
+      EmisorFacturaID: number;
+      RFC: string;
+      RazonSocial: string;
+      totalFacturas: number;
+      sumaTotal: number;
+    }>();
+
+    for (const f of facturas) {
+      const numeroPedido = (f.NumeroPedido || '').trim();
+      if (!numeroPedido) continue;
+
+      const key = `${numeroPedido}__${f.EmisorFacturaID}`;
+      if (!groups.has(key)) {
+        groups.set(key, {
+          NumeroPedido: numeroPedido,
+          EmisorFacturaID: f.EmisorFacturaID,
+          RFC: f.emisor.RFC,
+          RazonSocial: f.emisor.RazonSocial || '',
+          totalFacturas: 0,
+          sumaTotal: 0,
+        });
+      }
+      const g = groups.get(key)!;
+      g.totalFacturas++;
+      g.sumaTotal += Number(f.Total);
+    }
+
+    return [...groups.values()]
+      .map((g) => ({ ...g, sumaTotal: Math.round(g.sumaTotal * 100) / 100 }))
+      .sort((a, b) => a.NumeroPedido.localeCompare(b.NumeroPedido));
+  }
+
+  /**
+   * Facturas activas de un Número de Pedido, filtradas por el RFC del emisor.
+   * Devuelve encabezado + conceptos para previsualizar en el form de pedidos.
+   */
+  async findByNumeroPedido(numeroPedido: string, rfc: string) {
+    const numero = numeroPedido?.trim();
+    const rfcNorm = rfc?.trim().toUpperCase();
+    if (!numero || !rfcNorm) {
+      return [];
+    }
+
+    const facturas = await prisma.facturas.findMany({
+      where: {
+        IsActive: true,
+        NumeroPedido: numero,
+        emisor: { RFC: rfcNorm },
+      },
+      orderBy: { FechaEmision: 'desc' },
+      include: {
+        conceptos: true,
+        emisor: { select: { RFC: true, RazonSocial: true, Alias: true } },
+      },
+    });
+
+    return facturas.map((f) => ({
+      FacturaID: f.FacturaID,
+      UUID: f.UUID,
+      Serie: f.Serie,
+      Folio: f.Folio,
+      FechaEmision: moment.utc(f.FechaEmision).format('YYYY-MM-DD'),
+      Total: Number(f.Total),
+      NumeroPedido: f.NumeroPedido,
+      emisor: f.emisor,
+      conceptos: f.conceptos.map((c) => ({
+        FacturaConceptoID: c.FacturaConceptoID,
+        ClaveProdServ: c.ClaveProdServ,
+        NoIdentificacion: c.NoIdentificacion,
+        Cantidad: Number(c.Cantidad),
+        ClaveUnidad: c.ClaveUnidad,
+        Unidad: c.Unidad,
+        Descripcion: c.Descripcion,
+        ValorUnitario: Number(c.ValorUnitario),
+        Importe: Number(c.Importe),
+      })),
+    }));
+  }
+
   async findAll(texto?: string, fechaDesde?: string, fechaHasta?: string) {
     const where: any = { IsActive: true };
 
@@ -240,6 +417,7 @@ export class FacturasService {
       MetodoPago: f.MetodoPago,
       FormaPago: f.FormaPago,
       LugarExpedicion: f.LugarExpedicion,
+      NumeroPedido: f.NumeroPedido,
       FechaCarga: moment.utc(f.FechaCarga).format('YYYY-MM-DD'),
       IsActive: f.IsActive,
       emisor: f.emisor,
