@@ -18,17 +18,7 @@ export class FacturasService {
    */
   async uploadFacturas(
     files: Express.Multer.File[],
-    asignaciones?: { uuid: string; numeroPedido: string }[],
   ): Promise<UploadResult[]> {
-    // Mapa UUID (normalizado) -> NumeroPedido para asignar por grupo.
-    const mapaNumeroPedido = new Map<string, string>();
-    for (const a of asignaciones ?? []) {
-      const uuid = a.uuid?.trim().toLowerCase();
-      const numero = a.numeroPedido?.trim();
-      if (uuid && numero) {
-        mapaNumeroPedido.set(uuid, numero);
-      }
-    }
     const limit = pLimit(8);
 
     // 1. Parsear todos los XML en paralelo con límite de concurrencia
@@ -101,8 +91,7 @@ export class FacturasService {
       setProcesados.add(item.uuid);
 
       try {
-        const numeroPedidoFactura = mapaNumeroPedido.get(item.uuid.trim().toLowerCase()) || null;
-        const facturaCreada = await this.crearFacturaConConceptos(item.parsed, item.buffer, numeroPedidoFactura);
+        const facturaCreada = await this.crearFacturaConConceptos(item.parsed, item.buffer);
         resultados.push({
           archivo: item.archivo,
           status: 'ok',
@@ -125,7 +114,7 @@ export class FacturasService {
   /**
    * Crear emisor (findOrCreate) y factura con conceptos anidados.
    */
-  private async crearFacturaConConceptos(parsed: CfdiParseResult, xmlBuffer: Buffer, numeroPedido: string | null = null) {
+  private async crearFacturaConConceptos(parsed: CfdiParseResult, xmlBuffer: Buffer) {
     const { encabezado, emisor, conceptos } = parsed;
     const xmlBytes = new Uint8Array(xmlBuffer);
 
@@ -164,7 +153,6 @@ export class FacturasService {
         MetodoPago: encabezado.metodoPago || null,
         FormaPago: encabezado.formaPago || null,
         LugarExpedicion: encabezado.lugarExpedicion,
-        NumeroPedido: numeroPedido,
         XmlOriginal: xmlBytes,
         FechaCarga: new Date(),
         IsActive: true,
@@ -481,6 +469,119 @@ export class FacturasService {
       })),
       emisor: factura.emisor,
     };
+  }
+
+  /**
+   * Asignar un Número de Pedido a un lote de facturas.
+   * Reglas:
+   *  - Todas las facturas deben existir y estar activas.
+   *  - Ninguna puede tener ya un NumeroPedido (no se permite cambiar).
+   *  - Todas deben compartir el mismo EmisorFacturaID.
+   */
+  async asignarNumeroPedido(numeroPedido: string, facturaIDs: number[]) {
+    const numero = numeroPedido.trim();
+    const ids = [...new Set(facturaIDs)];
+
+    const facturas = await prisma.facturas.findMany({
+      where: { FacturaID: { in: ids } },
+      select: {
+        FacturaID: true,
+        IsActive: true,
+        NumeroPedido: true,
+        EmisorFacturaID: true,
+      },
+    });
+
+    // Todas existen
+    if (facturas.length !== ids.length) {
+      const encontrados = new Set(facturas.map((f) => f.FacturaID));
+      const faltantes = ids.filter((id) => !encontrados.has(id));
+      throw new HttpError(`Facturas no encontradas: ${faltantes.join(', ')}`, 400);
+    }
+
+    // Todas activas
+    const inactivas = facturas.filter((f) => !f.IsActive).map((f) => f.FacturaID);
+    if (inactivas.length > 0) {
+      throw new HttpError(`Facturas inactivas: ${inactivas.join(', ')}`, 400);
+    }
+
+    // Ninguna con NumeroPedido previo
+    const conNumero = facturas
+      .filter((f) => f.NumeroPedido != null && f.NumeroPedido.trim() !== '')
+      .map((f) => f.FacturaID);
+    if (conNumero.length > 0) {
+      throw new HttpError(
+        `Estas facturas ya tienen N° de pedido y no se puede cambiar: ${conNumero.join(', ')}`,
+        400,
+      );
+    }
+
+    // Todas el mismo emisor
+    const emisores = new Set(facturas.map((f) => f.EmisorFacturaID));
+    if (emisores.size > 1) {
+      throw new HttpError(
+        'Todas las facturas deben ser del mismo emisor para asignar un N° de pedido',
+        400,
+      );
+    }
+
+    await prisma.facturas.updateMany({
+      where: { FacturaID: { in: ids } },
+      data: { NumeroPedido: numero },
+    });
+
+    return {
+      NumeroPedido: numero,
+      EmisorFacturaID: facturas[0].EmisorFacturaID,
+      actualizadas: ids.length,
+      FacturaIDs: ids,
+    };
+  }
+
+  /**
+   * Quitar el Número de Pedido de una factura.
+   * Reglas:
+   *  - La factura debe existir, estar activa y tener NumeroPedido.
+   *  - No debe estar asociada a un pedido (sin fila activa en pedidos_facturas).
+   *    Si lo está, 409 y se debe desasociar primero desde el módulo de pedidos.
+   */
+  async quitarNumeroPedido(FacturaID: number) {
+    const factura = await prisma.facturas.findUnique({
+      where: { FacturaID },
+      select: { FacturaID: true, IsActive: true, NumeroPedido: true },
+    });
+
+    if (!factura || !factura.IsActive) {
+      throw new HttpError('Factura no encontrada', 404);
+    }
+
+    if (factura.NumeroPedido == null || factura.NumeroPedido.trim() === '') {
+      throw new HttpError('La factura no tiene un N° de pedido asignado', 400);
+    }
+
+    const asociacion = await prisma.pedidos_facturas.findFirst({
+      where: { FacturaID, IsActive: true },
+      select: {
+        PedidoID: true,
+        pedidos_encabezado: { select: { NumeroPedido: true } },
+      },
+    });
+
+    if (asociacion) {
+      const numeroPedido =
+        asociacion.pedidos_encabezado?.NumeroPedido ?? asociacion.PedidoID;
+      throw new HttpError(
+        `La factura está asociada al pedido ${numeroPedido}; desasóciela primero desde el módulo de pedidos`,
+        409,
+      );
+    }
+
+    await prisma.facturas.update({
+      where: { FacturaID },
+      data: { NumeroPedido: null },
+    });
+
+    return { FacturaID, NumeroPedido: null };
   }
 
   /**

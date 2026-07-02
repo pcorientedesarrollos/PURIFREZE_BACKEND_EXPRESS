@@ -532,45 +532,40 @@ class CotizacionesCompraService {
         throw new HttpError('Debe seleccionar al menos una refacción o equipo virtual', 400);
       }
 
-      // Crear compra (sin precios, el usuario los llenará después)
-      const compra = await tx.compras_encabezado.create({
+      // Crear PEDIDO (nuevo módulo de pedidos), no compra.
+      // Encabezado sin precios en refacciones; el usuario los llenará después.
+      const pedido = await tx.pedidos_encabezado.create({
         data: {
           ProveedorID: dto.ProveedorID,
-          FechaCompra: new Date(),
-          Estatus: 'Pendiente',
-          EstadoPago: 'PENDIENTE',
-          EstadoEntrega: 'PEDIDO',
-          FormaPago: 'CREDITO',
+          NumeroPedido: cotizacion.NumeroPedido || null,
+          FechaPedido: new Date(),
           TotalBruto: 0,
-          TotalDescuentosPorcentaje: 0,
-          TotalDescuentoEfectivo: 0,
-          TotalGastosOperativos: 0,
-          TotalGastosImportacion: 0,
           TotalIVA: 0,
           TotalNeto: 0,
+          AplicaIVA: 1,
+          TasaIVA: 0.16,
           TotalPagado: 0,
           TotalRecibido: 0,
           TotalNotasCredito: 0,
+          TotalDescuentos: 0,
+          FormaPago: 'CREDITO',
+          EstadoPago: 'PENDIENTE',
+          EstadoEntrega: 'PEDIDO',
           UsuarioID: cotizacion.UsuarioID,
-          NumeroPedido: cotizacion.NumeroPedido || null,
+          FechaAlta: new Date(),
           IsActive: true,
-          CotizacionCompraID: id, // Referencia a la cotización origen
         },
       });
 
-      // Crear detalles de compra para refacciones individuales (sin precios)
-      const detallesCompra = await Promise.all(
+      // Detalles del pedido para refacciones individuales (sin precios)
+      const detallesPedido = await Promise.all(
         detallesSeleccionados.map((detalle: any) =>
-          tx.compras_detalle.create({
+          tx.pedidos_detalle.create({
             data: {
-              CompraEncabezadoID: compra.CompraEncabezadoID,
+              PedidoID: pedido.PedidoID,
               RefaccionID: detalle.RefaccionID,
               Cantidad: detalle.Cantidad,
               PrecioUnitario: 0,
-              DescuentoPorcentaje: 0,
-              DescuentoEfectivo: 0,
-              GastosOperativos: 0,
-              GastosImportacion: 0,
               SubTotal: 0,
               Total: 0,
               IsActive: true,
@@ -579,21 +574,17 @@ class CotizacionesCompraService {
         )
       );
 
-      // Crear detalles de compra para equipos virtuales (con sus precios ya establecidos)
+      // Detalles del pedido para equipos virtuales (con sus precios ya establecidos)
       const detallesEquipos = await Promise.all(
         equiposSeleccionados.map((equipo: any) => {
           const precioTotal = Number(equipo.PrecioFinal) * equipo.Cantidad;
-          return tx.compras_detalle.create({
+          return tx.pedidos_detalle.create({
             data: {
-              CompraEncabezadoID: compra.CompraEncabezadoID,
+              PedidoID: pedido.PedidoID,
               RefaccionID: null, // Es un equipo virtual, no una refacción
               EquipoVirtualID: equipo.EquipoVirtualID,
               Cantidad: equipo.Cantidad,
               PrecioUnitario: Number(equipo.PrecioFinal),
-              DescuentoPorcentaje: 0,
-              DescuentoEfectivo: 0,
-              GastosOperativos: 0,
-              GastosImportacion: 0,
               SubTotal: precioTotal,
               Total: precioTotal,
               IsActive: true,
@@ -601,6 +592,20 @@ class CotizacionesCompraService {
           });
         })
       );
+
+      // Recalcular totales del pedido desde los detalles (Bruto/IVA/Neto)
+      const detallesPedidoActivos = await tx.pedidos_detalle.findMany({
+        where: { PedidoID: pedido.PedidoID, IsActive: true },
+      });
+      const totalBruto = Math.round(
+        detallesPedidoActivos.reduce((sum, d) => sum + Number(d.SubTotal || 0), 0) * 100
+      ) / 100;
+      const totalIVA = Math.round(totalBruto * Number(pedido.TasaIVA || 0) * 100) / 100;
+      const totalNeto = Math.round((totalBruto + totalIVA) * 100) / 100;
+      await tx.pedidos_encabezado.update({
+        where: { PedidoID: pedido.PedidoID },
+        data: { TotalBruto: totalBruto, TotalIVA: totalIVA, TotalNeto: totalNeto },
+      });
 
       // Actualizar estado de cotización
       await tx.cotizaciones_compra_encabezado.update({
@@ -612,15 +617,15 @@ class CotizacionesCompraService {
       await this.procesarEquiposVirtuales(tx, id, cotizacion.UsuarioID);
 
       return {
-        compra,
-        detallesCompra,
+        pedido,
+        detallesPedido,
         detallesEquipos,
         cotizacionID: id,
-        mensaje: 'Compra creada exitosamente.',
+        mensaje: 'Pedido creado exitosamente.',
       };
     });
 
-    return { message: 'Cotización convertida a compra correctamente', data: result };
+    return { message: 'Cotización convertida a pedido correctamente', data: result };
   }
 
   /**

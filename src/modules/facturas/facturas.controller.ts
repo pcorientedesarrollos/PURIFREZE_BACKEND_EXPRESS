@@ -13,23 +13,26 @@ export class FacturasController {
       throw new HttpError('No se recibieron archivos', 400);
     }
 
-    // Asignaciones opcionales de N° de pedido por UUID (form-data campo 'asignaciones' como JSON).
-    let asignaciones: { uuid: string; numeroPedido: string }[] | undefined;
-    if (typeof req.body?.asignaciones === 'string' && req.body.asignaciones.trim()) {
-      try {
-        const parsed = JSON.parse(req.body.asignaciones);
-        if (Array.isArray(parsed)) {
-          asignaciones = parsed.filter(
-            (a) => a && typeof a.uuid === 'string' && typeof a.numeroPedido === 'string',
-          );
-        }
-      } catch {
-        throw new HttpError('El campo asignaciones no es un JSON válido', 400);
-      }
-    }
-
-    const resultados = await facturasService.uploadFacturas(files, asignaciones);
+    const resultados = await facturasService.uploadFacturas(files);
     return success(res, 'Carga procesada', { resultados }, 200);
+  }
+
+  /**
+   * PATCH /facturas/asignar-numero-pedido
+   */
+  async asignarNumeroPedido(req: Request, res: Response) {
+    const { NumeroPedido, FacturaIDs } = req.body;
+    const resultado = await facturasService.asignarNumeroPedido(NumeroPedido, FacturaIDs);
+    return success(res, 'N° de pedido asignado', resultado);
+  }
+
+  /**
+   * PATCH /facturas/:FacturaID/quitar-numero-pedido
+   */
+  async quitarNumeroPedido(req: Request, res: Response) {
+    const FacturaID = Number(req.params.FacturaID);
+    const resultado = await facturasService.quitarNumeroPedido(FacturaID);
+    return success(res, 'N° de pedido eliminado', resultado);
   }
 
   /**

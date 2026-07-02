@@ -1,8 +1,13 @@
 import { Router } from 'express';
 import multer from 'multer';
 import { facturasController } from './facturas.controller';
-import { validateParams, validateQuery } from '../../middlewares/validateRequest';
-import { facturaIdParamSchema, listFacturasQuerySchema, listAgrupadasQuerySchema } from './facturas.schema';
+import { validateParams, validateQuery, validateBody } from '../../middlewares/validateRequest';
+import {
+  facturaIdParamSchema,
+  listFacturasQuerySchema,
+  listAgrupadasQuerySchema,
+  asignarNumeroPedidoSchema,
+} from './facturas.schema';
 
 const upload = multer({
   storage: multer.memoryStorage(),
@@ -106,6 +111,60 @@ router.get('/pedidos-agrupados', (req, res) => facturasController.findPedidosAgr
  *         description: Facturas del pedido con conceptos
  */
 router.get('/por-numero-pedido', (req, res) => facturasController.findByNumeroPedido(req, res));
+
+/**
+ * @swagger
+ * /facturas/asignar-numero-pedido:
+ *   patch:
+ *     summary: Asignar un N° de pedido a un lote de facturas (mismo emisor, sin N° previo)
+ *     tags: [Facturas]
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               NumeroPedido: { type: string }
+ *               FacturaIDs:
+ *                 type: array
+ *                 items: { type: integer }
+ *     responses:
+ *       200:
+ *         description: N° de pedido asignado
+ *       400:
+ *         description: Validación fallida (no existe / inactiva / ya tiene N° / distinto emisor)
+ */
+router.patch(
+  '/asignar-numero-pedido',
+  validateBody(asignarNumeroPedidoSchema),
+  (req, res) => facturasController.asignarNumeroPedido(req, res),
+);
+
+/**
+ * @swagger
+ * /facturas/{FacturaID}/quitar-numero-pedido:
+ *   patch:
+ *     summary: Quitar el N° de pedido de una factura (si no está asociada a un pedido)
+ *     tags: [Facturas]
+ *     parameters:
+ *       - in: path
+ *         name: FacturaID
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       200:
+ *         description: N° de pedido eliminado
+ *       404:
+ *         description: Factura no encontrada
+ *       409:
+ *         description: La factura está asociada a un pedido
+ */
+router.patch(
+  '/:FacturaID/quitar-numero-pedido',
+  validateParams(facturaIdParamSchema),
+  (req, res) => facturasController.quitarNumeroPedido(req, res),
+);
 
 /**
  * @swagger
