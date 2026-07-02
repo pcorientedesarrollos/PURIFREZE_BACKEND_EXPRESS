@@ -187,8 +187,11 @@ export class FacturasService {
       where.OR = [
         { UUID: { contains: texto } },
         { Folio: { contains: texto } },
+        { NumeroPedido: { contains: texto } },
         { emisor: { RFC: { contains: texto } } },
         { emisor: { RazonSocial: { contains: texto } } },
+        { emisor: { Alias: { contains: texto } } },
+        { conceptos: { some: { ClaveProdServ: { contains: texto } } } },
         { conceptos: { some: { Descripcion: { contains: texto } } } },
         { conceptos: { some: { NoIdentificacion: { contains: texto } } } },
       ];
@@ -391,6 +394,7 @@ export class FacturasService {
       where.OR = [
         { Folio: { contains: texto } },
         { UUID: { contains: texto } },
+        { NumeroPedido: { contains: texto } },
         { emisor: { RFC: { contains: texto } } },
         { emisor: { RazonSocial: { contains: texto } } },
         { emisor: { Alias: { contains: texto } } },
