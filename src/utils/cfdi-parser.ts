@@ -88,7 +88,7 @@ export function parseCfdi40(xmlBuffer: Buffer): CfdiParseResult {
     throw new HttpError('CFDI inválido: falta RFC del receptor', 400);
   }
 
-  const rfcReceptorEsperado = process.env.RFC_RECEPTOR;
+  const rfcReceptorEsperado = process.env.RFC_RECEPTOR || env.RFC_RECEPTOR;
   if (!rfcReceptorEsperado) {
     throw new HttpError(
       'Configuración incompleta: falta la variable de entorno RFC_RECEPTOR',
