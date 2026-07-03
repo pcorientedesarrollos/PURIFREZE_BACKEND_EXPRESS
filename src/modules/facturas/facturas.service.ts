@@ -178,70 +178,147 @@ export class FacturasService {
   }
 
   /**
-   * Listar facturas activas agrupadas por emisor — misma búsqueda que findAll.
+   * Listar emisores con conteo y suma de facturas activas.
+   * SQL puro con GROUP BY: incluye emisores sin facturas (LEFT JOIN),
+   * suma real por SQL sin límite de filas.
    */
   async findAllAgrupadas(texto?: string) {
-    const where: any = { IsActive: true };
+    const t = texto?.trim() ?? '';
+    const like = `%${t}%`;
 
-    if (texto) {
-      where.OR = [
-        { UUID: { contains: texto } },
-        { Folio: { contains: texto } },
-        { NumeroPedido: { contains: texto } },
-        { emisor: { RFC: { contains: texto } } },
-        { emisor: { RazonSocial: { contains: texto } } },
-        { emisor: { Alias: { contains: texto } } },
-        { conceptos: { some: { ClaveProdServ: { contains: texto } } } },
-        { conceptos: { some: { Descripcion: { contains: texto } } } },
-        { conceptos: { some: { NoIdentificacion: { contains: texto } } } },
-      ];
-    }
+    const rows = await prisma.$queryRaw<Array<{
+      idEmisor: number;
+      rfc: string;
+      razonSocial: string | null;
+      alias: string | null;
+      totalFacturas: bigint;
+      sumaTotal: any;
+    }>>`
+      SELECT
+        e.EmisorFacturaID AS idEmisor,
+        e.RFC             AS rfc,
+        e.RazonSocial     AS razonSocial,
+        e.Alias           AS alias,
+        COUNT(DISTINCT f.FacturaID)          AS totalFacturas,
+        COALESCE(SUM(f.Total), 0)            AS sumaTotal
+      FROM emisores_factura e
+      LEFT JOIN facturas f
+        ON f.EmisorFacturaID = e.EmisorFacturaID
+       AND f.IsActive = 1
+      WHERE (
+        ${t} = ''
+        OR LOWER(e.RFC)         LIKE LOWER(${like})
+        OR LOWER(e.RazonSocial) LIKE LOWER(${like})
+        OR LOWER(e.Alias)       LIKE LOWER(${like})
+        OR EXISTS (
+          SELECT 1
+          FROM facturas f2
+          LEFT JOIN factura_conceptos fc ON fc.FacturaID = f2.FacturaID
+          WHERE f2.EmisorFacturaID = e.EmisorFacturaID
+            AND f2.IsActive = 1
+            AND (
+              LOWER(COALESCE(f2.UUID, ''))               LIKE LOWER(${like})
+              OR LOWER(COALESCE(f2.Folio, ''))           LIKE LOWER(${like})
+              OR LOWER(COALESCE(f2.NumeroPedido, ''))    LIKE LOWER(${like})
+              OR LOWER(COALESCE(fc.ClaveProdServ, ''))   LIKE LOWER(${like})
+              OR LOWER(COALESCE(fc.Descripcion, ''))     LIKE LOWER(${like})
+              OR LOWER(COALESCE(fc.NoIdentificacion,'')) LIKE LOWER(${like})
+            )
+        )
+      )
+      GROUP BY e.EmisorFacturaID, e.RFC, e.RazonSocial, e.Alias
+      ORDER BY e.RazonSocial ASC
+    `;
 
-    const facturas = await prisma.facturas.findMany({
-      where,
+    return rows.map((r) => ({
+      idEmisor: r.idEmisor,
+      rfc: r.rfc,
+      razonSocial: r.razonSocial ?? '',
+      alias: r.alias,
+      totalFacturas: Number(r.totalFacturas),
+      sumaTotal: Number(r.sumaTotal),
+    }));
+  }
+
+  /**
+   * Todas las facturas activas de un emisor (drill-down desde agrupadas).
+   * Sin límite: la agrupación por emisor ya restringe el volumen.
+   */
+  async findByEmisor(EmisorFacturaID: number) {
+    const emisor = await prisma.emisores_factura.findUnique({
+      where: { EmisorFacturaID },
       select: {
-        FacturaID: true,
-        Total: true,
         EmisorFacturaID: true,
-        emisor: {
-          select: {
-            EmisorFacturaID: true,
-            RFC: true,
-            RazonSocial: true,
-            Alias: true,
-          },
-        },
+        RFC: true,
+        RazonSocial: true,
+        Alias: true,
+        RegimenFiscal: true,
       },
     });
 
-    const groups = new Map<number, {
-      emisor: { idEmisor: number; rfc: string; razonSocial: string; alias: string | null };
-      totalFacturas: number;
-      sumaTotal: number;
-    }>();
-
-    for (const f of facturas) {
-      const eid = f.EmisorFacturaID;
-      if (!groups.has(eid)) {
-        groups.set(eid, {
-          emisor: {
-            idEmisor: eid,
-            rfc: f.emisor.RFC,
-            razonSocial: f.emisor.RazonSocial || '',
-            alias: f.emisor.Alias,
-          },
-          totalFacturas: 0,
-          sumaTotal: 0,
-        });
-      }
-      const g = groups.get(eid)!;
-      g.totalFacturas++;
-      g.sumaTotal += Number(f.Total);
+    if (!emisor) {
+      throw new HttpError('Emisor no encontrado', 404);
     }
 
-    return [...groups.values()]
-      .map(g => ({ ...g.emisor, totalFacturas: g.totalFacturas, sumaTotal: g.sumaTotal }))
-      .sort((a, b) => a.razonSocial.localeCompare(b.razonSocial));
+    const facturas = await prisma.facturas.findMany({
+      where: { EmisorFacturaID, IsActive: true },
+      orderBy: { FechaEmision: 'desc' },
+      include: {
+        emisor: {
+          select: { RFC: true, RazonSocial: true, Alias: true },
+        },
+        conceptos: true,
+      },
+    });
+
+    const sumaTotal = facturas.reduce((acc, f) => acc + Number(f.Total), 0);
+
+    return {
+      emisor,
+      meta: {
+        total: facturas.length,
+        sumaTotal,
+      },
+      data: facturas.map((f) => ({
+        FacturaID: f.FacturaID,
+        EmisorFacturaID: f.EmisorFacturaID,
+        UUID: f.UUID,
+        Version: f.Version,
+        Serie: f.Serie,
+        Folio: f.Folio,
+        FechaEmision: moment.utc(f.FechaEmision).format('YYYY-MM-DD'),
+        RFCReceptor: f.RFCReceptor,
+        NombreReceptor: f.NombreReceptor,
+        UsoCFDI: f.UsoCFDI,
+        SubTotal: Number(f.SubTotal),
+        Descuento: Number(f.Descuento),
+        Total: Number(f.Total),
+        TotalImpuestosTrasladados: Number(f.TotalImpuestosTrasladados),
+        Moneda: f.Moneda,
+        TipoCambio: f.TipoCambio ? Number(f.TipoCambio) : null,
+        MetodoPago: f.MetodoPago,
+        FormaPago: f.FormaPago,
+        LugarExpedicion: f.LugarExpedicion,
+        NumeroPedido: f.NumeroPedido,
+        FechaCarga: moment.utc(f.FechaCarga).format('YYYY-MM-DD'),
+        IsActive: f.IsActive,
+        emisor: f.emisor,
+        conceptos: f.conceptos.map((c) => ({
+          FacturaConceptoID: c.FacturaConceptoID,
+          ClaveProdServ: c.ClaveProdServ,
+          NoIdentificacion: c.NoIdentificacion,
+          Cantidad: Number(c.Cantidad),
+          ClaveUnidad: c.ClaveUnidad,
+          Unidad: c.Unidad,
+          Descripcion: c.Descripcion,
+          ValorUnitario: Number(c.ValorUnitario),
+          Importe: Number(c.Importe),
+          Descuento: Number(c.Descuento),
+          ObjetoImp: c.ObjetoImp,
+          ImpuestoTrasladado: Number(c.ImpuestoTrasladado),
+        })),
+      })),
+    };
   }
 
   /**
@@ -415,22 +492,31 @@ export class FacturasService {
       }
     }
 
-    const facturas = await prisma.facturas.findMany({
-      where,
-      take: 200,
-      orderBy: { FechaEmision: 'desc' },
-      include: {
-        emisor: {
-          select: {
-            RFC: true,
-            RazonSocial: true,
-            Alias: true,
+    const LIMIT = 200;
+
+    const [facturas, agregado] = await Promise.all([
+      prisma.facturas.findMany({
+        where,
+        take: LIMIT,
+        orderBy: { FechaEmision: 'desc' },
+        include: {
+          emisor: {
+            select: {
+              RFC: true,
+              RazonSocial: true,
+              Alias: true,
+            },
           },
         },
-      },
-    });
+      }),
+      prisma.facturas.aggregate({
+        where,
+        _count: { FacturaID: true },
+        _sum: { Total: true },
+      }),
+    ]);
 
-    return facturas.map((f) => ({
+    const data = facturas.map((f) => ({
       FacturaID: f.FacturaID,
       EmisorFacturaID: f.EmisorFacturaID,
       UUID: f.UUID,
@@ -455,6 +541,15 @@ export class FacturasService {
       IsActive: f.IsActive,
       emisor: f.emisor,
     }));
+
+    return {
+      data,
+      meta: {
+        total: agregado._count.FacturaID,
+        sumaTotal: Number(agregado._sum.Total ?? 0),
+        limit: LIMIT,
+      },
+    };
   }
 
   /**

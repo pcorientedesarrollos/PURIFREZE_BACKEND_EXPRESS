@@ -74,6 +74,15 @@ export class FacturasController {
   }
 
   /**
+   * GET /facturas/emisor/:EmisorFacturaID
+   */
+  async findByEmisor(req: Request, res: Response) {
+    const EmisorFacturaID = Number(req.params.EmisorFacturaID);
+    const resultado = await facturasService.findByEmisor(EmisorFacturaID);
+    return success(res, 'Facturas del emisor obtenidas', resultado);
+  }
+
+  /**
    * GET /facturas/:FacturaID
    */
   async findOne(req: Request, res: Response) {

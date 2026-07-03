@@ -4,6 +4,7 @@ import { facturasController } from './facturas.controller';
 import { validateParams, validateQuery, validateBody } from '../../middlewares/validateRequest';
 import {
   facturaIdParamSchema,
+  emisorIdParamSchema,
   listFacturasQuerySchema,
   listAgrupadasQuerySchema,
   asignarNumeroPedidoSchema,
@@ -185,6 +186,29 @@ router.patch(
  *         description: XML no encontrado
  */
 router.get('/:FacturaID/xml', validateParams(facturaIdParamSchema), (req, res) => facturasController.getXml(req, res));
+
+/**
+ * @swagger
+ * /facturas/emisor/{EmisorFacturaID}:
+ *   get:
+ *     summary: Listar todas las facturas activas de un emisor (drill-down)
+ *     tags: [Facturas]
+ *     parameters:
+ *       - in: path
+ *         name: EmisorFacturaID
+ *         required: true
+ *         schema: { type: integer }
+ *     responses:
+ *       200:
+ *         description: Emisor + facturas + meta { total, sumaTotal }
+ *       404:
+ *         description: Emisor no encontrado
+ */
+router.get(
+  '/emisor/:EmisorFacturaID',
+  validateParams(emisorIdParamSchema),
+  (req, res) => facturasController.findByEmisor(req, res),
+);
 
 /**
  * @swagger

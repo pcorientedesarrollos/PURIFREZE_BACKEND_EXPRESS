@@ -4,6 +4,10 @@ export const facturaIdParamSchema = z.object({
   FacturaID: z.string().regex(/^\d+$/, 'FacturaID debe ser un número').transform(Number),
 });
 
+export const emisorIdParamSchema = z.object({
+  EmisorFacturaID: z.string().regex(/^\d+$/, 'EmisorFacturaID debe ser un número').transform(Number),
+});
+
 export const listFacturasQuerySchema = z.object({
   texto: z.string().optional(),
   fechaDesde: z.string().optional(),
