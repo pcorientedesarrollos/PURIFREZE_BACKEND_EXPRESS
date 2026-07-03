@@ -44,8 +44,8 @@ export const seleccionarMejorOpcionSchema = z.object({
   DetallesSeleccionados: z.array(z.number()).min(1, 'Debe seleccionar al menos un detalle'),
 });
 
-// Schema para generar múltiples compras basado en selecciones
-export const generarComprasSchema = z.object({
+// Schema para generar múltiples pedidos basado en selecciones
+export const generarPedidosSchema = z.object({
   Selecciones: z.array(z.object({
     CotizacionDetalleID: z.number({ required_error: 'CotizacionDetalleID es requerido' }),
     ProveedorID: z.number({ required_error: 'ProveedorID es requerido' }),
@@ -73,4 +73,4 @@ export type AsignarProveedoresDto = z.infer<typeof asignarProveedoresSchema>;
 export type RespuestaDetalleDto = z.infer<typeof respuestaDetalleSchema>;
 export type RespuestaProveedorDto = z.infer<typeof respuestaProveedorSchema>;
 export type SeleccionarMejorOpcionDto = z.infer<typeof seleccionarMejorOpcionSchema>;
-export type GenerarComprasDto = z.infer<typeof generarComprasSchema>;
+export type GenerarPedidosDto = z.infer<typeof generarPedidosSchema>;

@@ -6,7 +6,7 @@ import {
   AsignarProveedoresDto,
   RespuestaProveedorDto,
   SeleccionarMejorOpcionDto,
-  GenerarComprasDto,
+  GenerarPedidosDto,
 } from './cotizaciones-proveedor.schema';
 
 class CotizacionesProveedorService {
@@ -740,12 +740,11 @@ class CotizacionesProveedorService {
   }
 
   /**
-   * Genera múltiples compras basado en las selecciones de proveedores por item
-   * También procesa equipos virtuales y sincroniza precios proporcionalmente
+   * Genera múltiples pedidos basado en las selecciones de proveedores por item.
+   * Un pedido por proveedor. También procesa equipos virtuales y sincroniza precios proporcionalmente.
    */
-  async generarComprasMultiples(cotizacionId: number, dto: GenerarComprasDto) {
+  async generarPedidosMultiples(cotizacionId: number, dto: GenerarPedidosDto) {
     const result = await prisma.$transaction(async (tx) => {
-      // Verificar cotización
       const cotizacion = await tx.cotizaciones_compra_encabezado.findUnique({
         where: { CotizacionCompraID: cotizacionId },
         include: {
@@ -769,12 +768,14 @@ class CotizacionesProveedorService {
       }
 
       if (cotizacion.Estado === 'FINALIZADA') {
-        throw new HttpError('La cotización ya fue convertida a compra(s)', 400);
+        throw new HttpError('La cotización ya fue convertida a pedido(s)', 400);
       }
 
       if (cotizacion.Estado === 'CANCELADA') {
         throw new HttpError('No se puede procesar una cotización cancelada', 400);
       }
+
+      const observacionesOrigen = `Origen: cotización ${cotizacion.Folio}`;
 
       // Agrupar selecciones de refacciones por proveedor
       const porProveedor = new Map<number, number[]>();
@@ -785,11 +786,11 @@ class CotizacionesProveedorService {
         porProveedor.get(sel.ProveedorID)!.push(sel.CotizacionDetalleID);
       }
 
-      // Obtener todos los proveedores involucrados (refacciones + equipos)
+      // Todos los proveedores involucrados (refacciones + equipos)
       const proveedorIdsEquipos = (dto.SeleccionesEquipos || []).map(s => s.ProveedorID);
       const todosProveedorIds = [...new Set([...Array.from(porProveedor.keys()), ...proveedorIdsEquipos])];
 
-      // Obtener respuestas de proveedores con precios
+      // Respuestas de proveedores con precios
       const respuestas = await tx.cotizaciones_compra_respuestas.findMany({
         where: {
           CotizacionCompraID: cotizacionId,
@@ -806,8 +807,14 @@ class CotizacionesProveedorService {
 
       const respuestasMap = new Map(respuestas.map(r => [r.ProveedorID, r]));
 
-      // Crear compras por proveedor (solo refacciones)
-      const comprasCreadas = [];
+      // Crear pedidos por proveedor (refacciones)
+      const pedidosCreados: {
+        PedidoID: number;
+        ProveedorID: number;
+        NombreProveedor: string | null;
+        TotalItems: number;
+        TotalNeto: number;
+      }[] = [];
 
       for (const [proveedorId, detalleIds] of porProveedor) {
         const respuesta = respuestasMap.get(proveedorId);
@@ -815,104 +822,111 @@ class CotizacionesProveedorService {
           throw new HttpError(`No hay respuesta del proveedor ${proveedorId}`, 400);
         }
 
-        // Mapear detalles de respuesta
         const detallesRespuestaMap = new Map(
           respuesta.detalles.map(d => [d.CotizacionDetalleID, d])
         );
 
-        // Filtrar detalles de cotización seleccionados
         const detallesSeleccionados = cotizacion.detalles.filter(d =>
           detalleIds.includes(d.CotizacionDetalleID)
         );
 
         if (detallesSeleccionados.length === 0) continue;
 
-        // Calcular totales
+        const descuentoGlobal = Number(respuesta.DescuentoGlobal || 0);
+        const factorDescuento = 1 - descuentoGlobal / 100;
+
+        // Precios netos por línea aplicando DescuentoGlobal proporcional (descuento por línea se ignora)
         let totalBruto = 0;
-        const detallesCompra = [];
+        const lineasPedido: {
+          RefaccionID: number;
+          Cantidad: number;
+          PrecioUnitario: number;
+          SubTotal: number;
+          Total: number;
+        }[] = [];
 
         for (const detCot of detallesSeleccionados) {
           const detResp = detallesRespuestaMap.get(detCot.CotizacionDetalleID);
-          const precioUnitario = Number(detResp?.PrecioUnitario || 0);
-          const descuento = Number(detResp?.Descuento || 0);
+          const precioResp = Number(detResp?.PrecioUnitario || 0);
+          const precioUnitario = Math.round(precioResp * factorDescuento * 100) / 100;
           const cantidad = detCot.Cantidad;
-          const subtotal = precioUnitario * cantidad;
-          const descuentoEfectivo = subtotal * (descuento / 100);
-          const total = subtotal - descuentoEfectivo;
+          const subtotal = Math.round(precioUnitario * cantidad * 100) / 100;
 
-          totalBruto += total;
+          totalBruto += subtotal;
 
-          detallesCompra.push({
+          lineasPedido.push({
             RefaccionID: detCot.RefaccionID,
             Cantidad: cantidad,
             PrecioUnitario: precioUnitario,
-            DescuentoPorcentaje: descuento,
-            DescuentoEfectivo: descuentoEfectivo,
-            GastosOperativos: 0,
-            GastosImportacion: 0,
             SubTotal: subtotal,
-            Total: total,
-            IsActive: true,
+            Total: subtotal,
           });
         }
 
-        // Aplicar descuento global
-        const descuentoGlobal = Number(respuesta.DescuentoGlobal || 0);
-        const totalConDescuento = totalBruto * (1 - descuentoGlobal / 100);
-        const totalIva = Math.round(totalConDescuento * 0.16 * 100) / 100;
-        const totalNeto = Math.round((totalConDescuento + totalIva) * 100) / 100;
+        totalBruto = Math.round(totalBruto * 100) / 100;
+        const tasaIVA = 0.16;
+        const totalIVA = Math.round(totalBruto * tasaIVA * 100) / 100;
+        const totalNeto = Math.round((totalBruto + totalIVA) * 100) / 100;
 
-        // Crear encabezado de compra
-        const compra = await tx.compras_encabezado.create({
+        const pedido = await tx.pedidos_encabezado.create({
           data: {
             ProveedorID: proveedorId,
-            FechaCompra: new Date(),
-            Estatus: 'Pendiente',
-            EstadoPago: 'PENDIENTE',
-            EstadoEntrega: 'PEDIDO',
-            FormaPago: 'CREDITO',
-            TotalBruto: Math.round(totalBruto * 100) / 100,
-            TotalDescuentosPorcentaje: descuentoGlobal,
-            TotalDescuentoEfectivo: Math.round((totalBruto - totalConDescuento) * 100) / 100,
-            TotalGastosOperativos: 0,
-            TotalGastosImportacion: 0,
-            TotalIVA: totalIva,
+            NumeroPedido: respuesta.NumeroPedido || null,
+            FechaPedido: new Date(),
+            TotalBruto: totalBruto,
+            TotalIVA: totalIVA,
             TotalNeto: totalNeto,
+            AplicaIVA: 1,
+            TasaIVA: tasaIVA,
             TotalPagado: 0,
             TotalRecibido: 0,
             TotalNotasCredito: 0,
+            TotalDescuentos: 0,
+            FormaPago: 'CREDITO',
+            EstadoPago: 'PENDIENTE',
+            EstadoEntrega: 'PEDIDO',
             UsuarioID: cotizacion.UsuarioID,
+            FechaAlta: new Date(),
             IsActive: true,
-            CotizacionCompraID: cotizacionId,
-            NumeroPedido: respuesta.NumeroPedido || null,
+            Observaciones: observacionesOrigen,
           },
         });
 
-        // Crear detalles de compra
-        for (const det of detallesCompra) {
-          await tx.compras_detalle.create({
+        for (const linea of lineasPedido) {
+          await tx.pedidos_detalle.create({
             data: {
-              CompraEncabezadoID: compra.CompraEncabezadoID,
-              ...det,
+              PedidoID: pedido.PedidoID,
+              RefaccionID: linea.RefaccionID,
+              Cantidad: linea.Cantidad,
+              PrecioUnitario: linea.PrecioUnitario,
+              SubTotal: linea.SubTotal,
+              Total: linea.Total,
+              IsActive: true,
             },
           });
         }
 
-        comprasCreadas.push({
-          CompraEncabezadoID: compra.CompraEncabezadoID,
+        pedidosCreados.push({
+          PedidoID: pedido.PedidoID,
           ProveedorID: proveedorId,
           NombreProveedor: respuesta.proveedor.NombreProveedor,
           TotalItems: detallesSeleccionados.length,
-          TotalNeto: Math.round(totalConDescuento * 100) / 100,
+          TotalNeto: totalNeto,
         });
       }
 
       // ============================================================
-      // PROCESAR EQUIPOS VIRTUALES: CREAR LÍNEAS DE COMPRA + SINCRONIZAR PRECIOS
+      // EQUIPOS VIRTUALES: crear línea en pedido + sincronizar precios
       // ============================================================
-      const equiposProcesados = [];
+      const equiposProcesados: {
+        EquipoVirtualID: number;
+        Nombre: string;
+        PrecioAnterior: number;
+        PrecioNuevo: number;
+        Diferencia: number;
+        RefaccionesActualizadas: number;
+      }[] = [];
 
-      // Agrupar equipos por proveedor
       const equiposPorProveedor = new Map<number, typeof dto.SeleccionesEquipos>();
       for (const selEquipo of dto.SeleccionesEquipos || []) {
         if (!equiposPorProveedor.has(selEquipo.ProveedorID)) {
@@ -921,51 +935,48 @@ class CotizacionesProveedorService {
         equiposPorProveedor.get(selEquipo.ProveedorID)!.push(selEquipo);
       }
 
-      // Mapa de compras creadas por proveedor (para reutilizar si ya existe)
-      const comprasPorProveedor = new Map<number, number>();
-      for (const compra of comprasCreadas) {
-        comprasPorProveedor.set(compra.ProveedorID, compra.CompraEncabezadoID);
+      // Mapa de pedidos creados por proveedor (para reutilizar si ya existe)
+      const pedidosPorProveedor = new Map<number, number>();
+      for (const p of pedidosCreados) {
+        pedidosPorProveedor.set(p.ProveedorID, p.PedidoID);
       }
 
       for (const [proveedorId, equiposSeleccionados] of equiposPorProveedor) {
         const respuesta = respuestasMap.get(proveedorId);
         if (!respuesta) continue;
 
-        let compraEncabezadoId = comprasPorProveedor.get(proveedorId);
+        let pedidoId = pedidosPorProveedor.get(proveedorId);
         let totalEquiposProveedor = 0;
 
-        // Si no existe compra para este proveedor, crear una nueva
-        if (!compraEncabezadoId) {
-          const nuevaCompra = await tx.compras_encabezado.create({
+        if (!pedidoId) {
+          const nuevoPedido = await tx.pedidos_encabezado.create({
             data: {
               ProveedorID: proveedorId,
-              FechaCompra: new Date(),
-              Estatus: 'Pendiente',
-              EstadoPago: 'PENDIENTE',
-              EstadoEntrega: 'PEDIDO',
-              FormaPago: 'CREDITO',
+              NumeroPedido: respuesta.NumeroPedido || null,
+              FechaPedido: new Date(),
               TotalBruto: 0,
-              TotalDescuentosPorcentaje: 0,
-              TotalDescuentoEfectivo: 0,
-              TotalGastosOperativos: 0,
-              TotalGastosImportacion: 0,
               TotalIVA: 0,
               TotalNeto: 0,
+              AplicaIVA: 1,
+              TasaIVA: 0.16,
               TotalPagado: 0,
               TotalRecibido: 0,
               TotalNotasCredito: 0,
+              TotalDescuentos: 0,
+              FormaPago: 'CREDITO',
+              EstadoPago: 'PENDIENTE',
+              EstadoEntrega: 'PEDIDO',
               UsuarioID: cotizacion.UsuarioID,
+              FechaAlta: new Date(),
               IsActive: true,
-              CotizacionCompraID: cotizacionId,
-              NumeroPedido: respuesta.NumeroPedido || null,
+              Observaciones: observacionesOrigen,
             },
           });
-          compraEncabezadoId = nuevaCompra.CompraEncabezadoID;
-          comprasPorProveedor.set(proveedorId, compraEncabezadoId);
+          pedidoId = nuevoPedido.PedidoID;
+          pedidosPorProveedor.set(proveedorId, pedidoId);
 
-          // Agregar a compras creadas
-          comprasCreadas.push({
-            CompraEncabezadoID: compraEncabezadoId,
+          pedidosCreados.push({
+            PedidoID: pedidoId,
             ProveedorID: proveedorId,
             NombreProveedor: respuesta.proveedor.NombreProveedor,
             TotalItems: 0,
@@ -973,15 +984,12 @@ class CotizacionesProveedorService {
           });
         }
 
-        // Procesar cada equipo seleccionado de este proveedor
         for (const selEquipo of equiposSeleccionados) {
-          // Buscar el equipo en la cotización
           const equipoCot = cotizacion.equiposVirtuales.find(
             e => e.ID === selEquipo.CotizacionEquipoVirtualID
           );
           if (!equipoCot) continue;
 
-          // Buscar el precio cotizado por el proveedor
           const equipoResp = (respuesta as any).equipos?.find(
             (e: any) => e.CotizacionEquipoVirtualID === selEquipo.CotizacionEquipoVirtualID
           );
@@ -992,23 +1000,16 @@ class CotizacionesProveedorService {
           const precioNuevo = Number(equipoResp.PrecioCotizado);
           const diferencia = precioNuevo - precioOriginal;
           const cantidad = equipoCot.Cantidad || 1;
-          const subtotalEquipo = precioNuevo * cantidad;
+          const subtotalEquipo = Math.round(precioNuevo * cantidad * 100) / 100;
 
-          // ============================================================
-          // 1. CREAR LÍNEA DE COMPRA PARA EL EQUIPO VIRTUAL
-          // ============================================================
-          await tx.compras_detalle.create({
+          // 1. Línea de pedido para el equipo virtual
+          await tx.pedidos_detalle.create({
             data: {
-              CompraEncabezadoID: compraEncabezadoId,
-              EquipoVirtualID: equipoCot.EquipoVirtualID,
+              PedidoID: pedidoId,
               RefaccionID: null,
-              EquipoID: null,
+              EquipoVirtualID: equipoCot.EquipoVirtualID,
               Cantidad: cantidad,
               PrecioUnitario: precioNuevo,
-              DescuentoPorcentaje: 0,
-              DescuentoEfectivo: 0,
-              GastosOperativos: 0,
-              GastosImportacion: 0,
               SubTotal: subtotalEquipo,
               Total: subtotalEquipo,
               IsActive: true,
@@ -1017,21 +1018,16 @@ class CotizacionesProveedorService {
 
           totalEquiposProveedor += subtotalEquipo;
 
-          // ============================================================
-          // 2. ACTUALIZAR PrecioFinal EN LA COTIZACIÓN
-          // ============================================================
+          // 2. Actualizar PrecioFinal en la cotización
           await tx.cotizaciones_compra_equipos_virtuales.update({
             where: { ID: equipoCot.ID },
             data: { PrecioFinal: precioNuevo },
           });
 
-          // ============================================================
-          // 3. SINCRONIZAR PRECIOS (distribución proporcional)
-          // ============================================================
+          // 3. Sincronizar precios (distribución proporcional)
           if (Math.abs(diferencia) >= 0.01) {
             const equipoVirtual = equipoCot.equipoVirtual;
 
-            // Calcular ajuste proporcional para cada refacción
             const detallesCambio = equipoVirtual.detalles.map((d) => {
               const totalFinal = Number(d.TotalFinal || 0);
               const porcentaje = precioOriginal > 0 ? totalFinal / precioOriginal : 0;
@@ -1048,7 +1044,6 @@ class CotizacionesProveedorService {
               };
             });
 
-            // Guardar historial
             await tx.equipos_virtuales_historial.create({
               data: {
                 EquipoVirtualID: equipoVirtual.EquipoVirtualID,
@@ -1062,7 +1057,6 @@ class CotizacionesProveedorService {
               },
             });
 
-            // Actualizar precios de cada detalle del equipo virtual
             for (const cambio of detallesCambio) {
               await tx.equipos_virtuales_detalle.update({
                 where: { DetalleID: cambio.DetalleID },
@@ -1074,7 +1068,6 @@ class CotizacionesProveedorService {
               });
             }
 
-            // Actualizar total del equipo virtual
             await tx.equipos_virtuales.update({
               where: { EquipoVirtualID: equipoVirtual.EquipoVirtualID },
               data: {
@@ -1094,46 +1087,39 @@ class CotizacionesProveedorService {
           }
         }
 
-        // Actualizar totales de la compra si se agregaron equipos
+        // Recalcular totales del pedido tras agregar equipos
         if (totalEquiposProveedor > 0) {
-          const compraActual = await tx.compras_encabezado.findUnique({
-            where: { CompraEncabezadoID: compraEncabezadoId },
+          const detallesActivos = await tx.pedidos_detalle.findMany({
+            where: { PedidoID: pedidoId, IsActive: true },
+          });
+          const nuevoBruto = Math.round(
+            detallesActivos.reduce((sum, d) => sum + Number(d.SubTotal || 0), 0) * 100
+          ) / 100;
+          const nuevoIVA = Math.round(nuevoBruto * 0.16 * 100) / 100;
+          const nuevoNeto = Math.round((nuevoBruto + nuevoIVA) * 100) / 100;
+
+          await tx.pedidos_encabezado.update({
+            where: { PedidoID: pedidoId },
+            data: { TotalBruto: nuevoBruto, TotalIVA: nuevoIVA, TotalNeto: nuevoNeto },
           });
 
-          const nuevoTotalBruto = Number(compraActual?.TotalBruto || 0) + totalEquiposProveedor;
-          // Base sin IVA = TotalNeto anterior sin su IVA + equipos nuevos
-          const baseAnteriorSinIva = Number(compraActual?.TotalNeto || 0) - Number(compraActual?.TotalIVA || 0);
-          const nuevaBase = baseAnteriorSinIva + totalEquiposProveedor;
-          const nuevoTotalIva = Math.round(nuevaBase * 0.16 * 100) / 100;
-          const nuevoTotalNeto = Math.round((nuevaBase + nuevoTotalIva) * 100) / 100;
-
-          await tx.compras_encabezado.update({
-            where: { CompraEncabezadoID: compraEncabezadoId },
-            data: {
-              TotalBruto: Math.round(nuevoTotalBruto * 100) / 100,
-              TotalIVA: nuevoTotalIva,
-              TotalNeto: nuevoTotalNeto,
-            },
-          });
-
-          // Actualizar en el array de compras creadas
-          const compraEnArray = comprasCreadas.find(c => c.CompraEncabezadoID === compraEncabezadoId);
-          if (compraEnArray) {
-            compraEnArray.TotalItems += equiposSeleccionados.length;
-            compraEnArray.TotalNeto = Math.round(nuevoTotalNeto * 100) / 100;
+          const pedidoEnArray = pedidosCreados.find(p => p.PedidoID === pedidoId);
+          if (pedidoEnArray) {
+            pedidoEnArray.TotalItems += equiposSeleccionados.length;
+            pedidoEnArray.TotalNeto = nuevoNeto;
           }
         }
       }
 
-      // Actualizar cotización a FINALIZADA
+      // Marcar cotización como FINALIZADA
       await tx.cotizaciones_compra_encabezado.update({
         where: { CotizacionCompraID: cotizacionId },
         data: { Estado: 'FINALIZADA' },
       });
 
       return {
-        comprasCreadas,
-        totalCompras: comprasCreadas.length,
+        pedidosCreados,
+        totalPedidos: pedidosCreados.length,
         equiposProcesados,
         totalEquiposSincronizados: equiposProcesados.length,
         cotizacionID: cotizacionId,
@@ -1144,7 +1130,7 @@ class CotizacionesProveedorService {
     });
 
     return {
-      message: `Se crearon ${result.totalCompras} compra(s) y se sincronizaron ${result.totalEquiposSincronizados} equipo(s) virtual(es)`,
+      message: `Se crearon ${result.totalPedidos} pedido(s) y se sincronizaron ${result.totalEquiposSincronizados} equipo(s) virtual(es)`,
       data: result,
     };
   }

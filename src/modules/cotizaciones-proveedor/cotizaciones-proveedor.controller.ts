@@ -85,12 +85,12 @@ class CotizacionesProveedorController {
   }
 
   /**
-   * Genera múltiples compras basado en selecciones
-   * POST /cotizaciones-proveedor/:CotizacionCompraID/generar-compras
+   * Genera múltiples pedidos basado en selecciones
+   * POST /cotizaciones-proveedor/:CotizacionCompraID/generar-pedidos
    */
-  async generarComprasMultiples(req: Request, res: Response) {
+  async generarPedidosMultiples(req: Request, res: Response) {
     const { CotizacionCompraID } = req.params as unknown as { CotizacionCompraID: number };
-    const result = await cotizacionesProveedorService.generarComprasMultiples(CotizacionCompraID, req.body);
+    const result = await cotizacionesProveedorService.generarPedidosMultiples(CotizacionCompraID, req.body);
     return success(res, result.message, result.data, 201);
   }
 }
