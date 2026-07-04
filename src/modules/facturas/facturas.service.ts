@@ -684,12 +684,90 @@ export class FacturasService {
       data: { NumeroPedido: numero },
     });
 
+    // Si ya existe un pedido activo con este NumeroPedido cuyo proveedor comparta
+    // RFC con el emisor de estas facturas, vincular las facturas al pedido
+    // (crea filas en pedidos_facturas). Cierra el flujo: "asigné N° a facturas
+    // después de crear el pedido" sin necesidad de re-editar el pedido.
+    const emisorId = facturas[0].EmisorFacturaID;
+    const asociadasAPedido = emisorId
+      ? await this.vincularFacturasAPedidoPorNumero(numero, emisorId, ids)
+      : 0;
+
     return {
       NumeroPedido: numero,
-      EmisorFacturaID: facturas[0].EmisorFacturaID,
+      EmisorFacturaID: emisorId,
       actualizadas: ids.length,
       FacturaIDs: ids,
+      asociadasAPedido,
     };
+  }
+
+  /**
+   * Busca un pedido activo con (NumeroPedido, ProveedorID cuyo RFC coincida con
+   * el emisor de las facturas) y crea las asociaciones en pedidos_facturas para
+   * las FacturaIDs dadas que aún no estén asociadas (respetando desasociaciones
+   * manuales previas: fila inactiva PedidoID+FacturaID no se reactiva).
+   */
+  private async vincularFacturasAPedidoPorNumero(
+    numeroPedido: string,
+    emisorId: number,
+    facturaIDs: number[],
+  ): Promise<number> {
+    const emisor = await prisma.emisores_factura.findUnique({
+      where: { EmisorFacturaID: emisorId },
+      select: { RFC: true },
+    });
+    const rfcEmisor = emisor?.RFC?.trim() || null;
+    if (!rfcEmisor) return 0;
+
+    // Proveedores con ese RFC
+    const proveedores = await prisma.catalogo_proveedores.findMany({
+      where: { RFC: rfcEmisor },
+      select: { ProveedorID: true },
+    });
+    if (proveedores.length === 0) return 0;
+    const proveedorIds = proveedores.map((p) => p.ProveedorID);
+
+    // Pedido activo con ese NumeroPedido de esos proveedores
+    const pedido = await prisma.pedidos_encabezado.findFirst({
+      where: {
+        NumeroPedido: numeroPedido,
+        ProveedorID: { in: proveedorIds },
+        IsActive: true,
+      },
+      select: { PedidoID: true },
+    });
+    if (!pedido) return 0;
+
+    let asociadas = 0;
+    for (const facturaId of facturaIDs) {
+      // Ya asociada activamente (a este o cualquier pedido): salta.
+      const activa = await prisma.pedidos_facturas.findFirst({
+        where: { FacturaID: facturaId, IsActive: true },
+      });
+      if (activa) continue;
+
+      // Desasociación manual previa a este pedido: no reactivar.
+      const desasociadaAntes = await prisma.pedidos_facturas.findFirst({
+        where: { FacturaID: facturaId, PedidoID: pedido.PedidoID, IsActive: false },
+      });
+      if (desasociadaAntes) continue;
+
+      try {
+        await prisma.pedidos_facturas.create({
+          data: {
+            PedidoID: pedido.PedidoID,
+            FacturaID: facturaId,
+            IsActive: true,
+          },
+        });
+        asociadas++;
+      } catch {
+        // best-effort: si hay carrera o constraint, se ignora
+      }
+    }
+
+    return asociadas;
   }
 
   /**

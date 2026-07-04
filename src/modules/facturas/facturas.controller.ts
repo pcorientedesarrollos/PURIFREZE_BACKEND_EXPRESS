@@ -23,7 +23,10 @@ export class FacturasController {
   async asignarNumeroPedido(req: Request, res: Response) {
     const { NumeroPedido, FacturaIDs } = req.body;
     const resultado = await facturasService.asignarNumeroPedido(NumeroPedido, FacturaIDs);
-    return success(res, 'N° de pedido asignado', resultado);
+    const msg = resultado.asociadasAPedido > 0
+      ? `N° de pedido asignado. ${resultado.asociadasAPedido} factura(s) vinculada(s) al pedido existente`
+      : 'N° de pedido asignado';
+    return success(res, msg, resultado);
   }
 
   /**

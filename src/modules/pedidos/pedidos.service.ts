@@ -100,6 +100,13 @@ class PedidosService {
       });
       if (yaAsociada) continue;
 
+      // Respetar desasociación manual previa a este mismo pedido:
+      // si existe una fila inactiva (PedidoID, FacturaID), no reactivar.
+      const desasociadaAntes = await prisma.pedidos_facturas.findFirst({
+        where: { FacturaID: f.FacturaID, PedidoID: pedidoId, IsActive: false },
+      });
+      if (desasociadaAntes) continue;
+
       try {
         await this.asociarFactura(pedidoId, f.FacturaID);
         asociadas++;
@@ -153,7 +160,32 @@ class PedidosService {
       return this.findOneRaw(tx, id);
     });
 
-    return { message: 'Pedido actualizado correctamente', data: result };
+    // Autoasociar facturas por Número de Pedido (fuera de la transacción).
+    // Cubre el caso: el usuario asigna el N° a facturas desde el listado
+    // DESPUÉS de crear el pedido; al re-guardarlo, las facturas quedan
+    // vinculadas sin necesidad de re-editar manualmente.
+    let message = 'Pedido actualizado correctamente';
+    const numeroPedido = result?.NumeroPedido?.trim();
+    const proveedorId = result?.ProveedorID;
+    if (numeroPedido && proveedorId) {
+      const { asociadas, warning } = await this.autoasociarFacturasPorNumeroPedido(
+        id,
+        numeroPedido,
+        proveedorId,
+      );
+      if (asociadas > 0) {
+        message += `. ${asociadas} factura(s) asociada(s) automáticamente`;
+      }
+      if (warning) {
+        message += `. Advertencia: ${warning}`;
+      }
+      if (asociadas > 0) {
+        const refrescado = await this.findOneRaw(prisma, id);
+        return { message, data: refrescado };
+      }
+    }
+
+    return { message, data: result };
   }
 
   async findAll() {
