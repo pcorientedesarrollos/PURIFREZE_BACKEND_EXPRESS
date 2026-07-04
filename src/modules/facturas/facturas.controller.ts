@@ -60,7 +60,9 @@ export class FacturasController {
     const texto = req.query.texto as string | undefined;
     const fechaDesde = req.query.fechaDesde as string | undefined;
     const fechaHasta = req.query.fechaHasta as string | undefined;
-    const facturas = await facturasService.findAll(texto, fechaDesde, fechaHasta);
+    const page = req.query.page != null ? Number(req.query.page) : undefined;
+    const pageSize = req.query.pageSize != null ? Number(req.query.pageSize) : undefined;
+    const facturas = await facturasService.findAll(texto, fechaDesde, fechaHasta, page, pageSize);
     return success(res, 'Facturas obtenidas', facturas);
   }
 

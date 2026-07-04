@@ -464,7 +464,13 @@ export class FacturasService {
     }));
   }
 
-  async findAll(texto?: string, fechaDesde?: string, fechaHasta?: string) {
+  async findAll(
+    texto?: string,
+    fechaDesde?: string,
+    fechaHasta?: string,
+    page?: number,
+    pageSize?: number,
+  ) {
     const where: any = { IsActive: true };
 
     if (texto) {
@@ -492,12 +498,15 @@ export class FacturasService {
       }
     }
 
-    const LIMIT = 200;
+    const currentPage = Math.max(1, Math.floor(page ?? 1));
+    const size = Math.min(200, Math.max(1, Math.floor(pageSize ?? 50)));
+    const skip = (currentPage - 1) * size;
 
     const [facturas, agregado] = await Promise.all([
       prisma.facturas.findMany({
         where,
-        take: LIMIT,
+        skip,
+        take: size,
         orderBy: { FechaEmision: 'desc' },
         include: {
           emisor: {
@@ -515,6 +524,9 @@ export class FacturasService {
         _sum: { Total: true },
       }),
     ]);
+
+    const total = agregado._count.FacturaID;
+    const totalPages = Math.max(1, Math.ceil(total / size));
 
     const data = facturas.map((f) => ({
       FacturaID: f.FacturaID,
@@ -545,9 +557,11 @@ export class FacturasService {
     return {
       data,
       meta: {
-        total: agregado._count.FacturaID,
+        total,
+        page: currentPage,
+        pageSize: size,
+        totalPages,
         sumaTotal: Number(agregado._sum.Total ?? 0),
-        limit: LIMIT,
       },
     };
   }

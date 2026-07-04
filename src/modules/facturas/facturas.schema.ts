@@ -12,6 +12,16 @@ export const listFacturasQuerySchema = z.object({
   texto: z.string().optional(),
   fechaDesde: z.string().optional(),
   fechaHasta: z.string().optional(),
+  page: z
+    .string()
+    .regex(/^\d+$/, 'page debe ser un número entero')
+    .transform(Number)
+    .optional(),
+  pageSize: z
+    .string()
+    .regex(/^\d+$/, 'pageSize debe ser un número entero')
+    .transform(Number)
+    .optional(),
 });
 
 export const listAgrupadasQuerySchema = z.object({
