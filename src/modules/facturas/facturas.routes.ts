@@ -84,6 +84,34 @@ router.get('/agrupadas', validateQuery(listAgrupadasQuerySchema), (req, res) => 
 
 /**
  * @swagger
+ * /facturas/conceptos:
+ *   get:
+ *     summary: Listar todos los conceptos aplanados (con datos de factura + emisor)
+ *     tags: [Facturas]
+ *     parameters:
+ *       - in: query
+ *         name: texto
+ *         schema: { type: string }
+ *       - in: query
+ *         name: fechaDesde
+ *         schema: { type: string }
+ *       - in: query
+ *         name: fechaHasta
+ *         schema: { type: string }
+ *       - in: query
+ *         name: page
+ *         schema: { type: integer }
+ *       - in: query
+ *         name: pageSize
+ *         schema: { type: integer }
+ *     responses:
+ *       200:
+ *         description: Conceptos paginados con meta
+ */
+router.get('/conceptos', validateQuery(listFacturasQuerySchema), (req, res) => facturasController.findAllConceptos(req, res));
+
+/**
+ * @swagger
  * /facturas/pedidos-agrupados:
  *   get:
  *     summary: Listar números de pedido registrados en facturas (agrupados por emisor)

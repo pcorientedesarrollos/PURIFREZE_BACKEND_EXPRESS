@@ -567,6 +567,130 @@ export class FacturasService {
   }
 
   /**
+   * Lista aplanada de conceptos (una fila por concepto) con datos denormalizados
+   * de la factura y del emisor. Patron replicado desde pcoriente/server-pco-new
+   * (facturaConcepto.model.getAllConceptos), adaptado a Prisma.
+   */
+  async findAllConceptos(
+    texto?: string,
+    fechaDesde?: string,
+    fechaHasta?: string,
+    page?: number,
+    pageSize?: number,
+  ) {
+    const where: any = {
+      factura: { IsActive: true },
+    };
+
+    if (texto) {
+      where.OR = [
+        { Descripcion: { contains: texto } },
+        { NoIdentificacion: { contains: texto } },
+        { ClaveProdServ: { contains: texto } },
+        { factura: { UUID: { contains: texto } } },
+        { factura: { Folio: { contains: texto } } },
+        { factura: { NumeroPedido: { contains: texto } } },
+        { factura: { emisor: { RFC: { contains: texto } } } },
+        { factura: { emisor: { RazonSocial: { contains: texto } } } },
+        { factura: { emisor: { Alias: { contains: texto } } } },
+      ];
+    }
+
+    if (fechaDesde || fechaHasta) {
+      where.factura = where.factura ?? {};
+      where.factura.FechaEmision = {};
+      if (fechaDesde) {
+        where.factura.FechaEmision.gte = new Date(`${fechaDesde}T00:00:00.000Z`);
+      }
+      if (fechaHasta) {
+        where.factura.FechaEmision.lte = new Date(`${fechaHasta}T23:59:59.999Z`);
+      }
+    }
+
+    const currentPage = Math.max(1, Math.floor(page ?? 1));
+    const size = Math.min(200, Math.max(1, Math.floor(pageSize ?? 50)));
+    const skip = (currentPage - 1) * size;
+
+    const [conceptos, agregado] = await Promise.all([
+      prisma.factura_conceptos.findMany({
+        where,
+        skip,
+        take: size,
+        orderBy: [
+          { factura: { FechaEmision: 'desc' } },
+          { factura: { Folio: 'desc' } },
+          { FacturaConceptoID: 'asc' },
+        ],
+        include: {
+          factura: {
+            select: {
+              FacturaID: true,
+              UUID: true,
+              Serie: true,
+              Folio: true,
+              FechaEmision: true,
+              FechaCarga: true,
+              Total: true,
+              SubTotal: true,
+              NumeroPedido: true,
+              emisor: {
+                select: { EmisorFacturaID: true, RFC: true, RazonSocial: true, Alias: true },
+              },
+            },
+          },
+        },
+      }),
+      prisma.factura_conceptos.aggregate({
+        where,
+        _count: { FacturaConceptoID: true },
+        _sum: { Importe: true },
+      }),
+    ]);
+
+    const total = agregado._count.FacturaConceptoID;
+    const totalPages = Math.max(1, Math.ceil(total / size));
+
+    const data = conceptos.map((c) => ({
+      FacturaConceptoID: c.FacturaConceptoID,
+      FacturaID: c.FacturaID,
+      ClaveProdServ: c.ClaveProdServ,
+      NoIdentificacion: c.NoIdentificacion,
+      Cantidad: Number(c.Cantidad),
+      ClaveUnidad: c.ClaveUnidad,
+      Unidad: c.Unidad,
+      Descripcion: c.Descripcion,
+      ValorUnitario: Number(c.ValorUnitario),
+      Importe: Number(c.Importe),
+      Descuento: Number(c.Descuento),
+      ObjetoImp: c.ObjetoImp,
+      ImpuestoTrasladado: Number(c.ImpuestoTrasladado),
+      factura: {
+        FacturaID: c.factura.FacturaID,
+        UUID: c.factura.UUID,
+        Serie: c.factura.Serie,
+        Folio: c.factura.Folio,
+        FechaEmision: moment.utc(c.factura.FechaEmision).format('YYYY-MM-DD'),
+        FechaCarga: moment.utc(c.factura.FechaCarga).format('YYYY-MM-DD'),
+        Total: Number(c.factura.Total),
+        SubTotal: Number(c.factura.SubTotal),
+        NumeroPedido: c.factura.NumeroPedido,
+        emisor: c.factura.emisor,
+      },
+    }));
+
+    return {
+      data,
+      meta: {
+        total,
+        page: currentPage,
+        pageSize: size,
+        totalPages,
+        sumaImporte: Number(agregado._sum.Importe ?? 0),
+      },
+    };
+  }
+
+  /**
    * Obtener una factura por ID con sus conceptos y emisor.
    */
   async findOne(FacturaID: number) {

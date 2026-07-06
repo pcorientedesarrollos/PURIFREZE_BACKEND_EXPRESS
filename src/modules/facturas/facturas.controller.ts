@@ -70,6 +70,19 @@ export class FacturasController {
   }
 
   /**
+   * GET /facturas/conceptos
+   */
+  async findAllConceptos(req: Request, res: Response) {
+    const texto = req.query.texto as string | undefined;
+    const fechaDesde = req.query.fechaDesde as string | undefined;
+    const fechaHasta = req.query.fechaHasta as string | undefined;
+    const page = req.query.page != null ? Number(req.query.page) : undefined;
+    const pageSize = req.query.pageSize != null ? Number(req.query.pageSize) : undefined;
+    const conceptos = await facturasService.findAllConceptos(texto, fechaDesde, fechaHasta, page, pageSize);
+    return success(res, 'Conceptos obtenidos', conceptos);
+  }
+
+  /**
    * GET /facturas/agrupadas
    */
   async findAllAgrupadas(req: Request, res: Response) {

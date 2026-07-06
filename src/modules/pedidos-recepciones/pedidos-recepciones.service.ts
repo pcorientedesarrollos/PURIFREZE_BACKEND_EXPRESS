@@ -139,9 +139,38 @@ class PedidosRecepcionesService {
     const equiposVirtuales = equipoVirtualIDs.length > 0
       ? await prisma.equipos_virtuales.findMany({
           where: { EquipoVirtualID: { in: equipoVirtualIDs } },
+          include: {
+            detalles: {
+              where: { IsActive: true },
+              include: {
+                refaccion: {
+                  select: { RefaccionID: true, NombrePieza: true },
+                },
+              },
+            },
+          },
         })
       : [];
     const equiposVirtualesMap = new Map(equiposVirtuales.map(e => [e.EquipoVirtualID, e]));
+
+    // 5b. Stock actual en bodega general para refacciones directas + componentes de EV
+    const refaccionIDsComponentes = equiposVirtuales.flatMap(e =>
+      e.detalles.map(c => c.RefaccionID)
+    );
+    const todasRefaccionIDs = [...new Set([...refaccionIDs, ...refaccionIDsComponentes])];
+
+    const inventarios = todasRefaccionIDs.length > 0
+      ? await prisma.inventario.findMany({
+          where: {
+            RefaccionID: { in: todasRefaccionIDs },
+            UbicacionID: 1, // UBICACION_BODEGA_GENERAL
+          },
+          select: { RefaccionID: true, StockActual: true },
+        })
+      : [];
+    const stockPorRefaccionID = new Map<number, number>(
+      inventarios.map(i => [i.RefaccionID!, i.StockActual ?? 0])
+    );
 
     // 6. Calcular cantidades recibidas por PedidoDetalleID
     const cantidadesRecibidasPorDetalle = new Map<number, number>();
@@ -166,16 +195,34 @@ class PedidosRecepcionesService {
 
       let nombre: string;
       let descripcion: string;
+      let componentes: Array<{
+        RefaccionID: number;
+        NombreRefaccion: string;
+        CantidadPiezasPorEquipo: number;
+        CostoUnitario: number;
+        StockInventario: number;
+      }> | undefined;
 
       if (esEquipoVirtual) {
         const equipo = equiposVirtualesMap.get(detalle.EquipoVirtualID!);
         nombre = equipo?.Nombre || 'Equipo Virtual';
         descripcion = equipo?.Codigo || '';
+        componentes = (equipo?.detalles ?? []).map(c => ({
+          RefaccionID: c.RefaccionID,
+          NombreRefaccion: c.refaccion?.NombrePieza || `Refacción #${c.RefaccionID}`,
+          CantidadPiezasPorEquipo: c.CantidadPiezasPorEquipo ?? 1,
+          CostoUnitario: Number(c.CostoUnitario ?? 0),
+          StockInventario: stockPorRefaccionID.get(c.RefaccionID) ?? 0,
+        }));
       } else {
         const refaccion = refaccionesMap.get(detalle.RefaccionID!);
         nombre = refaccion?.NombrePieza || 'Refacción no encontrada';
         descripcion = refaccion?.Observaciones || '';
       }
+
+      const stockInventario = !esEquipoVirtual && detalle.RefaccionID
+        ? (stockPorRefaccionID.get(detalle.RefaccionID) ?? 0)
+        : null;
 
       const cantidadRecibida = cantidadesRecibidasPorDetalle.get(detalle.PedidoDetalleID) || 0;
       const cantidadPedida = detalle.Cantidad || 0;
@@ -197,6 +244,8 @@ class PedidosRecepcionesService {
         SubtotalRecibido: cantidadRecibida * precioUnitario,
         SubtotalPendiente: cantidadPendiente * precioUnitario,
         Completado: cantidadPendiente <= 0,
+        StockInventario: stockInventario,
+        Componentes: componentes,
       };
     });
 
@@ -310,6 +359,43 @@ class PedidosRecepcionesService {
         });
       }
 
+      // ─── PASO 2b: cargar composicion de equipos virtuales presentes en el pedido ───
+      // Por cada EquipoVirtualID: lista de refacciones componentes (CostoUnitario +
+      // CantidadPiezasPorEquipo) y Nombre para observaciones del kardex.
+      const equipoVirtualIDs = Array.from(
+        new Set(
+          pedido.pedidos_detalle
+            .map(d => d.EquipoVirtualID)
+            .filter((id): id is number => id !== null),
+        ),
+      );
+
+      const componentesPorEquipo = new Map<number, Array<{
+        RefaccionID: number;
+        CantidadPiezasPorEquipo: number;
+        CostoUnitario: number;
+      }>>();
+      const nombreEquipoPorID = new Map<number, string>();
+
+      if (equipoVirtualIDs.length > 0) {
+        const equipos = await tx.equipos_virtuales.findMany({
+          where: { EquipoVirtualID: { in: equipoVirtualIDs } },
+          include: { detalles: { where: { IsActive: true } } },
+        });
+
+        for (const eq of equipos) {
+          nombreEquipoPorID.set(eq.EquipoVirtualID, eq.Nombre);
+          componentesPorEquipo.set(
+            eq.EquipoVirtualID,
+            eq.detalles.map(c => ({
+              RefaccionID: c.RefaccionID,
+              CantidadPiezasPorEquipo: c.CantidadPiezasPorEquipo ?? 1,
+              CostoUnitario: Number(c.CostoUnitario ?? 0),
+            })),
+          );
+        }
+      }
+
       // ─── PASO 3: cuanto ya se recibio antes, por PedidoDetalleID ───
       // Suma de recepciones previas activas, para calcular lo pendiente.
       const recepcionesPrevias = await tx.pedidos_recepciones_detalle.findMany({
@@ -390,7 +476,7 @@ class PedidosRecepcionesService {
           },
         });
 
-        // R4: solo las refacciones mueven inventario/kardex (equipos virtuales no)
+        // R4a: refaccion individual - mueve inventario/kardex directo
         const esRefaccion = detPedido.RefaccionID && !detPedido.EquipoVirtualID;
         if (esRefaccion) {
           const refaccionID = detPedido.RefaccionID!;
@@ -415,12 +501,80 @@ class PedidosRecepcionesService {
             det.CantidadRecibida,
           );
         }
+        // R4b: equipo virtual - descomponer en sus refacciones componentes.
+        // Por cada componente:
+        //   cantidadEntra = CantidadRecibida(EV) * CantidadPiezasPorEquipo
+        //   precioProrrateado = PrecioUnitario(pedido) * CostoUnitario_i / SUM(CostoUnitario * CantidadPiezasPorEquipo)
+        // Si costoBase = 0 (componentes con costo 0), fallback: usar CostoUnitario del componente.
+        else if (detPedido.EquipoVirtualID) {
+          const equipoVirtualID = detPedido.EquipoVirtualID;
+          const componentes = componentesPorEquipo.get(equipoVirtualID) ?? [];
+          const nombreEV = nombreEquipoPorID.get(equipoVirtualID) ?? 'Equipo Virtual';
+          const costoBase = componentes.reduce(
+            (s, c) => s + c.CostoUnitario * c.CantidadPiezasPorEquipo,
+            0,
+          );
+
+          for (const comp of componentes) {
+            const cantidadEntra = det.CantidadRecibida * comp.CantidadPiezasPorEquipo;
+            if (cantidadEntra <= 0) continue;
+
+            const precioProrrateado = costoBase > 0
+              ? this.round2((detPedido.PrecioUnitario * comp.CostoUnitario) / costoBase)
+              : comp.CostoUnitario;
+
+            await actualizarInventario(tx, comp.RefaccionID, cantidadEntra, fechaStr);
+
+            await crearKardex(
+              tx,
+              comp.RefaccionID,
+              cantidadEntra,
+              precioProrrateado,
+              usuarioID ?? 0,
+              'Entrada_Compra',
+              `Entrada por recepción de pedido #${dto.PedidoID} - Equipo Virtual: ${nombreEV} (ID: ${equipoVirtualID})`,
+              fechaStr,
+            );
+
+            await actualizarCostoPromedioRefaccion(
+              tx,
+              comp.RefaccionID,
+              precioProrrateado,
+              cantidadEntra,
+            );
+          }
+
+          // R4c: si esta recepcion CIERRA la linea del EV (recibido acumulado >=
+          // cantidad pedida), refrescar costos del catalogo equipos_virtuales +
+          // registrar historial. Sobreescribe con el ultimo prorrateo.
+          const yaRecibidoAntes = recibidoPrevioPorDetalle.get(det.PedidoDetalleID) || 0;
+          const totalRecibidoAhora = yaRecibidoAntes + det.CantidadRecibida;
+          const cierraElEV = totalRecibidoAhora >= detPedido.Cantidad && detPedido.Cantidad > 0;
+
+          if (cierraElEV) {
+            await this.actualizarCostosEquipoVirtual(
+              tx,
+              equipoVirtualID,
+              componentes,
+              detPedido.PrecioUnitario,
+              costoBase,
+              dto.PedidoID,
+              usuarioID,
+            );
+          }
+        }
       }
 
       // ─── PASO 7: recalcular EstadoEntrega + TotalRecibido del pedido ───
       await this.actualizarEstadoEntrega(tx, dto.PedidoID);
 
       return await this.findOneRaw(tx, recepcion.PedidoRecepcionID);
+    }, {
+      // EVs con muchos componentes (25+) hacen 3 queries por componente
+      // (inventario+kardex+costo promedio) + update EV + historial al cerrar.
+      // Con el default de 5s peta con "Transaction not found".
+      maxWait: 10000,
+      timeout: 60000,
     });
 
     return { message: 'Recepción registrada correctamente', data: result };
@@ -488,6 +642,98 @@ class PedidosRecepcionesService {
       data: {
         TotalRecibido: this.round2(totalMontoRecibido),
         EstadoEntrega: nuevoEstado,
+      },
+    });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // ACTUALIZACION DE COSTOS DE EQUIPO VIRTUAL
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * Refresca CostoAnterior/CostoActual/Diferencia por componente + TotalCosto
+   * global del EV, e inserta una fila en equipos_virtuales_historial. Se llama
+   * SOLO cuando la linea de EV en el pedido queda completamente recibida.
+   * Sobreescribe con el precio prorrateado del pedido actual.
+   */
+  private async actualizarCostosEquipoVirtual(
+    tx: Prisma.TransactionClient,
+    equipoVirtualID: number,
+    componentes: Array<{ RefaccionID: number; CantidadPiezasPorEquipo: number; CostoUnitario: number }>,
+    precioPedidoEquipo: number,
+    costoBase: number,
+    pedidoID: number,
+    usuarioID: number | null,
+  ) {
+    // 1. Traer estado anterior del EV (para historial global)
+    const equipoAntes = await tx.equipos_virtuales.findUnique({
+      where: { EquipoVirtualID: equipoVirtualID },
+      include: { detalles: { where: { IsActive: true } } },
+    });
+    if (!equipoAntes) return;
+
+    const totalCostoAnterior = Number(equipoAntes.TotalCosto ?? 0);
+    const detallesAntesPorRefaccion = new Map(
+      equipoAntes.detalles.map((d) => [d.RefaccionID, d]),
+    );
+
+    // 2. Recalcular por componente (CostoAnterior/CostoActual/Diferencia/TotalUnidad/TotalFinal)
+    const detallesCambio: Array<Record<string, number>> = [];
+    let nuevoTotalCosto = 0;
+
+    for (const comp of componentes) {
+      const detalleAntes = detallesAntesPorRefaccion.get(comp.RefaccionID);
+      if (!detalleAntes) continue;
+
+      const costoActualPrevio = Number(detalleAntes.CostoActual ?? 0);
+      const nuevoCostoActual = costoBase > 0
+        ? this.round2((precioPedidoEquipo * comp.CostoUnitario) / costoBase)
+        : costoActualPrevio;
+      const diferencia = this.round2(nuevoCostoActual - costoActualPrevio);
+      const numeroEquipos = detalleAntes.NumeroEquipos ?? 1;
+      const nuevoTotalFinal = this.round2(
+        nuevoCostoActual * comp.CantidadPiezasPorEquipo * numeroEquipos,
+      );
+
+      await tx.equipos_virtuales_detalle.update({
+        where: { DetalleID: detalleAntes.DetalleID },
+        data: {
+          CostoAnterior: costoActualPrevio,
+          CostoActual: nuevoCostoActual,
+          Diferencia: diferencia,
+          TotalUnidad: nuevoCostoActual,
+          TotalFinal: nuevoTotalFinal,
+        },
+      });
+
+      detallesCambio.push({
+        RefaccionID: comp.RefaccionID,
+        CostoAnterior: costoActualPrevio,
+        CostoActual: nuevoCostoActual,
+        Diferencia: diferencia,
+      });
+      nuevoTotalCosto += nuevoTotalFinal;
+    }
+
+    nuevoTotalCosto = this.round2(nuevoTotalCosto);
+
+    // 3. Actualizar TotalCosto global del EV
+    await tx.equipos_virtuales.update({
+      where: { EquipoVirtualID: equipoVirtualID },
+      data: { TotalCosto: nuevoTotalCosto },
+    });
+
+    // 4. Registrar historial
+    await tx.equipos_virtuales_historial.create({
+      data: {
+        EquipoVirtualID: equipoVirtualID,
+        FechaCambio: new Date(),
+        PrecioAnterior: totalCostoAnterior,
+        PrecioNuevo: nuevoTotalCosto,
+        Diferencia: this.round2(nuevoTotalCosto - totalCostoAnterior),
+        DetallesCambio: detallesCambio as unknown as Prisma.InputJsonValue,
+        UsuarioID: usuarioID,
+        Observaciones: `Actualización por recepción completa del pedido #${pedidoID}`,
       },
     });
   }

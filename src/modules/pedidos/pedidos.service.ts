@@ -657,6 +657,39 @@ class PedidosService {
         .reduce((sum, d) => sum + Number(d.MontoDescuento || 0), 0)
     );
 
+    // Enriquecer detalles con nombre de refaccion / equipo virtual (join manual:
+    // pedidos_detalle no tiene @relation a estas tablas ajenas).
+    const refaccionIDsDetalle = [...new Set(
+      pedido.pedidos_detalle.map((d) => d.RefaccionID).filter((v): v is number => v != null)
+    )];
+    const equipoVirtualIDsDetalle = [...new Set(
+      pedido.pedidos_detalle.map((d) => d.EquipoVirtualID).filter((v): v is number => v != null)
+    )];
+
+    const refaccionesDetalleMap = refaccionIDsDetalle.length
+      ? new Map(
+          (await prisma.catalogo_refacciones.findMany({
+            where: { RefaccionID: { in: refaccionIDsDetalle } },
+            select: { RefaccionID: true, NombrePieza: true, Modelo: true },
+          })).map((r) => [r.RefaccionID, r])
+        )
+      : new Map();
+
+    const equiposVirtualesDetalleMap = equipoVirtualIDsDetalle.length
+      ? new Map(
+          (await prisma.equipos_virtuales.findMany({
+            where: { EquipoVirtualID: { in: equipoVirtualIDsDetalle } },
+            select: { EquipoVirtualID: true, Nombre: true, Codigo: true, Descripcion: true },
+          })).map((e) => [e.EquipoVirtualID, e])
+        )
+      : new Map();
+
+    const detallesEnriquecidos = pedido.pedidos_detalle.map((d) => ({
+      ...d,
+      Refaccion: d.RefaccionID ? refaccionesDetalleMap.get(d.RefaccionID) ?? null : null,
+      equipoVirtual: d.EquipoVirtualID ? equiposVirtualesDetalleMap.get(d.EquipoVirtualID) ?? null : null,
+    }));
+
     return {
       ...pedido,
       AplicaIVA: pedido.AplicaIVA === 1,
@@ -667,6 +700,7 @@ class PedidosService {
       FechaVencimientoCredito: pedido.FechaVencimientoCredito
         ? moment.utc(pedido.FechaVencimientoCredito).format('YYYY-MM-DD')
         : null,
+      pedidos_detalle: detallesEnriquecidos,
       pedidos_pagos: pedido.pedidos_pagos.map((pago) => ({
         ...pago,
         FechaPago: pago.FechaPago ? moment.utc(pago.FechaPago).format('YYYY-MM-DD') : null,
