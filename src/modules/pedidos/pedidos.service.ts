@@ -25,7 +25,7 @@ class PedidosService {
       await this.recalcularTotalesPedido(tx, encabezado.PedidoID);
 
       return { pedidoId: encabezado.PedidoID, result: await this.findOneRaw(tx, encabezado.PedidoID) };
-    });
+    }, { timeout: 15000 });
 
     let message = 'Pedido registrado correctamente';
 
@@ -158,7 +158,7 @@ class PedidosService {
       await this.recalcularTotalesPedido(tx, id);
 
       return this.findOneRaw(tx, id);
-    });
+    }, { timeout: 15000 });
 
     // Autoasociar facturas por Número de Pedido (fuera de la transacción).
     // Cubre el caso: el usuario asigna el N° a facturas desde el listado
@@ -335,7 +335,7 @@ class PedidosService {
           },
         });
       }
-    });
+    }, { timeout: 15000 });
 
     return { message: 'Factura asociada correctamente', data: { PedidoID: pedidoId, FacturaID: facturaId } };
   }
