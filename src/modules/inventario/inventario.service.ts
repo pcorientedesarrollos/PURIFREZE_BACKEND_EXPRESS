@@ -308,7 +308,7 @@ class InventarioService {
           },
         },
       },
-      take: 20,
+      ...(busqueda ? { take: 20 } : {}),
       orderBy: {
         NombrePieza: 'asc',
       },
