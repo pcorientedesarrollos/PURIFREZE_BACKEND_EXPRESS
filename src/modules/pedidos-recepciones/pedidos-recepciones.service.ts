@@ -210,7 +210,7 @@ class PedidosRecepcionesService {
         componentes = (equipo?.detalles ?? []).map(c => ({
           RefaccionID: c.RefaccionID,
           NombreRefaccion: c.refaccion?.NombrePieza || `Refacción #${c.RefaccionID}`,
-          CantidadPiezasPorEquipo: c.CantidadPiezasPorEquipo ?? 1,
+          CantidadPiezasPorEquipo: c.Cantidad ?? 1,
           CostoUnitario: Number(c.CostoUnitario ?? 0),
           StockInventario: stockPorRefaccionID.get(c.RefaccionID) ?? 0,
         }));
@@ -389,7 +389,7 @@ class PedidosRecepcionesService {
             eq.EquipoVirtualID,
             eq.detalles.map(c => ({
               RefaccionID: c.RefaccionID,
-              CantidadPiezasPorEquipo: c.CantidadPiezasPorEquipo ?? 1,
+              CantidadPiezasPorEquipo: c.Cantidad ?? 1,
               CostoUnitario: Number(c.CostoUnitario ?? 0),
             })),
           );
@@ -517,6 +517,9 @@ class PedidosRecepcionesService {
 
           for (const comp of componentes) {
             const cantidadEntra = det.CantidadRecibida * comp.CantidadPiezasPorEquipo;
+            console.log("CANTIDAD RECIBIDA", det.CantidadRecibida, "CANTIDAD DE PIEZAS POR EQUIPO", comp.CantidadPiezasPorEquipo)
+            console.log("CANTIDAD ENTRA", cantidadEntra)
+            
             if (cantidadEntra <= 0) continue;
 
             const precioProrrateado = costoBase > 0
@@ -679,30 +682,51 @@ class PedidosRecepcionesService {
 
     // 2. Recalcular por componente (CostoAnterior/CostoActual/Diferencia/TotalUnidad/TotalFinal)
     const detallesCambio: Array<Record<string, number>> = [];
-    let nuevoTotalCosto = 0;
+    let nuevoTotalCostoSinIva = 0;   // suma sin IVA -> equipos_virtuales.TotalCosto
+    let nuevoTotalConIva = 0;         // suma con IVA -> equipos_virtuales.TotalConIVA
 
     for (const comp of componentes) {
       const detalleAntes = detallesAntesPorRefaccion.get(comp.RefaccionID);
       if (!detalleAntes) continue;
 
-      const costoActualPrevio = Number(detalleAntes.CostoActual ?? 0);
-      const nuevoCostoActual = costoBase > 0
+      // Prorrateo del precio del pedido (sin IVA) entre componentes segun costo unitario.
+      const nuevoCostoUnitario = costoBase > 0
         ? this.round2((precioPedidoEquipo * comp.CostoUnitario) / costoBase)
-        : costoActualPrevio;
-      const diferencia = this.round2(nuevoCostoActual - costoActualPrevio);
+        : Number(detalleAntes.CostoUnitario ?? 0);
+
+      const cantidadDetalle = detalleAntes.Cantidad ?? 1;
+      const descuento = Number(detalleAntes.Descuento ?? 0);
+      const otros = Number(detalleAntes.Otros ?? 0);
+      const costoImportacion = Number(detalleAntes.CostoImportacion ?? 0);
+      const iva = Number(detalleAntes.IVA ?? 16);
+      const cantidadPiezasPorEquipo = detalleAntes.CantidadPiezasPorEquipo ?? 1;
       const numeroEquipos = detalleAntes.NumeroEquipos ?? 1;
-      const nuevoTotalFinal = this.round2(
-        nuevoCostoActual * comp.CantidadPiezasPorEquipo * numeroEquipos,
-      );
+
+      // Sin IVA
+      const nuevoTotalUnitario = this.round2(nuevoCostoUnitario * cantidadDetalle * (1 - descuento / 100));
+      const nuevoTotalOtros    = this.round2(otros * cantidadDetalle);
+      const subtotalSinIva     = nuevoTotalUnitario + nuevoTotalOtros + costoImportacion;
+
+      // Con IVA
+      const nuevoTotalUnidad = this.round2(subtotalSinIva * (1 + iva / 100));
+      const nuevoTotalFinal  = this.round2(nuevoTotalUnidad * cantidadPiezasPorEquipo * numeroEquipos);
+      const divisor          = cantidadPiezasPorEquipo * numeroEquipos;
+      const nuevoCostoActual = divisor > 0 ? this.round2(nuevoTotalFinal / divisor) : nuevoTotalUnidad;
+
+      const costoActualPrevio = Number(detalleAntes.CostoActual ?? 0);
+      const diferencia = this.round2(nuevoCostoActual - costoActualPrevio);
 
       await tx.equipos_virtuales_detalle.update({
         where: { DetalleID: detalleAntes.DetalleID },
         data: {
-          CostoAnterior: costoActualPrevio,
-          CostoActual: nuevoCostoActual,
-          Diferencia: diferencia,
-          TotalUnidad: nuevoCostoActual,
-          TotalFinal: nuevoTotalFinal,
+          CostoUnitario:  nuevoCostoUnitario,
+          TotalUnitario:  nuevoTotalUnitario,
+          TotalOtros:     nuevoTotalOtros,
+          TotalUnidad:    nuevoTotalUnidad,
+          TotalFinal:     nuevoTotalFinal,
+          CostoAnterior:  costoActualPrevio,
+          CostoActual:    nuevoCostoActual,
+          Diferencia:     diferencia,
         },
       });
 
@@ -712,15 +736,20 @@ class PedidosRecepcionesService {
         CostoActual: nuevoCostoActual,
         Diferencia: diferencia,
       });
-      nuevoTotalCosto += nuevoTotalFinal;
+      nuevoTotalCostoSinIva += subtotalSinIva * cantidadPiezasPorEquipo * numeroEquipos;
+      nuevoTotalConIva      += nuevoTotalFinal;
     }
 
-    nuevoTotalCosto = this.round2(nuevoTotalCosto);
+    nuevoTotalCostoSinIva = this.round2(nuevoTotalCostoSinIva);
+    nuevoTotalConIva      = this.round2(nuevoTotalConIva);
 
-    // 3. Actualizar TotalCosto global del EV
+    // 3. Actualizar TotalCosto (sin IVA) + TotalConIVA globales del EV
     await tx.equipos_virtuales.update({
       where: { EquipoVirtualID: equipoVirtualID },
-      data: { TotalCosto: nuevoTotalCosto },
+      data: {
+        TotalCosto:  nuevoTotalCostoSinIva,
+        TotalConIVA: nuevoTotalConIva,
+      },
     });
 
     // 4. Registrar historial
@@ -729,8 +758,8 @@ class PedidosRecepcionesService {
         EquipoVirtualID: equipoVirtualID,
         FechaCambio: new Date(),
         PrecioAnterior: totalCostoAnterior,
-        PrecioNuevo: nuevoTotalCosto,
-        Diferencia: this.round2(nuevoTotalCosto - totalCostoAnterior),
+        PrecioNuevo: nuevoTotalCostoSinIva,
+        Diferencia: this.round2(nuevoTotalCostoSinIva - totalCostoAnterior),
         DetallesCambio: detallesCambio as unknown as Prisma.InputJsonValue,
         UsuarioID: usuarioID,
         Observaciones: `Actualización por recepción completa del pedido #${pedidoID}`,

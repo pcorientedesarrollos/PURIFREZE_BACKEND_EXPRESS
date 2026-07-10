@@ -17,7 +17,7 @@ export const createPedidoDetalleSchema = z.object({
 // Schema para encabezado de pedido (crear)
 export const createPedidoSchema = z.object({
   ProveedorID: z.number({ required_error: 'ProveedorID es requerido' }),
-  NumeroPedido: z.string().max(100).optional().nullable(),
+  NumeroPedido: z.string().max(20).regex(/^\d+$/, 'NumeroPedido solo puede contener dígitos').optional().nullable(),
   FechaPedido: z.string().optional().transform((val) => val ? new Date(val) : undefined),
   FormaPago: z.enum(['CONTADO', 'CREDITO']).default('CREDITO'),
   AplicaIVA: z.boolean().default(true),
@@ -47,7 +47,7 @@ export const updatePedidoDetalleSchema = z.object({
 // Schema para encabezado de pedido (actualizar)
 export const updatePedidoSchema = z.object({
   ProveedorID: z.number().optional(),
-  NumeroPedido: z.string().max(100).optional().nullable(),
+  NumeroPedido: z.string().max(20).regex(/^\d+$/, 'NumeroPedido solo puede contener dígitos').optional().nullable(),
   FechaPedido: z.string().optional().transform((val) => val ? new Date(val) : undefined),
   FormaPago: z.enum(['CONTADO', 'CREDITO']).optional(),
   AplicaIVA: z.boolean().optional(),

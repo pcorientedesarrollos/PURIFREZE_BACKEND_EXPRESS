@@ -1,4 +1,5 @@
 import prisma from '../../config/database';
+import { Prisma } from '@prisma/client';
 import { HttpError } from '../../utils/response';
 import { parseCfdi40, CfdiParseResult } from '../../utils/cfdi-parser';
 import pLimit from 'p-limit';
@@ -824,6 +825,36 @@ export class FacturasService {
       FacturaIDs: ids,
       asociadasAPedido,
     };
+  }
+
+  /**
+   * Sincroniza la columna NumeroPedido de un batch de facturas SIN validaciones
+   * de negocio. Uso interno para propagacion desde pedidos:
+   *  - cambio de NumeroPedido en pedidos_encabezado -> propagar a facturas asociadas
+   *  - asociar factura al pedido -> asignar NumeroPedido
+   *  - desasociar factura -> limpiar NumeroPedido
+   *
+   * A diferencia de asignarNumeroPedido, no valida existencia, IsActive, emisor
+   * unico ni "no cambiar si ya tiene". Confia en el caller. Idempotente.
+   *
+   * @param facturaIDs IDs a actualizar. Array vacio => noop.
+   * @param numeroPedido Nuevo valor. `null` limpia la columna.
+   * @param tx TransactionClient opcional para participar en una tx externa.
+   */
+  async syncNumeroPedidoBatch(
+    facturaIDs: number[],
+    numeroPedido: string | null,
+    tx?: Prisma.TransactionClient,
+  ): Promise<number> {
+    const ids = [...new Set(facturaIDs)].filter((id) => Number.isFinite(id));
+    if (ids.length === 0) return 0;
+
+    const client = tx ?? prisma;
+    const result = await client.facturas.updateMany({
+      where: { FacturaID: { in: ids } },
+      data: { NumeroPedido: numeroPedido && numeroPedido.trim() ? numeroPedido.trim() : null },
+    });
+    return result.count;
   }
 
   /**

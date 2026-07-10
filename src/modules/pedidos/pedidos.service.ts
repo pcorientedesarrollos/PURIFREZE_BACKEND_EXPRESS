@@ -8,6 +8,7 @@ import {
   UpdatePedidoDto,
   UpdatePedidoDetalleDto,
 } from './pedidos.schema';
+import { facturasService } from '../facturas';
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -124,8 +125,21 @@ class PedidosService {
       const pedidoExistente = await this.obtenerPedidoOError(tx, id);
 
       const { Detalles, DetallesEliminar, ...datosEncabezado } = dto;
-
       await this.actualizarEncabezadoPedido(tx, id, datosEncabezado, pedidoExistente);
+
+      // Si cambio el NumeroPedido, propagar a las facturas asociadas activas.
+      const numeroAntes = (pedidoExistente.NumeroPedido ?? '').trim();
+      const numeroDespues = (datosEncabezado.NumeroPedido ?? '').toString().trim();
+      if ('NumeroPedido' in datosEncabezado && numeroAntes !== numeroDespues) {
+        const asociadas = await tx.pedidos_facturas.findMany({
+          where: { PedidoID: id, IsActive: true },
+          select: { FacturaID: true },
+        });
+        const facturaIDs = asociadas.map((a) => a.FacturaID);
+        if (facturaIDs.length > 0) {
+          await facturasService.syncNumeroPedidoBatch(facturaIDs, numeroDespues || null, tx);
+        }
+      }
 
       if (DetallesEliminar?.length) {
         for (const detalleID of DetallesEliminar) {
@@ -335,23 +349,31 @@ class PedidosService {
           },
         });
       }
+
+      // Sincronizar el NumeroPedido de la factura con el pedido (dentro de la misma tx).
+      await facturasService.syncNumeroPedidoBatch([facturaId], pedido.NumeroPedido ?? null, tx);
     }, { timeout: 15000 });
 
     return { message: 'Factura asociada correctamente', data: { PedidoID: pedidoId, FacturaID: facturaId } };
   }
 
   async desasociarFactura(pedidoId: number, facturaId: number) {
-    const asociacion = await prisma.pedidos_facturas.findFirst({
-      where: { PedidoID: pedidoId, FacturaID: facturaId, IsActive: true },
-    });
+    await prisma.$transaction(async (tx) => {
+      const asociacion = await tx.pedidos_facturas.findFirst({
+        where: { PedidoID: pedidoId, FacturaID: facturaId, IsActive: true },
+      });
 
-    if (!asociacion) {
-      throw new HttpError('Asociación no encontrada', 404);
-    }
+      if (!asociacion) {
+        throw new HttpError('Asociación no encontrada', 404);
+      }
 
-    await prisma.pedidos_facturas.update({
-      where: { PedidoFacturaID: asociacion.PedidoFacturaID },
-      data: { IsActive: false },
+      await tx.pedidos_facturas.update({
+        where: { PedidoFacturaID: asociacion.PedidoFacturaID },
+        data: { IsActive: false },
+      });
+
+      // Limpiar NumeroPedido de la factura (dentro de la misma tx).
+      await facturasService.syncNumeroPedidoBatch([facturaId], null, tx);
     });
 
     return { message: 'Factura desasociada correctamente', data: { PedidoID: pedidoId, FacturaID: facturaId } };

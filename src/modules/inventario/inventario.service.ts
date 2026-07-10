@@ -127,7 +127,9 @@ class InventarioService {
     const resumenPorUbicacion = inventario.reduce(
       (acc, item) => {
         const ubicacionData = item.UbicacionID ? ubicacionesMap.get(item.UbicacionID) : null;
-        const ubicacion = ubicacionData?.Tipo || 'Sin ubicación';
+        // Fallback: si el registro tiene UbicacionID pero el Tipo esta NULL,
+        // se asume 'Bodega' (UBICACION_BODEGA_GENERAL=1 es el default de recepciones).
+        const ubicacion = ubicacionData?.Tipo || (item.UbicacionID ? 'Bodega' : 'Sin ubicación');
         const refaccionData = item.RefaccionID ? refaccionesMap.get(item.RefaccionID) : null;
 
         if (!acc[ubicacion]) {

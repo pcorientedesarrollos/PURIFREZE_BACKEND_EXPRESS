@@ -318,18 +318,11 @@ class PedidosPagosService {
       },
     });
 
-    // Actualizar saldo de cuenta bancaria
-    const cuentaBancaria = await tx.catalogo_cuentasBancarias.findUnique({
+    // Actualizar saldo de cuenta bancaria (UPDATE atomico, sin race condition).
+    await tx.catalogo_cuentasBancarias.update({
       where: { CuentaBancariaID: dto.CuentaBancariaID! },
+      data: { Saldo: { decrement: montoNeto } },
     });
-
-    if (cuentaBancaria) {
-      const nuevoSaldo = Number(cuentaBancaria.Saldo || 0) - montoNeto;
-      await tx.catalogo_cuentasBancarias.update({
-        where: { CuentaBancariaID: dto.CuentaBancariaID! },
-        data: { Saldo: nuevoSaldo },
-      });
-    }
   }
 
   private async revertirMovimientoBancario(
@@ -341,18 +334,11 @@ class PedidosPagosService {
     // Modelo v3: el Monto del pago ya es neto, se revierte tal cual.
     const montoRevertir = Number(pago.Monto);
 
-    // Revertir saldo
-    const cuentaBancaria = await tx.catalogo_cuentasBancarias.findUnique({
+    // Revertir saldo (UPDATE atomico, sin race condition).
+    await tx.catalogo_cuentasBancarias.update({
       where: { CuentaBancariaID: pago.CuentaBancariaID },
+      data: { Saldo: { increment: montoRevertir } },
     });
-
-    if (cuentaBancaria) {
-      const nuevoSaldo = Number(cuentaBancaria.Saldo || 0) + montoRevertir;
-      await tx.catalogo_cuentasBancarias.update({
-        where: { CuentaBancariaID: pago.CuentaBancariaID },
-        data: { Saldo: nuevoSaldo },
-      });
-    }
   }
 
   /**
