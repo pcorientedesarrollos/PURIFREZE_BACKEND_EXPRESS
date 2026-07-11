@@ -80,10 +80,16 @@ class ControlService {
         : [];
       const pedidoIdsViaFacturas = [...new Set(pedidosViaFacturas.map((pf) => pf.PedidoID))];
 
+      // FormaPago es enum ('CONTADO' | 'CREDITO'): match exacto case-insensitive.
+      const tUpper = t.toUpperCase();
+      const formaPagoMatch: ('CONTADO' | 'CREDITO')[] = [];
+      if ('CONTADO'.includes(tUpper)) formaPagoMatch.push('CONTADO');
+      if ('CREDITO'.includes(tUpper)) formaPagoMatch.push('CREDITO');
+
       where.OR = [
         { NumeroPedido: { contains: t } },
         { Observaciones: { contains: t } },
-        { FormaPago: { contains: t } as Prisma.StringFilter },
+        ...(formaPagoMatch.length ? [{ FormaPago: { in: formaPagoMatch } }] : []),
         ...(proveedorIdsMatch.length ? [{ ProveedorID: { in: proveedorIdsMatch } }] : []),
         ...(pedidoIdsViaFacturas.length ? [{ PedidoID: { in: pedidoIdsViaFacturas } }] : []),
       ];
