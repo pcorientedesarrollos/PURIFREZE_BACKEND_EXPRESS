@@ -10,6 +10,7 @@ export const emisorIdParamSchema = z.object({
 
 export const listFacturasQuerySchema = z.object({
   texto: z.string().optional(),
+  emisorRFC: z.string().optional(),
   fechaDesde: z.string().optional(),
   fechaHasta: z.string().optional(),
   page: z

@@ -40,11 +40,12 @@ export class FacturasController {
    */
   async findAll(req: Request, res: Response) {
     const texto = req.query.texto as string | undefined;
+    const emisorRFC = req.query.emisorRFC as string | undefined;
     const fechaDesde = req.query.fechaDesde as string | undefined;
     const fechaHasta = req.query.fechaHasta as string | undefined;
     const page = req.query.page != null ? Number(req.query.page) : undefined;
     const pageSize = req.query.pageSize != null ? Number(req.query.pageSize) : undefined;
-    const facturas = await facturasService.findAll(texto, fechaDesde, fechaHasta, page, pageSize);
+    const facturas = await facturasService.findAll(texto, fechaDesde, fechaHasta, page, pageSize, emisorRFC);
     return success(res, 'Facturas obtenidas', facturas);
   }
 

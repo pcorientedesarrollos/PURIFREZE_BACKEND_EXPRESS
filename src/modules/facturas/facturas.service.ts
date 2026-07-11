@@ -471,8 +471,13 @@ export class FacturasService {
     fechaHasta?: string,
     page?: number,
     pageSize?: number,
+    emisorRFC?: string,
   ) {
     const where: any = { IsActive: true };
+
+    if (emisorRFC) {
+      where.emisor = { RFC: emisorRFC.trim().toUpperCase() };
+    }
 
     if (texto) {
       where.OR = [
