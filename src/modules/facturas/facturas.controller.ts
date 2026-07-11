@@ -18,27 +18,6 @@ export class FacturasController {
   }
 
   /**
-   * PATCH /facturas/asignar-numero-pedido
-   */
-  async asignarNumeroPedido(req: Request, res: Response) {
-    const { NumeroPedido, FacturaIDs } = req.body;
-    const resultado = await facturasService.asignarNumeroPedido(NumeroPedido, FacturaIDs);
-    const msg = resultado.asociadasAPedido > 0
-      ? `N° de pedido asignado. ${resultado.asociadasAPedido} factura(s) vinculada(s) al pedido existente`
-      : 'N° de pedido asignado';
-    return success(res, msg, resultado);
-  }
-
-  /**
-   * PATCH /facturas/:FacturaID/quitar-numero-pedido
-   */
-  async quitarNumeroPedido(req: Request, res: Response) {
-    const FacturaID = Number(req.params.FacturaID);
-    const resultado = await facturasService.quitarNumeroPedido(FacturaID);
-    return success(res, 'N° de pedido eliminado', resultado);
-  }
-
-  /**
    * GET /facturas/pedidos-agrupados
    */
   async findPedidosAgrupados(_req: Request, res: Response) {
