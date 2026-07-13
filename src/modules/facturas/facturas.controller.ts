@@ -95,10 +95,10 @@ export class FacturasController {
   async getXml(req: Request, res: Response) {
     const FacturaID = Number(req.params.FacturaID);
     const { buffer, uuid } = await facturasService.getXml(FacturaID);
-
+    const fileBuffer = Buffer.from(buffer);
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="factura_${uuid}.xml"`);
-    res.send(buffer);
+    res.send(fileBuffer);
   }
 }
 
