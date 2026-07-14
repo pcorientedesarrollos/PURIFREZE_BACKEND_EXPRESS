@@ -698,17 +698,15 @@ class PedidosRecepcionesService {
       const descuento = Number(detalleAntes.Descuento ?? 0);
       const otros = Number(detalleAntes.Otros ?? 0);
       const costoImportacion = Number(detalleAntes.CostoImportacion ?? 0);
-      // const iva = Number(detalleAntes.IVA ?? 16); // IVA ya incluido en CostoUnitario
       const cantidadPiezasPorEquipo = detalleAntes.CantidadPiezasPorEquipo ?? 1;
       const numeroEquipos = detalleAntes.NumeroEquipos ?? 1;
 
-      // CostoUnitario YA incluye IVA — no se aplica IVA adicional
+      // Sin IVA: el equipo virtual es solo lista de costos. El IVA se aplica UNA sola vez, a nivel Pedido.
       const nuevoTotalUnitario = this.round2(nuevoCostoUnitario * cantidadDetalle * (1 - descuento / 100));
       const nuevoTotalOtros    = this.round2(otros * cantidadDetalle);
-      const subtotalConIva     = nuevoTotalUnitario + nuevoTotalOtros + costoImportacion;
+      const subtotalSinIva     = nuevoTotalUnitario + nuevoTotalOtros + costoImportacion;
 
-      // YA incluye IVA (no se aplica adicional)
-      const nuevoTotalUnidad = this.round2(subtotalConIva);
+      const nuevoTotalUnidad = this.round2(subtotalSinIva);
       const nuevoTotalFinal  = this.round2(nuevoTotalUnidad * cantidadPiezasPorEquipo * numeroEquipos);
       const divisor          = cantidadPiezasPorEquipo * numeroEquipos;
       const nuevoCostoActual = divisor > 0 ? this.round2(nuevoTotalFinal / divisor) : nuevoTotalUnidad;
@@ -736,7 +734,7 @@ class PedidosRecepcionesService {
         CostoActual: nuevoCostoActual,
         Diferencia: diferencia,
       });
-      nuevoTotalCostoSinIva += subtotalConIva * cantidadPiezasPorEquipo * numeroEquipos;
+      nuevoTotalCostoSinIva += subtotalSinIva * cantidadPiezasPorEquipo * numeroEquipos;
       nuevoTotalConIva      += nuevoTotalFinal;
     }
 

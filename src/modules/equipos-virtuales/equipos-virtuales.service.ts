@@ -571,9 +571,9 @@ class EquiposVirtualesService {
     // TotalOtros = Otros * Cantidad
     const totalOtros = this.redondear(otros * cantidad);
 
-    // CostoUnitario YA incluye IVA — no se aplica IVA adicional
-    const subtotalConIva = totalUnitario + totalOtros + costoImportacion;
-    const totalUnidad = this.redondear(subtotalConIva);
+    // Sin IVA: el equipo virtual es solo lista de costos. El IVA se aplica UNA sola vez, a nivel Pedido.
+    const subtotal = totalUnitario + totalOtros + costoImportacion;
+    const totalUnidad = this.redondear(subtotal);
 
     // TotalFinal = TotalUnidad * CantidadPiezasPorEquipo * NumeroEquipos
     const totalFinal = this.redondear(totalUnidad * cantidadPiezasPorEquipo * numeroEquipos);
