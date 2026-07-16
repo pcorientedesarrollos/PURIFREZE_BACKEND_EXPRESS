@@ -609,7 +609,7 @@ class PedidosService {
 
     if (!pedido) return null;
 
-    // Proveedor manual
+    // Proveedor manual (con contactos para PDF / ENC. VENTAS)
     const proveedor = pedido.ProveedorID
       ? await prisma.catalogo_proveedores.findUnique({
           where: { ProveedorID: pedido.ProveedorID },
@@ -617,6 +617,16 @@ class PedidosService {
             ProveedorID: true,
             NombreProveedor: true,
             RFC: true,
+            contactos: {
+              where: { IsActive: true },
+              select: {
+                ContactoID: true,
+                NombreContacto: true,
+                Puesto: true,
+                Celular: true,
+                IsActive: true,
+              },
+            },
           },
         })
       : null;

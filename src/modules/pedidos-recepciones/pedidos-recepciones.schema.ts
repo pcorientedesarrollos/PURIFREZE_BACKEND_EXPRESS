@@ -26,6 +26,15 @@ export const pedidoRecepcionIdParamSchema = z.object({
   PedidoRecepcionID: z.string().regex(/^\d+$/, 'ID debe ser un número válido').transform(Number),
 });
 
+// Schema para query params del reporte de entregas
+export const reporteQuerySchema = z.object({
+  fechaInicio: z.string().optional(),
+  fechaFin: z.string().optional(),
+  proveedorId: z.string().regex(/^\d+$/, 'proveedorId debe ser un número').transform(Number).optional(),
+  tieneFactura: z.enum(['si', 'no', 'todos']).optional().default('todos'),
+});
+
 // Types inferidos (lo que tu service va a recibir, ya validado)
 export type CreatePedidoRecepcionDetalleDto = z.infer<typeof createPedidoRecepcionDetalleSchema>;
 export type CreatePedidoRecepcionDto = z.infer<typeof createPedidoRecepcionSchema>;
+export type ReporteQueryDto = z.infer<typeof reporteQuerySchema>;

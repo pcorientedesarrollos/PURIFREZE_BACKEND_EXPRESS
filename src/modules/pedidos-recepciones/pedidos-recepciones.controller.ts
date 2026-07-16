@@ -1,7 +1,7 @@
 import { Request, Response } from 'express';
 import { pedidosRecepcionesService } from './pedidos-recepciones.service';
 import { success } from '../../utils/response';
-import { CreatePedidoRecepcionDto } from './pedidos-recepciones.schema';
+import { CreatePedidoRecepcionDto, ReporteQueryDto } from './pedidos-recepciones.schema';
 
 class PedidosRecepcionesController {
   /**
@@ -29,6 +29,15 @@ class PedidosRecepcionesController {
   async findByPedidoWithPagos(req: Request, res: Response) {
     const { PedidoID } = req.params as unknown as { PedidoID: number };
     const result = await pedidosRecepcionesService.findByPedidoWithPagos(PedidoID);
+    return success(res, result.message, result.data);
+  }
+
+  /**
+   * GET /pedidos-recepciones/reporte - Reporte de entregas
+   */
+  async getReporte(req: Request, res: Response) {
+    const query: ReporteQueryDto = req.query as unknown as ReporteQueryDto;
+    const result = await pedidosRecepcionesService.getReporte(query);
     return success(res, result.message, result.data);
   }
 

@@ -1,10 +1,11 @@
 import { Router } from 'express';
 import { pedidosRecepcionesController } from './pedidos-recepciones.controller';
-import { validateBody, validateParams } from '../../middlewares/validateRequest';
+import { validateBody, validateParams, validateQuery } from '../../middlewares/validateRequest';
 import {
   createPedidoRecepcionSchema,
   pedidoIdParamSchema,
   pedidoRecepcionIdParamSchema,
+  reporteQuerySchema,
 } from './pedidos-recepciones.schema';
 
 const router = Router();
@@ -29,6 +30,14 @@ router.get(
   '/pedido/:PedidoID/with-pagos',
   validateParams(pedidoIdParamSchema),
   (req, res) => pedidosRecepcionesController.findByPedidoWithPagos(req, res),
+);
+
+// GET /pedidos-recepciones/reporte - Reporte de entregas
+// (ruta estatica ANTES de /:PedidoRecepcionID para evitar shadowing)
+router.get(
+  '/reporte',
+  validateQuery(reporteQuerySchema),
+  (req, res) => pedidosRecepcionesController.getReporte(req, res),
 );
 
 // GET /pedidos-recepciones/:PedidoRecepcionID - Obtener una recepcion

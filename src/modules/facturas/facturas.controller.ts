@@ -18,27 +18,6 @@ export class FacturasController {
   }
 
   /**
-   * PATCH /facturas/asignar-numero-pedido
-   */
-  async asignarNumeroPedido(req: Request, res: Response) {
-    const { NumeroPedido, FacturaIDs } = req.body;
-    const resultado = await facturasService.asignarNumeroPedido(NumeroPedido, FacturaIDs);
-    const msg = resultado.asociadasAPedido > 0
-      ? `N° de pedido asignado. ${resultado.asociadasAPedido} factura(s) vinculada(s) al pedido existente`
-      : 'N° de pedido asignado';
-    return success(res, msg, resultado);
-  }
-
-  /**
-   * PATCH /facturas/:FacturaID/quitar-numero-pedido
-   */
-  async quitarNumeroPedido(req: Request, res: Response) {
-    const FacturaID = Number(req.params.FacturaID);
-    const resultado = await facturasService.quitarNumeroPedido(FacturaID);
-    return success(res, 'N° de pedido eliminado', resultado);
-  }
-
-  /**
    * GET /facturas/pedidos-agrupados
    */
   async findPedidosAgrupados(_req: Request, res: Response) {
@@ -61,11 +40,12 @@ export class FacturasController {
    */
   async findAll(req: Request, res: Response) {
     const texto = req.query.texto as string | undefined;
+    const emisorRFC = req.query.emisorRFC as string | undefined;
     const fechaDesde = req.query.fechaDesde as string | undefined;
     const fechaHasta = req.query.fechaHasta as string | undefined;
     const page = req.query.page != null ? Number(req.query.page) : undefined;
     const pageSize = req.query.pageSize != null ? Number(req.query.pageSize) : undefined;
-    const facturas = await facturasService.findAll(texto, fechaDesde, fechaHasta, page, pageSize);
+    const facturas = await facturasService.findAll(texto, fechaDesde, fechaHasta, page, pageSize, emisorRFC);
     return success(res, 'Facturas obtenidas', facturas);
   }
 
@@ -115,10 +95,10 @@ export class FacturasController {
   async getXml(req: Request, res: Response) {
     const FacturaID = Number(req.params.FacturaID);
     const { buffer, uuid } = await facturasService.getXml(FacturaID);
-
+    const fileBuffer = Buffer.from(buffer);
     res.setHeader('Content-Type', 'application/xml; charset=utf-8');
     res.setHeader('Content-Disposition', `attachment; filename="factura_${uuid}.xml"`);
-    res.send(buffer);
+    res.send(fileBuffer);
   }
 }
 

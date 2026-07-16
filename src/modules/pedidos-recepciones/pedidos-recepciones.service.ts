@@ -2,7 +2,7 @@ import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import { Prisma, EstadoEntregaCompra } from '@prisma/client';
 import moment from 'moment';
-import { CreatePedidoRecepcionDto } from './pedidos-recepciones.schema';
+import { CreatePedidoRecepcionDto, ReporteQueryDto } from './pedidos-recepciones.schema';
 import {
   actualizarInventario,
   crearKardex,
@@ -689,7 +689,7 @@ class PedidosRecepcionesService {
       const detalleAntes = detallesAntesPorRefaccion.get(comp.RefaccionID);
       if (!detalleAntes) continue;
 
-      // Prorrateo del precio del pedido (sin IVA) entre componentes segun costo unitario.
+      // Prorrateo del precio del pedido (CON IVA incluido) entre componentes segun costo unitario.
       const nuevoCostoUnitario = costoBase > 0
         ? this.round2((precioPedidoEquipo * comp.CostoUnitario) / costoBase)
         : Number(detalleAntes.CostoUnitario ?? 0);
@@ -698,17 +698,15 @@ class PedidosRecepcionesService {
       const descuento = Number(detalleAntes.Descuento ?? 0);
       const otros = Number(detalleAntes.Otros ?? 0);
       const costoImportacion = Number(detalleAntes.CostoImportacion ?? 0);
-      const iva = Number(detalleAntes.IVA ?? 16);
       const cantidadPiezasPorEquipo = detalleAntes.CantidadPiezasPorEquipo ?? 1;
       const numeroEquipos = detalleAntes.NumeroEquipos ?? 1;
 
-      // Sin IVA
+      // Sin IVA: el equipo virtual es solo lista de costos. El IVA se aplica UNA sola vez, a nivel Pedido.
       const nuevoTotalUnitario = this.round2(nuevoCostoUnitario * cantidadDetalle * (1 - descuento / 100));
       const nuevoTotalOtros    = this.round2(otros * cantidadDetalle);
       const subtotalSinIva     = nuevoTotalUnitario + nuevoTotalOtros + costoImportacion;
 
-      // Con IVA
-      const nuevoTotalUnidad = this.round2(subtotalSinIva * (1 + iva / 100));
+      const nuevoTotalUnidad = this.round2(subtotalSinIva);
       const nuevoTotalFinal  = this.round2(nuevoTotalUnidad * cantidadPiezasPorEquipo * numeroEquipos);
       const divisor          = cantidadPiezasPorEquipo * numeroEquipos;
       const nuevoCostoActual = divisor > 0 ? this.round2(nuevoTotalFinal / divisor) : nuevoTotalUnidad;
@@ -765,6 +763,131 @@ class PedidosRecepcionesService {
         Observaciones: `Actualización por recepción completa del pedido #${pedidoID}`,
       },
     });
+  }
+
+  // ═══════════════════════════════════════════════════════════════════════════
+  // REPORTE DE ENTREGAS
+  // ═══════════════════════════════════════════════════════════════════════════
+
+  /**
+   * GET /pedidos-recepciones/reporte
+   * Reporte de entregas (recepciones) con filtros por fecha, proveedor y factura.
+   * Replica el flujo de compras-recepciones.getReporte adaptado a pedidos.
+   */
+  async getReporte(query: ReporteQueryDto) {
+    const { fechaInicio, fechaFin, proveedorId, tieneFactura } = query;
+
+    // Construir condiciones de filtro
+    const where: Prisma.pedidos_recepciones_encabezadoWhereInput = {
+      IsActive: true,
+    };
+
+    // Filtro por fecha
+    if (fechaInicio || fechaFin) {
+      where.FechaRecepcion = {};
+      if (fechaInicio) {
+        where.FechaRecepcion.gte = new Date(fechaInicio);
+      }
+      if (fechaFin) {
+        where.FechaRecepcion.lte = new Date(fechaFin + 'T23:59:59');
+      }
+    }
+
+    // Filtro por factura
+    if (tieneFactura === 'si') {
+      where.NumeroFactura = { not: null };
+    } else if (tieneFactura === 'no') {
+      where.NumeroFactura = null;
+    }
+
+    // Filtro por proveedor (server-side via relacion)
+    if (proveedorId) {
+      where.pedidos_encabezado = { ProveedorID: proveedorId };
+    }
+
+    // Obtener recepciones con pedido y detalles
+    const recepciones = await prisma.pedidos_recepciones_encabezado.findMany({
+      where,
+      include: {
+        pedidos_recepciones_detalle: {
+          where: { IsActive: true },
+        },
+        pedidos_encabezado: true,
+      },
+      orderBy: { FechaRecepcion: 'desc' },
+    });
+
+    // Resolver proveedores (pedidos_encabezado NO tiene @relation a catalogo_proveedores)
+    const proveedorIds = Array.from(
+      new Set(
+        recepciones
+          .map(r => r.pedidos_encabezado?.ProveedorID)
+          .filter((id): id is number => id != null),
+      ),
+    );
+
+    const proveedores = proveedorIds.length > 0
+      ? await prisma.catalogo_proveedores.findMany({
+          where: { ProveedorID: { in: proveedorIds } },
+          select: { ProveedorID: true, NombreProveedor: true },
+        })
+      : [];
+    const proveedoresMap = new Map(proveedores.map(p => [p.ProveedorID, p]));
+
+    // Formatear respuesta
+    const reporteFormateado = recepciones.map(recepcion => {
+      const pedido = recepcion.pedidos_encabezado;
+      const proveedor = pedido?.ProveedorID
+        ? proveedoresMap.get(pedido.ProveedorID) ?? null
+        : null;
+
+      return {
+        RecepcionID: recepcion.PedidoRecepcionID,
+        FechaRecepcion: recepcion.FechaRecepcion
+          ? moment.utc(recepcion.FechaRecepcion).format('YYYY-MM-DD')
+          : null,
+        NumeroFactura: recepcion.NumeroFactura,
+        MontoRecepcion: Number(recepcion.MontoRecepcion ?? 0),
+        Observaciones: recepcion.Observaciones,
+        TotalRefacciones: recepcion.pedidos_recepciones_detalle.length,
+        Pedido: pedido ? {
+          PedidoID: pedido.PedidoID,
+          NumeroPedido: pedido.NumeroPedido,
+          FechaPedido: pedido.FechaPedido
+            ? moment.utc(pedido.FechaPedido).format('YYYY-MM-DD')
+            : null,
+          TotalNeto: Number(pedido.TotalNeto ?? 0),
+          EstadoEntrega: pedido.EstadoEntrega,
+          EstadoPago: pedido.EstadoPago,
+        } : null,
+        Proveedor: proveedor ? {
+          ProveedorID: proveedor.ProveedorID,
+          NombreProveedor: proveedor.NombreProveedor,
+        } : null,
+        // PENDIENTE: EquipoVirtual requiere resolver via pedidos_detalle.EquipoVirtualID
+        // + equipos_virtuales por cada recepcion. Se entrega null en esta fase.
+        EquipoVirtual: null,
+      };
+    });
+
+    // Calcular totales
+    const totalRecepciones = reporteFormateado.length;
+    const conFactura = reporteFormateado.filter(r => r.NumeroFactura).length;
+    const sinFactura = totalRecepciones - conFactura;
+    const montoTotal = reporteFormateado.reduce((sum, r) => sum + (r.MontoRecepcion || 0), 0);
+
+    return {
+      message: 'Reporte de entregas obtenido',
+      data: {
+        recepciones: reporteFormateado,
+        resumen: {
+          totalRecepciones,
+          conFactura,
+          sinFactura,
+          montoTotal: this.round2(montoTotal),
+        },
+      },
+    };
   }
 
 }
