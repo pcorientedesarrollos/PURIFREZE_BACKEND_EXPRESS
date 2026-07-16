@@ -36,7 +36,8 @@ class PresupuestosService {
     detalles: { Subtotal: number }[],
     descuentoPorcentaje?: number | null,
     descuentoEfectivo?: number | null,
-    gastosAdicionales?: number | null
+    gastosAdicionales?: number | null,
+    aplicaIVA: boolean = true
   ) {
     let subtotal = detalles.reduce((sum, d) => sum + (d.Subtotal || 0), 0);
 
@@ -53,7 +54,7 @@ class PresupuestosService {
       subtotal = subtotal + gastosAdicionales;
     }
 
-    const iva = subtotal * IVA_PORCENTAJE;
+    const iva = aplicaIVA ? subtotal * IVA_PORCENTAJE : 0;
     const total = subtotal + iva;
 
     return {
@@ -159,6 +160,22 @@ class PresupuestosService {
     // Procesar detalles y calcular precios
     const detallesProcesados = await Promise.all(
       data.detalles.map(async (detalle) => {
+        // Validar campos requeridos según tipo de item
+        if (detalle.TipoItem === 'EQUIPO_PURIFREEZE' || detalle.TipoItem === 'EQUIPO_EXTERNO') {
+          if (!detalle.PlantillaEquipoID) {
+            throw new HttpError(`PlantillaEquipoID es requerido para ${detalle.TipoItem}`, 400);
+          }
+          if (!detalle.Modalidad) {
+            throw new HttpError(`Modalidad es requerida para ${detalle.TipoItem}`, 400);
+          }
+        }
+        if (detalle.TipoItem === 'REFACCION' && !detalle.RefaccionID) {
+          throw new HttpError('RefaccionID es requerido para REFACCION', 400);
+        }
+        if (detalle.TipoItem === 'SERVICIO' && (!detalle.PrecioUnitario || detalle.PrecioUnitario <= 0) && !detalle.ServicioAdicionalID) {
+          throw new HttpError('PrecioUnitario > 0 o ServicioAdicionalID es requerido para SERVICIO', 400);
+        }
+
         // Validar referencias según tipo
         if (detalle.TipoItem === 'REFACCION' && detalle.RefaccionID) {
           const refaccion = await prisma.catalogo_refacciones.findUnique({
@@ -202,11 +219,13 @@ class PresupuestosService {
     );
 
     // Calcular totales
+    const aplicaIVA = data.aplicaIVA !== false; // true por defecto
     const totales = this.calcularTotales(
       detallesProcesados,
       data.DescuentoPorcentaje,
       data.DescuentoEfectivo,
-      data.GastosAdicionales
+      data.GastosAdicionales,
+      aplicaIVA
     );
 
     // Crear presupuesto con transacción
@@ -225,6 +244,7 @@ class PresupuestosService {
           DescuentoPorcentaje: data.DescuentoPorcentaje || null,
           DescuentoEfectivo: data.DescuentoEfectivo || null,
           GastosAdicionales: data.GastosAdicionales || null,
+          aplicaIVA: aplicaIVA ? 1 : 0,
           Subtotal: totales.Subtotal,
           IVA: totales.IVA,
           Total: totales.Total,
@@ -420,19 +440,23 @@ class PresupuestosService {
     }
 
     // Recalcular totales si cambian descuentos o gastos
+    const aplicaIVAUpdate = data.aplicaIVA !== undefined ? data.aplicaIVA : presupuesto.aplicaIVA !== 0;
     const detallesActuales = presupuesto.detalles.map(d => ({ Subtotal: d.Subtotal }));
     const totales = this.calcularTotales(
       detallesActuales,
       data.DescuentoPorcentaje !== undefined ? data.DescuentoPorcentaje : presupuesto.DescuentoPorcentaje,
       data.DescuentoEfectivo !== undefined ? data.DescuentoEfectivo : presupuesto.DescuentoEfectivo,
-      data.GastosAdicionales !== undefined ? data.GastosAdicionales : presupuesto.GastosAdicionales
+      data.GastosAdicionales !== undefined ? data.GastosAdicionales : presupuesto.GastosAdicionales,
+      aplicaIVAUpdate
     );
 
+    const { aplicaIVA: _aplicaIVA, ...dataRest } = data;
     const updated = await prisma.presupuestos_encabezado.update({
       where: { PresupuestoID },
       data: {
-        ...data,
+        ...dataRest,
         FechaVigencia: data.FechaVigencia ? new Date(data.FechaVigencia) : undefined,
+        aplicaIVA: aplicaIVAUpdate ? 1 : 0,
         Subtotal: totales.Subtotal,
         IVA: totales.IVA,
         Total: totales.Total,
@@ -1023,7 +1047,8 @@ class PresupuestosService {
       presupuesto.detalles,
       presupuesto.DescuentoPorcentaje,
       presupuesto.DescuentoEfectivo,
-      presupuesto.GastosAdicionales
+      presupuesto.GastosAdicionales,
+      presupuesto.aplicaIVA !== 0
     );
 
     await prisma.presupuestos_encabezado.update({
@@ -1099,8 +1124,7 @@ class PresupuestosService {
       const numeroPresupuesto = await this.generarNumeroPresupuesto(tx);
 
       // Calcular nueva fecha de vigencia (30 días desde hoy)
-      const nuevaVigencia = new Date();
-      nuevaVigencia.setDate(nuevaVigencia.getDate() + 30);
+      const nuevaVigencia = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
 
       // Crear encabezado
       const nuevoEncabezado = await tx.presupuestos_encabezado.create({
@@ -1114,6 +1138,7 @@ class PresupuestosService {
           DescuentoPorcentaje: original.DescuentoPorcentaje,
           DescuentoEfectivo: original.DescuentoEfectivo,
           GastosAdicionales: original.GastosAdicionales,
+          aplicaIVA: original.aplicaIVA,
           Subtotal: original.Subtotal,
           IVA: original.IVA,
           Total: original.Total,

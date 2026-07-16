@@ -30,6 +30,7 @@ export const createPresupuestoSchema = z.object({
   DescuentoPorcentaje: z.number().min(0).max(100).optional().nullable(),
   DescuentoEfectivo: z.number().min(0).optional().nullable(),
   GastosAdicionales: z.number().min(0).optional().nullable(),
+  aplicaIVA: z.boolean().optional().default(true),
   detalles: z.array(createDetalleSchema).min(1, 'Debe incluir al menos un item'),
 });
 
@@ -42,6 +43,7 @@ export const updatePresupuestoSchema = z.object({
   DescuentoPorcentaje: z.number().min(0).max(100).optional().nullable(),
   DescuentoEfectivo: z.number().min(0).optional().nullable(),
   GastosAdicionales: z.number().min(0).optional().nullable(),
+  aplicaIVA: z.boolean().optional(),
 });
 
 // Schema para cambiar estatus
