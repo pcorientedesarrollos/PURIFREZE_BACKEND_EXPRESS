@@ -890,6 +890,7 @@ model presupuestos_encabezado {
   DescuentoPorcentaje   Float?                   @db.Float
   DescuentoEfectivo     Float?                   @db.Float
   GastosAdicionales     Float?                   @db.Float
+  aplicaIVA             Int                      @default(1) @db.TinyInt
   IVA                   Float                    @default(0) @db.Float
   Total                 Float                    @default(0) @db.Float
 
