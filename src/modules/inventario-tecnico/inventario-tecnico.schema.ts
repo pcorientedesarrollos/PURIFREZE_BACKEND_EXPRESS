@@ -13,6 +13,7 @@ export const upsertInventarioTecnicoSchema = z.object({
 export const updateStockSchema = z.object({
   StockNuevo: z.number().min(0, 'StockNuevo no puede ser negativo').optional(),
   StockUsado: z.number().min(0, 'StockUsado no puede ser negativo').optional(),
+  UsuarioID: z.number().optional(),
 });
 
 // Schema para parámetros

@@ -1,4 +1,4 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import { Prisma, EstatusEquipo, TipoAccionEquipo } from '@prisma/client';
 import moment from 'moment';
@@ -13,6 +13,7 @@ import {
   FinalizarReacondicionamientoDto,
   SearchEquiposQuery,
 } from './equipos.schema';
+import { localDate } from '../../utils/date-utils';
 
 class EquiposService {
   // ═══════════════════════════════════════════════════════════════════════════
@@ -69,7 +70,7 @@ class EquiposService {
               EsExterno: plantilla.EsExterno,
               Estatus: 'Armado',
               Observaciones: dto.Observaciones || null,
-              FechaCreacion: new Date(),
+              FechaCreacion: localDate(),
               UsuarioCreadorID: usuarioId || null,
               IsActive: 1,
             },
@@ -162,7 +163,7 @@ class EquiposService {
         EsExterno: plantilla.EsExterno,
         Estatus: 'Armado',
         Observaciones: observaciones || null,
-        FechaCreacion: new Date(),
+        FechaCreacion: localDate(),
         UsuarioCreadorID: usuarioId || null,
         IsActive: 1,
       },
@@ -220,7 +221,7 @@ class EquiposService {
         where: { RefaccionID: refaccionId, IsActive: 1 },
         data: {
           StockActual: { decrement: cantidad },
-          FechaUltimoMovimiento: new Date(),
+          FechaUltimoMovimiento: localDate(),
         },
       });
     } else {
@@ -229,7 +230,7 @@ class EquiposService {
         data: {
           RefaccionID: refaccionId,
           StockActual: -cantidad,
-          FechaUltimoMovimiento: new Date(),
+          FechaUltimoMovimiento: localDate(),
           IsActive: 1,
         },
       });
@@ -245,7 +246,7 @@ class EquiposService {
     await tx.kardex_inventario.create({
       data: {
         RefaccionID: refaccionId,
-        FechaMovimiento: new Date(),
+        FechaMovimiento: localDate(),
         TipoMovimiento: 'Traspaso_Bodega_Equipo',
         Cantidad: -cantidad,
         CostoPromedioMovimiento: refaccion?.CostoPromedio || 0,
@@ -655,7 +656,7 @@ class EquiposService {
 
     const fechaInstalacion = dto.FechaInstalacion
       ? moment(dto.FechaInstalacion).toDate()
-      : new Date();
+      : localDate();
 
     const estatusAnterior = equipo.Estatus;
 
@@ -708,7 +709,7 @@ class EquiposService {
 
       const fechaDesmontaje = dto.FechaDesmontaje
         ? moment(dto.FechaDesmontaje).toDate()
-        : new Date();
+        : localDate();
 
       // Obtener todas las refacciones del equipo
       const detallesEquipo = await tx.equipos_detalle.findMany({
@@ -896,7 +897,7 @@ class EquiposService {
         where: { EquipoID: id },
         data: {
           Estatus: 'Armado',
-          FechaReacondicionamiento: new Date(),
+          FechaReacondicionamiento: localDate(),
           VecesReacondicionado: { increment: 1 },
           Observaciones: dto.Observaciones || equipo.Observaciones,
         },
@@ -1129,7 +1130,7 @@ class EquiposService {
       where: { RefaccionID: refaccionId, IsActive: 1 },
       data: {
         StockActual: { decrement: cantidad },
-        FechaUltimoMovimiento: new Date(),
+        FechaUltimoMovimiento: localDate(),
       },
     });
 
@@ -1167,7 +1168,7 @@ class EquiposService {
       where: { RefaccionID: refaccionId, IsActive: 1 },
       data: {
         StockActual: { increment: cantidad },
-        FechaUltimoMovimiento: new Date(),
+        FechaUltimoMovimiento: localDate(),
       },
     });
 
@@ -1208,7 +1209,7 @@ class EquiposService {
       where: { RefaccionID: refaccionId, IsActive: 1 },
       data: {
         StockActual: { decrement: cantidad },
-        FechaUltimoMovimiento: new Date(),
+        FechaUltimoMovimiento: localDate(),
       },
     });
 
@@ -1254,7 +1255,7 @@ class EquiposService {
       where: { RefaccionID: refaccionId, IsActive: 1 },
       data: {
         StockActual: { increment: cantidad },
-        FechaUltimoMovimiento: new Date(),
+        FechaUltimoMovimiento: localDate(),
       },
     });
 
@@ -1302,7 +1303,7 @@ class EquiposService {
         Cantidad: cantidad,
         MotivoDano: motivoDano as any,
         Observaciones: observaciones || null,
-        FechaRegistro: new Date(),
+        FechaRegistro: localDate(),
         UsuarioID: usuarioId || 1,
         IsActive: 1,
       },

@@ -1,4 +1,4 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import { Prisma } from '@prisma/client';
 import moment from 'moment';
@@ -8,6 +8,7 @@ import {
   AplicarNotaCreditoDto,
   SearchNotasCreditoQuery,
 } from './notas-credito.schema';
+import { localDate } from '../../utils/date-utils';
 
 class NotasCreditoService {
   // ═══════════════════════════════════════════════════════════════════════════
@@ -307,7 +308,7 @@ class NotasCreditoService {
           data: {
             ProveedorID: notaCredito.ProveedorID,
             Monto: montoExcedente,
-            Fecha: new Date(),
+            Fecha: localDate(),
             NumeroReferencia: `EXC-${notaCredito.NumeroReferencia || id}`,
             Descripcion: `Excedente de NC #${id} - ${notaCredito.Descripcion}`,
             Observaciones: `Generada automáticamente por excedente de $${montoExcedente.toFixed(2)}`,

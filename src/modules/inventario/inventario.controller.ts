@@ -43,6 +43,13 @@ class InventarioController {
     return success(res, result.message, result.data);
   }
 
+  async findKardexByTecnico(req: Request, res: Response) {
+    const { TecnicoID } = req.params as unknown as { TecnicoID: number };
+    const query = req.query as unknown as KardexQueryDto;
+    const result = await inventarioService.findKardexByTecnico(TecnicoID, query);
+    return success(res, result.message, result.data);
+  }
+
   async getTiposMovimiento(_req: Request, res: Response) {
     const result = await inventarioService.getTiposMovimiento();
     return success(res, result.message, result.data);

@@ -1,8 +1,9 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import { Prisma, EstadoPagoCompra } from '@prisma/client';
 import moment from 'moment';
 import { AplicarNotaCreditoDto } from './pedidos-descuentos.schema';
+import { localDate } from '../../utils/date-utils';
 
 class PedidosDescuentosService {
   private round2(value: number): number {
@@ -89,7 +90,7 @@ class PedidosDescuentosService {
           TipoDescuento: 'NOTA_CREDITO',
           MontoBase: montoNota,
           MontoDescuento: montoAplicar,
-          FechaAplicacion: new Date(),
+          FechaAplicacion: localDate(),
           Observaciones: `NC #${dto.NotaCreditoID} - ${notaCredito.NumeroCredito || notaCredito.Descripcion}`,
           UsuarioID: notaCredito.UsuarioID,
           IsActive: true,
@@ -117,7 +118,7 @@ class PedidosDescuentosService {
           data: {
             ProveedorID: notaCredito.ProveedorID,
             Monto: montoExcedente,
-            Fecha: new Date(),
+            Fecha: localDate(),
             NumeroReferencia: `EXC-${notaCredito.NumeroReferencia || dto.NotaCreditoID}`,
             Descripcion: `Excedente de NC #${dto.NotaCreditoID}`,
             Observaciones: `Generada por excedente de $${montoExcedente.toFixed(2)} al aplicar al pedido #${dto.PedidoID}`,

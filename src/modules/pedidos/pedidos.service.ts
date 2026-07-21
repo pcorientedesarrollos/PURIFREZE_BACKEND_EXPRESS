@@ -1,4 +1,4 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import { Prisma, FormaPagoCompra, EstadoPagoCompra, EstadoEntregaCompra } from '@prisma/client';
 import moment from 'moment';
@@ -9,6 +9,7 @@ import {
   UpdatePedidoDetalleDto,
 } from './pedidos.schema';
 import { facturasService } from '../facturas';
+import { localDate } from '../../utils/date-utils';
 
 const round2 = (v: number) => Math.round(v * 100) / 100;
 
@@ -336,7 +337,7 @@ class PedidosService {
           data: {
             IsActive: true,
             PedidoID: pedidoId,
-            FechaAsociacion: new Date(),
+            FechaAsociacion: localDate(),
           },
         });
       } else {
@@ -345,7 +346,7 @@ class PedidosService {
             PedidoID: pedidoId,
             FacturaID: facturaId,
             IsActive: true,
-            FechaAsociacion: new Date(),
+            FechaAsociacion: localDate(),
           },
         });
       }
@@ -461,7 +462,7 @@ class PedidosService {
   private async crearEncabezadoPedido(tx: Prisma.TransactionClient, dto: CreatePedidoDto) {
     let fechaVencimientoCredito: Date | null = null;
     if (dto.FormaPago === 'CREDITO' && dto.DiasCredito) {
-      fechaVencimientoCredito = moment(dto.FechaPedido || new Date()).add(dto.DiasCredito, 'days').toDate();
+      fechaVencimientoCredito = moment(dto.FechaPedido || localDate()).add(dto.DiasCredito, 'days').toDate();
     } else if (dto.FechaVencimientoCredito) {
       fechaVencimientoCredito = dto.FechaVencimientoCredito;
     }
@@ -472,7 +473,7 @@ class PedidosService {
       data: {
         ProveedorID: dto.ProveedorID,
         NumeroPedido: dto.NumeroPedido || null,
-        FechaPedido: dto.FechaPedido || new Date(),
+        FechaPedido: dto.FechaPedido || localDate(),
         TotalBruto: 0,
         TotalIVA: 0,
         TotalNeto: 0,
@@ -489,7 +490,7 @@ class PedidosService {
         FechaVencimientoCredito: fechaVencimientoCredito,
         Observaciones: dto.Observaciones || null,
         UsuarioID: dto.UsuarioID || null,
-        FechaAlta: new Date(),
+        FechaAlta: localDate(),
         IsActive: true,
       },
     });
@@ -509,7 +510,7 @@ class PedidosService {
 
     // Si cambia FormaPago a CREDITO con DiasCredito, recalcular vencimiento
     if (dataToUpdate.FormaPago === 'CREDITO' && dataToUpdate.DiasCredito) {
-      const baseFecha = (dataToUpdate.FechaPedido as Date) || pedidoExistente.FechaPedido || new Date();
+      const baseFecha = (dataToUpdate.FechaPedido as Date) || pedidoExistente.FechaPedido || localDate();
       dataToUpdate.FechaVencimientoCredito = moment(baseFecha).add(dataToUpdate.DiasCredito as number, 'days').toDate();
     }
 

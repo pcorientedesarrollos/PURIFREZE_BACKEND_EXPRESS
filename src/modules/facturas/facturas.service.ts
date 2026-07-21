@@ -1,9 +1,10 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { Prisma } from '@prisma/client';
 import { HttpError } from '../../utils/response';
 import { parseCfdi40, CfdiParseResult } from '../../utils/cfdi-parser';
 import pLimit from 'p-limit';
 import moment from 'moment';
+import { localDate } from '../../utils/date-utils';
 
 interface UploadResult {
   archivo: string;
@@ -155,7 +156,7 @@ export class FacturasService {
         FormaPago: encabezado.formaPago || null,
         LugarExpedicion: encabezado.lugarExpedicion,
         XmlOriginal: xmlBytes,
-        FechaCarga: new Date(),
+        FechaCarga: localDate(),
         IsActive: true,
         conceptos: {
           create: conceptos.map((c) => ({

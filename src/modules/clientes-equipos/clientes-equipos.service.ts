@@ -1,4 +1,4 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import {
   CreateClienteEquipoDto,
@@ -6,6 +6,7 @@ import {
   RetirarEquipoDto,
   ClientesEquiposQueryDto,
 } from './clientes-equipos.schema';
+import { localDate } from '../../utils/date-utils';
 
 class ClientesEquiposService {
   // Crear asignación de equipo a cliente
@@ -92,7 +93,7 @@ class ClientesEquiposService {
         NumeroSerieExterno: data.NumeroSerieExterno || null,
         MarcaEquipo: data.MarcaEquipo || null,
         ModeloEquipo: data.ModeloEquipo || null,
-        FechaAsignacion: data.FechaAsignacion ? new Date(data.FechaAsignacion) : new Date(),
+        FechaAsignacion: data.FechaAsignacion ? new Date(data.FechaAsignacion) : localDate(),
         Observaciones: data.Observaciones || null,
         UsuarioAsignaID: data.UsuarioAsignaID || null,
         Estatus: 'ACTIVO',
@@ -363,7 +364,7 @@ class ClientesEquiposService {
       where: { ClienteEquipoID },
       data: {
         Estatus: data.Estatus,
-        FechaRetiro: new Date(),
+        FechaRetiro: localDate(),
         MotivoRetiro: data.MotivoRetiro,
       },
     });

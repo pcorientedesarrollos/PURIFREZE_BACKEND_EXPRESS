@@ -1,4 +1,4 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import { Prisma } from '@prisma/client';
 import moment from 'moment';
@@ -8,6 +8,7 @@ import {
   SeleccionarMejorOpcionDto,
   GenerarPedidosDto,
 } from './cotizaciones-proveedor.schema';
+import { localDate } from '../../utils/date-utils';
 
 class CotizacionesProveedorService {
   /**
@@ -436,7 +437,7 @@ class CotizacionesProveedorService {
           DescuentoGlobal: dto.DescuentoGlobal || 0,
           NumeroPedido: dto.NumeroPedido || null,
           Observaciones: dto.Observaciones || null,
-          FechaRespuesta: isComplete ? new Date() : null,
+          FechaRespuesta: isComplete ? localDate() : null,
         },
       });
 
@@ -695,7 +696,7 @@ class CotizacionesProveedorService {
         data: {
           Estado: 'RECHAZADA',
           Observaciones: observaciones || 'Rechazado por el proveedor',
-          FechaRespuesta: new Date(),
+          FechaRespuesta: localDate(),
         },
       });
 
@@ -872,7 +873,7 @@ class CotizacionesProveedorService {
           data: {
             ProveedorID: proveedorId,
             NumeroPedido: respuesta.NumeroPedido || null,
-            FechaPedido: new Date(),
+            FechaPedido: localDate(),
             TotalBruto: totalBruto,
             TotalIVA: totalIVA,
             TotalNeto: totalNeto,
@@ -886,7 +887,7 @@ class CotizacionesProveedorService {
             EstadoPago: 'PENDIENTE',
             EstadoEntrega: 'PEDIDO',
             UsuarioID: cotizacion.UsuarioID,
-            FechaAlta: new Date(),
+            FechaAlta: localDate(),
             IsActive: true,
             Observaciones: observacionesOrigen,
           },
@@ -953,7 +954,7 @@ class CotizacionesProveedorService {
             data: {
               ProveedorID: proveedorId,
               NumeroPedido: respuesta.NumeroPedido || null,
-              FechaPedido: new Date(),
+              FechaPedido: localDate(),
               TotalBruto: 0,
               TotalIVA: 0,
               TotalNeto: 0,
@@ -967,7 +968,7 @@ class CotizacionesProveedorService {
               EstadoPago: 'PENDIENTE',
               EstadoEntrega: 'PEDIDO',
               UsuarioID: cotizacion.UsuarioID,
-              FechaAlta: new Date(),
+              FechaAlta: localDate(),
               IsActive: true,
               Observaciones: observacionesOrigen,
             },
@@ -1072,7 +1073,7 @@ class CotizacionesProveedorService {
               where: { EquipoVirtualID: equipoVirtual.EquipoVirtualID },
               data: {
                 TotalCosto: precioNuevo,
-                FechaActualizacion: new Date(),
+                FechaActualizacion: localDate(),
               },
             });
 

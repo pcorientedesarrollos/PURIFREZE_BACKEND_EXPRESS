@@ -1,4 +1,4 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import { Prisma, EstadoEntregaCompra } from '@prisma/client';
 import moment from 'moment';
@@ -8,6 +8,7 @@ import {
   crearKardex,
   actualizarCostoPromedioRefaccion,
 } from '../../shared/shared-operations.service';
+import { localDate } from '../../utils/date-utils';
 
 
 class PedidosRecepcionesService {
@@ -754,7 +755,7 @@ class PedidosRecepcionesService {
     await tx.equipos_virtuales_historial.create({
       data: {
         EquipoVirtualID: equipoVirtualID,
-        FechaCambio: new Date(),
+        FechaCambio: localDate(),
         PrecioAnterior: totalCostoAnterior,
         PrecioNuevo: nuevoTotalCostoSinIva,
         Diferencia: this.round2(nuevoTotalCostoSinIva - totalCostoAnterior),

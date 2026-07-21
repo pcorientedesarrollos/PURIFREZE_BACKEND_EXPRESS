@@ -1,4 +1,4 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import { Prisma } from '@prisma/client';
 import moment from 'moment';
@@ -7,6 +7,7 @@ import {
   UpdateEquipoVirtualDto,
   CreateEquipoVirtualDetalleDto,
 } from './equipos-virtuales.schema';
+import { localDate } from '../../utils/date-utils';
 
 class EquiposVirtualesService {
   /**
@@ -32,7 +33,7 @@ class EquiposVirtualesService {
           Codigo: dto.Codigo || null,
           TotalCosto: this.redondear(totalCosto),
           IsActive: true,
-          FechaCreacion: new Date(),
+          FechaCreacion: localDate(),
         },
       });
 
@@ -329,7 +330,7 @@ class EquiposVirtualesService {
           Descripcion: dto.Descripcion !== undefined ? dto.Descripcion : equipoExistente.Descripcion,
           Codigo: dto.Codigo !== undefined ? dto.Codigo : equipoExistente.Codigo,
           TotalCosto: this.redondear(totalCosto),
-          FechaActualizacion: new Date(),
+          FechaActualizacion: localDate(),
         },
       });
 
@@ -365,7 +366,7 @@ class EquiposVirtualesService {
           Descripcion: equipoOriginal.Descripcion,
           TotalCosto: equipoOriginal.TotalCosto,
           IsActive: true,
-          FechaCreacion: new Date(),
+          FechaCreacion: localDate(),
         },
       });
 
@@ -416,7 +417,7 @@ class EquiposVirtualesService {
 
     await prisma.equipos_virtuales.update({
       where: { EquipoVirtualID: id },
-      data: { IsActive: false, FechaActualizacion: new Date() },
+      data: { IsActive: false, FechaActualizacion: localDate() },
     });
 
     return { message: 'Equipo virtual dado de baja correctamente', data: { EquipoVirtualID: id } };
@@ -436,7 +437,7 @@ class EquiposVirtualesService {
 
     await prisma.equipos_virtuales.update({
       where: { EquipoVirtualID: id },
-      data: { IsActive: true, FechaActualizacion: new Date() },
+      data: { IsActive: true, FechaActualizacion: localDate() },
     });
 
     return { message: 'Equipo virtual activado correctamente', data: { EquipoVirtualID: id } };
@@ -647,7 +648,7 @@ class EquiposVirtualesService {
             PorcentajeVenta: 35.00,
             PorcentajeRenta: 15.00,
             IsActive: 1,
-            FechaCreacion: new Date(),
+            FechaCreacion: localDate(),
           },
         });
 

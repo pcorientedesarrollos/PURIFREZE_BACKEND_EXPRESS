@@ -1,4 +1,4 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import { Prisma } from '@prisma/client';
 import moment from 'moment';
@@ -6,6 +6,7 @@ import {
   CreatePlantillaEquipoDto,
   UpdatePlantillaEquipoDto,
 } from './plantillas-equipo.schema';
+import { localDate } from '../../utils/date-utils';
 
 class PlantillasEquipoService {
   /**
@@ -35,7 +36,7 @@ class PlantillasEquipoService {
           PorcentajeRenta: dto.PorcentajeRenta,
           PrecioRenta: dto.PrecioRenta || null,
           IsActive: 1,
-          FechaCreacion: new Date(),
+          FechaCreacion: localDate(),
         },
       });
 
@@ -233,7 +234,7 @@ class PlantillasEquipoService {
           PorcentajeVenta: dto.PorcentajeVenta ?? plantillaExistente.PorcentajeVenta,
           PorcentajeRenta: dto.PorcentajeRenta ?? plantillaExistente.PorcentajeRenta,
           PrecioRenta: dto.PrecioRenta !== undefined ? dto.PrecioRenta : plantillaExistente.PrecioRenta,
-          FechaModificacion: new Date(),
+          FechaModificacion: localDate(),
         },
       });
 
@@ -329,7 +330,7 @@ class PlantillasEquipoService {
           PorcentajeRenta: plantillaOriginal.PorcentajeRenta,
           PrecioRenta: plantillaOriginal.PrecioRenta,
           IsActive: 1,
-          FechaCreacion: new Date(),
+          FechaCreacion: localDate(),
         },
       });
 
@@ -366,7 +367,7 @@ class PlantillasEquipoService {
 
     await prisma.plantillas_equipo.update({
       where: { PlantillaEquipoID: id },
-      data: { IsActive: 0, FechaModificacion: new Date() },
+      data: { IsActive: 0, FechaModificacion: localDate() },
     });
 
     return { message: 'Plantilla dada de baja correctamente', data: { PlantillaEquipoID: id } };
@@ -386,7 +387,7 @@ class PlantillasEquipoService {
 
     await prisma.plantillas_equipo.update({
       where: { PlantillaEquipoID: id },
-      data: { IsActive: 1, FechaModificacion: new Date() },
+      data: { IsActive: 1, FechaModificacion: localDate() },
     });
 
     return { message: 'Plantilla activada correctamente', data: { PlantillaEquipoID: id } };

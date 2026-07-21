@@ -1,6 +1,7 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import { UpsertInventarioTecnicoDto, UpdateStockDto } from './inventario-tecnico.schema';
+import { localDate } from '../../utils/date-utils';
 
 class InventarioTecnicoService {
   // Asignar refacciones de bodega a un técnico (sin autorización)
@@ -77,7 +78,7 @@ class InventarioTecnicoService {
           where: { RefaccionID, IsActive: 1 },
           data: {
             StockActual: { decrement: cantidadAAgregar },
-            FechaUltimoMovimiento: new Date(),
+            FechaUltimoMovimiento: localDate(),
           },
         });
 
@@ -85,10 +86,11 @@ class InventarioTecnicoService {
         await tx.kardex_inventario.create({
           data: {
             RefaccionID,
-            FechaMovimiento: new Date(),
+            FechaMovimiento: localDate(),
             TipoMovimiento: 'Traspaso_Bodega_Tecnico',
             Cantidad: -cantidadAAgregar,
             UsuarioID: UsuarioID || 0,
+            TecnicoID,
             Observaciones: `Salida de bodega → Técnico ${tecnico.Codigo} (${tecnico.usuario.NombreCompleto})`,
           },
         });
@@ -97,10 +99,11 @@ class InventarioTecnicoService {
         await tx.kardex_inventario.create({
           data: {
             RefaccionID,
-            FechaMovimiento: new Date(),
+            FechaMovimiento: localDate(),
             TipoMovimiento: 'Traspaso_Bodega_Tecnico',
             Cantidad: cantidadAAgregar,
             UsuarioID: UsuarioID || 0,
+            TecnicoID,
             Observaciones: `Entrada a Técnico ${tecnico.Codigo} (${tecnico.usuario.NombreCompleto}) desde Bodega`,
           },
         });
@@ -115,7 +118,7 @@ class InventarioTecnicoService {
           where: { RefaccionID, IsActive: 1 },
           data: {
             StockActual: { increment: cantidadADevolver },
-            FechaUltimoMovimiento: new Date(),
+            FechaUltimoMovimiento: localDate(),
           },
         });
 
@@ -123,10 +126,11 @@ class InventarioTecnicoService {
         await tx.kardex_inventario.create({
           data: {
             RefaccionID,
-            FechaMovimiento: new Date(),
+            FechaMovimiento: localDate(),
             TipoMovimiento: 'Traspaso_Tecnico',
             Cantidad: -cantidadADevolver,
             UsuarioID: UsuarioID || 0,
+            TecnicoID,
             Observaciones: `Salida de Técnico ${tecnico.Codigo} (${tecnico.usuario.NombreCompleto}) → Bodega`,
           },
         });
@@ -135,10 +139,11 @@ class InventarioTecnicoService {
         await tx.kardex_inventario.create({
           data: {
             RefaccionID,
-            FechaMovimiento: new Date(),
+            FechaMovimiento: localDate(),
             TipoMovimiento: 'Traspaso_Tecnico',
             Cantidad: cantidadADevolver,
             UsuarioID: UsuarioID || 0,
+            TecnicoID,
             Observaciones: `Entrada a Bodega desde Técnico ${tecnico.Codigo} (${tecnico.usuario.NombreCompleto})`,
           },
         });
@@ -152,14 +157,14 @@ class InventarioTecnicoService {
         update: {
           StockNuevo,
           StockUsado,
-          FechaUltimoMov: new Date(),
+          FechaUltimoMov: localDate(),
         },
         create: {
           TecnicoID,
           RefaccionID,
           StockNuevo,
           StockUsado,
-          FechaUltimoMov: new Date(),
+          FechaUltimoMov: localDate(),
           IsActive: 1,
         },
         include: {
@@ -346,6 +351,8 @@ class InventarioTecnicoService {
 
   // Actualizar stock de una refacción específica
   async updateStock(TecnicoID: number, RefaccionID: number, data: UpdateStockDto) {
+    const { UsuarioID, ...stockData } = data;
+
     const inventario = await prisma.inventario_tecnico.findUnique({
       where: {
         TecnicoID_RefaccionID: { TecnicoID, RefaccionID },
@@ -356,13 +363,18 @@ class InventarioTecnicoService {
       throw new HttpError('Registro de inventario no encontrado', 404);
     }
 
+    const tecnico = await prisma.catalogo_tecnicos.findUnique({
+      where: { TecnicoID },
+      include: { usuario: { select: { NombreCompleto: true } } },
+    });
+
     const inventarioActualizado = await prisma.inventario_tecnico.update({
       where: {
         TecnicoID_RefaccionID: { TecnicoID, RefaccionID },
       },
       data: {
-        ...data,
-        FechaUltimoMov: new Date(),
+        ...stockData,
+        FechaUltimoMov: localDate(),
       },
       include: {
         tecnico: {
@@ -383,6 +395,25 @@ class InventarioTecnicoService {
         },
       },
     });
+
+    // Registrar ajuste en kardex
+    const nuevoTotal = (stockData.StockNuevo ?? inventario.StockNuevo) + (stockData.StockUsado ?? inventario.StockUsado);
+    const anteriorTotal = inventario.StockNuevo + inventario.StockUsado;
+    const diferencia = nuevoTotal - anteriorTotal;
+
+    if (diferencia !== 0) {
+      await prisma.kardex_inventario.create({
+        data: {
+          RefaccionID,
+          FechaMovimiento: localDate(),
+          TipoMovimiento: 'Ajuste_Inventario',
+          Cantidad: diferencia,
+          UsuarioID: UsuarioID || 0,
+          TecnicoID,
+          Observaciones: `Ajuste manual — Técnico ${tecnico?.Codigo || TecnicoID} (${tecnico?.usuario?.NombreCompleto || ''})`,
+        },
+      });
+    }
 
     return { message: 'Stock actualizado', data: inventarioActualizado };
   }

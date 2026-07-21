@@ -1,4 +1,4 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import {
   CreateVentaDto,
@@ -9,13 +9,14 @@ import {
   CreatePagoDto,
   VentasQueryDto,
 } from './ventas.schema';
+import { localDate } from '../../utils/date-utils';
 
 const IVA_PORCENTAJE = 0.16;
 
 class VentasService {
   // Generar número de venta
   private async generarNumeroVenta(): Promise<string> {
-    const year = new Date().getFullYear();
+    const year = localDate().getFullYear();
     const prefix = `V-${year}-`;
 
     const ultimaVenta = await prisma.ventas_encabezado.findFirst({
@@ -152,7 +153,7 @@ class VentasService {
           ClienteID: data.ClienteID,
           SucursalID: data.SucursalID || null,
           PresupuestoID: data.PresupuestoID || null,
-          FechaVenta: data.FechaVenta ? new Date(data.FechaVenta) : new Date(),
+          FechaVenta: data.FechaVenta ? new Date(data.FechaVenta) : localDate(),
           Subtotal: 0,
           DescuentoPorcentaje: data.DescuentoPorcentaje || null,
           DescuentoEfectivo: data.DescuentoEfectivo || null,
@@ -177,7 +178,7 @@ class VentasService {
         // Calcular fecha fin garantía si aplica
         let fechaFinGarantia = null;
         if (detalle.MesesGarantia) {
-          fechaFinGarantia = new Date();
+          fechaFinGarantia = localDate();
           fechaFinGarantia.setMonth(fechaFinGarantia.getMonth() + detalle.MesesGarantia);
         }
 
@@ -411,7 +412,7 @@ class VentasService {
 
     let fechaFinGarantia = null;
     if (data.MesesGarantia) {
-      fechaFinGarantia = new Date();
+      fechaFinGarantia = localDate();
       fechaFinGarantia.setMonth(fechaFinGarantia.getMonth() + data.MesesGarantia);
     }
 
@@ -470,7 +471,7 @@ class VentasService {
     let fechaFinGarantia = detalle.FechaFinGarantia;
     if (data.MesesGarantia !== undefined) {
       if (data.MesesGarantia) {
-        fechaFinGarantia = new Date();
+        fechaFinGarantia = localDate();
         fechaFinGarantia.setMonth(fechaFinGarantia.getMonth() + data.MesesGarantia);
       } else {
         fechaFinGarantia = null;

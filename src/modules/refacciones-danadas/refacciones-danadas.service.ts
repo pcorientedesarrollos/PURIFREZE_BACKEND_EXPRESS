@@ -1,6 +1,7 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import { CreateRefaccionDanadaDto } from './refacciones-danadas.schema';
+import { localDate } from '../../utils/date-utils';
 
 class RefaccionesDanadasService {
   async create(data: CreateRefaccionDanadaDto) {
@@ -56,7 +57,7 @@ class RefaccionesDanadasService {
       const registro = await tx.refacciones_danadas.create({
         data: {
           ...data,
-          FechaRegistro: new Date(),
+          FechaRegistro: localDate(),
           IsActive: 1,
         },
       });
@@ -82,7 +83,19 @@ class RefaccionesDanadasService {
             data: {
               StockUsado: { decrement: restarUsado },
               StockNuevo: { decrement: restarNuevo },
-              FechaUltimoMov: new Date(),
+              FechaUltimoMov: localDate(),
+            },
+          });
+
+          await tx.kardex_inventario.create({
+            data: {
+              RefaccionID,
+              FechaMovimiento: localDate(),
+              TipoMovimiento: 'Servicio_Danada',
+              Cantidad: -Cantidad,
+              UsuarioID,
+              TecnicoID,
+              Observaciones: `Refacción dañada — ${data.MotivoDano || 'Sin motivo especificado'}`,
             },
           });
         }

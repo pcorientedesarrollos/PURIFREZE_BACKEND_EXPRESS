@@ -1,6 +1,7 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import { CreateGastoDto, UpdateGastoDto, GastosQueryDto } from './gastos.schema';
+import { localDate } from '../../utils/date-utils';
 
 const INCLUDE_DETALLES = {
     detalles: {
@@ -161,7 +162,7 @@ class GastosService {
     }
 
     async getReporteSemanal() {
-        const hoy = new Date();
+        const hoy = localDate();
         const diasDesdeeLunes = hoy.getDay() === 0 ? 6 : hoy.getDay() - 1;
 
         const inicioActual = new Date(hoy);
@@ -217,7 +218,7 @@ class GastosService {
     }
 
     async getReporteMensual() {
-        const hoy = new Date();
+        const hoy = localDate();
         const MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
 
         const inicioActual = new Date(hoy.getFullYear(), hoy.getMonth(), 1);

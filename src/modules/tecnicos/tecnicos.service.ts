@@ -1,6 +1,7 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import { CreateTecnicoDto, UpdateTecnicoDto } from './tecnicos.schema';
+import { localDate } from '../../utils/date-utils';
 
 class TecnicosService {
   async create(data: CreateTecnicoDto) {
@@ -39,7 +40,7 @@ class TecnicosService {
       data: {
         ...data,
         IsActive: true,
-        FechaAlta: new Date(),
+        FechaAlta: localDate(),
       },
       include: {
         usuario: {

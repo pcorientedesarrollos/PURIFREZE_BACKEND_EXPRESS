@@ -1,4 +1,5 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
+import { localDate } from '../../utils/date-utils';
 
 interface EquipoCartera {
   noSerie: string;
@@ -102,7 +103,7 @@ export class RevisionCarteraService {
           ClienteActivo: cliente.ClienteActivo,
           Equipos: cliente.Equipos as any,
           PagoMensual: cliente.PagoMensual,
-          FechaRevision: new Date(),
+          FechaRevision: localDate(),
         },
         create: {
           ClienteViejoID: cliente.ClienteViejoID,

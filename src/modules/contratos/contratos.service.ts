@@ -1,4 +1,4 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import {
   CreateContratoDto,
@@ -13,11 +13,12 @@ import {
   ContratosQueryDto,
 } from './contratos.schema';
 import { cobrosService } from '../cobros/cobros.service';
+import { localDate } from '../../utils/date-utils';
 
 class ContratosService {
   // Generar número de contrato: CTR-YY-XXXX
   private async generarNumeroContrato(): Promise<string> {
-    const year = new Date().getFullYear().toString().slice(-2);
+    const year = localDate().getFullYear().toString().slice(-2);
     const prefix = `CTR-${year}-`;
 
     const ultimoContrato = await prisma.contratos.findFirst({
@@ -151,7 +152,7 @@ class ContratosService {
               TipoPropiedad: 'RENTA',
               ContratoID: nuevoContrato.ContratoID,
               PresupuestoDetalleID: detalle.DetalleID,
-              FechaAsignacion: new Date(),
+              FechaAsignacion: localDate(),
               Estatus: 'PENDIENTE_INSTALACION',
               Observaciones: `Equipo de contrato ${numeroContrato}`,
               IsActive: 1,
@@ -431,7 +432,7 @@ class ContratosService {
             where: { ClienteEquipoID: ce.ClienteEquipoID },
             data: {
               Estatus: 'RETIRADO',
-              FechaRetiro: new Date(),
+              FechaRetiro: localDate(),
               MotivoRetiro: data.MotivosCancelacion,
             },
           });
@@ -442,7 +443,7 @@ class ContratosService {
             data: {
               Estatus: 'RETIRADO',
               EquipoID: null, // Liberar el equipo físico
-              FechaRetiro: new Date(),
+              FechaRetiro: localDate(),
               MotivoRetiro: data.MotivosCancelacion,
             },
           });
@@ -758,7 +759,7 @@ class ContratosService {
             EquipoID: i === 0 && data.EquipoID ? data.EquipoID : null, // Solo el primero si se proporciona
             TipoPropiedad: 'RENTA',
             ContratoID: ContratoID,
-            FechaAsignacion: new Date(),
+            FechaAsignacion: localDate(),
             Estatus: 'PENDIENTE_INSTALACION',
             Observaciones: data.Observaciones || `Equipo agregado manualmente al contrato ${contrato.NumeroContrato}`,
             IsActive: 1,
@@ -843,7 +844,7 @@ class ContratosService {
         data: {
           IsActive: 0,
           Estatus: 'RETIRADO',
-          FechaRetiro: new Date(),
+          FechaRetiro: localDate(),
           MotivoRetiro: data.MotivoEliminacion || 'Eliminado del contrato antes de instalación',
           EquipoID: null, // Liberar el equipo físico
         },
@@ -1046,7 +1047,7 @@ class ContratosService {
         where: { EquipoID: clienteEquipo.EquipoID! },
         data: {
           Estatus: 'Instalado',
-          FechaInstalacion: new Date(),
+          FechaInstalacion: localDate(),
           ClienteID: clienteEquipo.ClienteID,
           SucursalID: clienteEquipo.SucursalID,
           ContratoID: clienteEquipo.ContratoID,
@@ -1096,7 +1097,7 @@ class ContratosService {
         where: { ClienteEquipoID },
         data: {
           Estatus: 'RETIRADO',
-          FechaRetiro: new Date(),
+          FechaRetiro: localDate(),
           MotivoRetiro: motivoRetiro || 'Retiro manual',
         },
       });
@@ -1107,7 +1108,7 @@ class ContratosService {
           where: { EquipoID: clienteEquipo.EquipoID },
           data: {
             Estatus: 'Desmontado',
-            FechaDesmontaje: new Date(),
+            FechaDesmontaje: localDate(),
             ClienteID: null,
             SucursalID: null,
             ContratoID: null,

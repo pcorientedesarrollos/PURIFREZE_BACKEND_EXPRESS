@@ -260,6 +260,49 @@ class InventarioService {
   }
 
   /**
+   * Obtiene kardex filtrado por TecnicoID
+   */
+  async findKardexByTecnico(tecnicoID: number, query: KardexQueryDto) {
+    const where: any = { TecnicoID: tecnicoID };
+
+    if (query.fechaInicio && query.fechaFin) {
+      where.FechaMovimiento = {
+        gte: new Date(query.fechaInicio),
+        lte: new Date(query.fechaFin),
+      };
+    } else if (query.fechaInicio) {
+      where.FechaMovimiento = { gte: new Date(query.fechaInicio) };
+    } else if (query.fechaFin) {
+      where.FechaMovimiento = { lte: new Date(query.fechaFin) };
+    }
+
+    if (query.tipoMovimiento) {
+      where.TipoMovimiento = query.tipoMovimiento;
+    }
+
+    const kardex = await prisma.kardex_inventario.findMany({
+      where,
+      orderBy: { KardexInventarioID: 'desc' },
+    });
+
+    const refaccionIds = [...new Set(kardex.map((k) => k.RefaccionID).filter(Boolean))] as number[];
+    const refacciones = await prisma.catalogo_refacciones.findMany({
+      where: { RefaccionID: { in: refaccionIds } },
+      select: { RefaccionID: true, NombrePieza: true, NombreCorto: true },
+    });
+
+    const refaccionesMap = new Map(refacciones.map((r) => [r.RefaccionID, r]));
+
+    const kardexFormateado = kardex.map((item) => ({
+      ...item,
+      FechaMovimiento: item.FechaMovimiento ? moment.utc(item.FechaMovimiento).format('YYYY-MM-DD') : null,
+      refaccion: item.RefaccionID ? refaccionesMap.get(item.RefaccionID) || null : null,
+    }));
+
+    return { message: 'Kardex del técnico obtenido', data: kardexFormateado };
+  }
+
+  /**
    * Buscar refacciones con stock disponible en bodega (inventario general)
    * Para usar en servicios cuando se necesita agregar insumos desde bodega
    * Nota: Usa la tabla 'inventario' que es diferente de 'inventario_tecnico'

@@ -1,4 +1,5 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
+import { localDate } from '../../utils/date-utils';
 
 const MESES_NOMBRES = [
     'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
@@ -55,7 +56,7 @@ class EstadosCuentaService {
 
     async getHistorico(meses: number = 12) {
         const maxMeses = Math.min(meses, 24);
-        const hoy = new Date();
+        const hoy = localDate();
 
         const inicioRango = new Date(hoy.getFullYear(), hoy.getMonth() - maxMeses + 1, 1, 0, 0, 0, 0);
         const finRango = new Date(hoy.getFullYear(), hoy.getMonth() + 1, 0, 23, 59, 59, 999);

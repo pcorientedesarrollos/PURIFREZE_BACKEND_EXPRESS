@@ -1,4 +1,4 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import {
   CreatePresupuestoDto,
@@ -9,6 +9,7 @@ import {
   CreateDetalleDto,
 } from './presupuestos.schema';
 import { equiposService } from '../equipos/equipos.service';
+import { localDate } from '../../utils/date-utils';
 
 const IVA_PORCENTAJE = 0.16;
 
@@ -297,7 +298,7 @@ class PresupuestosService {
     });
 
     // Calcular vencimiento dinámicamente
-    const hoy = new Date();
+    const hoy = localDate();
     hoy.setHours(0, 0, 0, 0);
 
     const presupuestosConVencimiento = presupuestos.map(p => {
@@ -360,7 +361,7 @@ class PresupuestosService {
     }
 
     // Calcular vencimiento dinámicamente
-    const hoy = new Date();
+    const hoy = localDate();
     hoy.setHours(0, 0, 0, 0);
     let estatusFinal = presupuesto.Estatus;
     if (presupuesto.Estatus === 'Pendiente' && new Date(presupuesto.FechaVigencia) < hoy) {
@@ -388,7 +389,7 @@ class PresupuestosService {
     });
 
     // Calcular vencimiento dinámicamente
-    const hoy = new Date();
+    const hoy = localDate();
     hoy.setHours(0, 0, 0, 0);
 
     const presupuestosConVencimiento = presupuestos.map(p => {
@@ -528,7 +529,7 @@ class PresupuestosService {
             ClienteID: presupuesto.ClienteID,
             SucursalID: presupuesto.SucursalID,
             PresupuestoID: presupuesto.PresupuestoID,
-            FechaVenta: new Date(),
+            FechaVenta: localDate(),
             Subtotal: 0,
             IVA: 0,
             Total: 0,
@@ -583,7 +584,7 @@ class PresupuestosService {
 
         // Calcular fecha fin (usar el mayor PeriodoRenta)
         const maxPeriodo = Math.max(...equiposRenta.map((e: any) => e.PeriodoRenta || 12));
-        const fechaFin = new Date();
+        const fechaFin = localDate();
         fechaFin.setMonth(fechaFin.getMonth() + maxPeriodo);
 
         // Calcular monto mensual (precio mensual * cantidad)
@@ -599,7 +600,7 @@ class PresupuestosService {
             PresupuestoID: presupuesto.PresupuestoID,
             ClienteID: presupuesto.ClienteID,
             SucursalID: presupuesto.SucursalID,
-            FechaInicio: new Date(),
+            FechaInicio: localDate(),
             FechaFin: fechaFin,
             MontoTotal: montoMensual, // Es el monto mensual (no multiplicado por período)
             Estatus: 'ACTIVO', // Se activa automáticamente al aprobar presupuesto
@@ -644,7 +645,7 @@ class PresupuestosService {
                 EquipoID: equipoID, // Asignar equipo físico si es Purifreeze
                 TipoPropiedad: 'COMPRA',
                 PresupuestoDetalleID: equipo.DetalleID,
-                FechaAsignacion: new Date(),
+                FechaAsignacion: localDate(),
                 Estatus: equipoID ? 'PENDIENTE_INSTALACION' : 'ACTIVO',
                 Observaciones: `Compra desde presupuesto - ${esPurifreeze ? 'Equipo físico creado automáticamente' : 'Equipo externo'}`,
                 IsActive: 1,
@@ -679,7 +680,7 @@ class PresupuestosService {
                 Modalidad: 'RENTA',
                 PrecioUnitario: equipo.PrecioUnitario,
                 PeriodoMeses: equipo.PeriodoRenta || 12,
-                FechaAsignacion: new Date(),
+                FechaAsignacion: localDate(),
                 Estatus: 'PENDIENTE_INSTALACION',
                 Observaciones: `Renta desde presupuesto - Equipo físico creado automáticamente`,
                 IsActive: 1,
@@ -721,7 +722,7 @@ class PresupuestosService {
                 TipoPropiedad: 'EXTERNO',
                 PresupuestoDetalleID: equipo.DetalleID,
                 DescripcionEquipo: equipo.Descripcion,
-                FechaAsignacion: new Date(),
+                FechaAsignacion: localDate(),
                 Estatus: 'ACTIVO',
                 Observaciones: `Equipo externo para mantenimiento desde presupuesto #${presupuesto.PresupuestoID}`,
                 IsActive: 1,
@@ -747,7 +748,7 @@ class PresupuestosService {
               PresupuestoID: presupuesto.PresupuestoID,
               NumeroCobro: numeroCobro,
               NumeroPeriodo: 1,
-              FechaVencimiento: new Date(),
+              FechaVencimiento: localDate(),
               MontoOriginal: servicio.Subtotal || 0,
               MontoFinal: servicio.Subtotal || 0,
               Estatus: 'PENDIENTE',
@@ -794,7 +795,7 @@ class PresupuestosService {
               PresupuestoID: presupuesto.PresupuestoID,
               NumeroCobro: numeroCobroVenta,
               NumeroPeriodo: 1,
-              FechaVencimiento: new Date(),
+              FechaVencimiento: localDate(),
               MontoOriginal: ventaCreada.Total,
               MontoFinal: ventaCreada.Total,
               Estatus: 'PENDIENTE',
@@ -861,7 +862,7 @@ class PresupuestosService {
 
   // Generar número de venta
   private async generarNumeroVenta(tx: any): Promise<string> {
-    const year = new Date().getFullYear();
+    const year = localDate().getFullYear();
     const prefix = `V-${year}-`;
 
     const ultimaVenta = await tx.ventas_encabezado.findFirst({
@@ -880,7 +881,7 @@ class PresupuestosService {
 
   // Generar número de contrato
   private async generarNumeroContrato(tx: any): Promise<string> {
-    const year = new Date().getFullYear();
+    const year = localDate().getFullYear();
     const prefix = `C-${year}-`;
 
     const ultimoContrato = await tx.contratos.findFirst({
@@ -899,7 +900,7 @@ class PresupuestosService {
 
   // Generar número de presupuesto
   private async generarNumeroPresupuesto(tx: any): Promise<string> {
-    const year = new Date().getFullYear();
+    const year = localDate().getFullYear();
     const prefix = `P-${year}-`;
 
     const ultimoPresupuesto = await tx.presupuestos_encabezado.findFirst({

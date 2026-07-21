@@ -449,6 +449,7 @@ model kardex_inventario {
   Cantidad                Float?                            @db.Float
   CostoPromedioMovimiento Float?                            @db.Float
   UsuarioID               Int?
+  TecnicoID               Int?
   Observaciones           String?                           @db.VarChar(255)
 }
 
@@ -666,6 +667,7 @@ enum kardex_inventario_TipoMovimiento {
   Servicio_Danada
   Reacondicionamiento_Entrada
   Reacondicionamiento_Salida
+  Ajuste_Inventario
   EMPTY_ENUM_VALUE @map("")
 }
 

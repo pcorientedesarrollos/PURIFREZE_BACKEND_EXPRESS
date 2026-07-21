@@ -1,4 +1,4 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import {
   CreateServicioAdicionalDto,
@@ -8,6 +8,7 @@ import {
   ActualizarServicioAdicionalAplicadoDto,
   ToggleCobrarAdicionalDto
 } from './servicios-adicionales.schema';
+import { localDate } from '../../utils/date-utils';
 
 export class ServiciosAdicionalesService {
   /**
@@ -213,7 +214,7 @@ export class ServiciosAdicionalesService {
         CostoOriginal: servicioAdicional.Costo,
         CostoAplicado: data.CostoAplicado ?? servicioAdicional.Costo,
         Autorizado: 1, // Siempre autorizado por defecto
-        FechaAutorizacion: new Date(),
+        FechaAutorizacion: localDate(),
         NombreAutorizante: 'Auto',
         Observaciones: data.Observaciones || null,
         UsuarioAgregaID: usuarioId || null,
@@ -290,7 +291,7 @@ export class ServiciosAdicionalesService {
       where: { ServicioAdicionalAplicadoID: servicioAdicionalAplicadoId },
       data: {
         Autorizado: 1,
-        FechaAutorizacion: new Date(),
+        FechaAutorizacion: localDate(),
         NombreAutorizante: data.NombreAutorizante,
         Observaciones: data.Observaciones || aplicado.Observaciones,
         UsuarioAutorizaID: usuarioId || null,

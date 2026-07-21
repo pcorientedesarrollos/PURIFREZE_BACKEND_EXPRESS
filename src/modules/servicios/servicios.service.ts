@@ -1,4 +1,4 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import { Prisma, TipoServicio, EstatusServicio, MotivoDano, TipoAccionServicio } from '@prisma/client';
 import moment from 'moment';
@@ -20,6 +20,7 @@ import {
   SearchServiciosQuery,
   AgendaQuery,
 } from './servicios.schema';
+import { localDate } from '../../utils/date-utils';
 
 class ServiciosService {
   // ═══════════════════════════════════════════════════════════════════════════
@@ -1118,7 +1119,7 @@ class ServiciosService {
                   Cantidad: refaccion.CantidadEquipo,
                   MotivoDano: refaccion.MotivoDano ?? MotivoDano.Otro,
                   Observaciones: refaccion.ObservacionesDano || null,
-                  FechaRegistro: new Date(),
+                  FechaRegistro: localDate(),
                   UsuarioID: usuarioId || 1,
                   IsActive: 1,
                 },
@@ -1135,7 +1136,7 @@ class ServiciosService {
               where: { EquipoID: equipo.EquipoID },
               data: {
                 Estatus: 'Instalado',
-                FechaInstalacion: new Date(),
+                FechaInstalacion: localDate(),
               },
             });
           }
@@ -1146,7 +1147,7 @@ class ServiciosService {
               where: { ClienteEquipoID: servicioEquipo.ClienteEquipoID },
               data: {
                 Estatus: 'INSTALADO',
-                FechaInstalacion: new Date(),
+                FechaInstalacion: localDate(),
               },
             });
           }
@@ -1158,7 +1159,7 @@ class ServiciosService {
                 where: { ClienteEquipoID: servicioEquipo.ClienteEquipoID },
                 data: {
                   Estatus: 'RETIRADO',
-                  FechaRetiro: new Date(),
+                  FechaRetiro: localDate(),
                 },
               });
             }
@@ -1169,7 +1170,7 @@ class ServiciosService {
               where: { EquipoID: equipo.EquipoID },
               data: {
                 Estatus: nuevoEstatus,
-                FechaDesmontaje: new Date(),
+                FechaDesmontaje: localDate(),
                 ContratoID: null,
                 ClienteID: null,
                 SucursalID: null,
@@ -1181,7 +1182,7 @@ class ServiciosService {
               where: { ClienteEquipoID: servicioEquipo.ClienteEquipoID! },
               data: {
                 Estatus: 'RETIRADO',
-                FechaRetiro: new Date(),
+                FechaRetiro: localDate(),
               },
             });
 
@@ -1198,7 +1199,7 @@ class ServiciosService {
                       Cantidad: refaccion.CantidadEquipo,
                       MotivoDano: refaccion.MotivoDano ?? MotivoDano.Otro,
                       Observaciones: refaccion.ObservacionesDano || null,
-                      FechaRegistro: new Date(),
+                      FechaRegistro: localDate(),
                       UsuarioID: usuarioId || 1,
                       IsActive: 1,
                     },
@@ -1234,8 +1235,8 @@ class ServiciosService {
         where: { ServicioID: id },
         data: {
           Estatus: 'REALIZADO',
-          FechaEjecucion: new Date(),
-          HoraFin: new Date(),
+          FechaEjecucion: localDate(),
+          HoraFin: localDate(),
           ObservacionesDespues: dto.ObservacionesDespues || null,
           ObservacionesGenerales: dto.ObservacionesGenerales || servicio.ObservacionesGenerales,
           ProximoServicioMeses: dto.ProximoServicioMeses || null,
@@ -1290,7 +1291,7 @@ class ServiciosService {
       // Solo generar cobro si hay algo que cobrar
       if (totalACobrar > 0) {
         // Generar número de cobro con formato SRV-AÑO-SERVICEID
-        const anio = new Date().getFullYear();
+        const anio = localDate().getFullYear();
         const numeroCobro = `SRV-${anio}-${id}`;
 
         // Construir descripción del cobro
@@ -1350,7 +1351,7 @@ class ServiciosService {
             ContratoID: servicio.ContratoID,
             ServicioID: { not: id },
             Estatus: { notIn: ['REALIZADO', 'CANCELADO'] },
-            FechaProgramada: { gte: new Date() },
+            FechaProgramada: { gte: localDate() },
             IsActive: 1,
           },
           orderBy: { FechaProgramada: 'asc' },
@@ -1481,7 +1482,7 @@ class ServiciosService {
       data: {
         StockUsado: { decrement: descontadoUsado },
         StockNuevo: { decrement: descontadoNuevo },
-        FechaUltimoMov: new Date(),
+        FechaUltimoMov: localDate(),
       },
     });
 
@@ -1494,7 +1495,7 @@ class ServiciosService {
     await tx.kardex_inventario.create({
       data: {
         RefaccionID: refaccionId,
-        FechaMovimiento: new Date(),
+        FechaMovimiento: localDate(),
         TipoMovimiento: 'Servicio_Consumo_Tecnico',
         Cantidad: -cantidad,
         CostoPromedioMovimiento: refaccion?.CostoPromedio || 0,
@@ -1526,7 +1527,7 @@ class ServiciosService {
       where: { RefaccionID: refaccionId, IsActive: 1 },
       data: {
         StockActual: { decrement: cantidad },
-        FechaUltimoMovimiento: new Date(),
+        FechaUltimoMovimiento: localDate(),
       },
     });
 
@@ -1538,7 +1539,7 @@ class ServiciosService {
     await tx.kardex_inventario.create({
       data: {
         RefaccionID: refaccionId,
-        FechaMovimiento: new Date(),
+        FechaMovimiento: localDate(),
         TipoMovimiento: 'Servicio_Consumo_Bodega',
         Cantidad: -cantidad,
         CostoPromedioMovimiento: refaccion?.CostoPromedio || 0,
@@ -1558,7 +1559,7 @@ class ServiciosService {
       where: { RefaccionID: refaccionId, IsActive: 1 },
       data: {
         StockActual: { increment: cantidad },
-        FechaUltimoMovimiento: new Date(),
+        FechaUltimoMovimiento: localDate(),
       },
     });
 
@@ -1570,7 +1571,7 @@ class ServiciosService {
     await tx.kardex_inventario.create({
       data: {
         RefaccionID: refaccionId,
-        FechaMovimiento: new Date(),
+        FechaMovimiento: localDate(),
         TipoMovimiento: 'Servicio_Devolucion_Bodega',
         Cantidad: cantidad,
         CostoPromedioMovimiento: refaccion?.CostoPromedio || 0,

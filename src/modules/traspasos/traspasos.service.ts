@@ -1,6 +1,7 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import { CreateTraspasoDto, AutorizarTraspasoDto } from './traspasos.schema';
+import { localDate } from '../../utils/date-utils';
 
 class TraspasosService {
   // Crear solicitud de traspaso
@@ -114,7 +115,7 @@ class TraspasosService {
           DestinoTipo,
           DestinoID,
           UsuarioSolicitaID,
-          FechaSolicitud: new Date(),
+          FechaSolicitud: localDate(),
           Estatus: 'Pendiente',
           Observaciones,
           IsActive: 1,
@@ -343,7 +344,7 @@ class TraspasosService {
               data: {
                 StockNuevo: { decrement: item.CantidadNuevo },
                 StockUsado: { decrement: item.CantidadUsado },
-                FechaUltimoMov: new Date(),
+                FechaUltimoMov: localDate(),
               },
             });
           } else if (traspaso.OrigenTipo === 'Bodega') {
@@ -351,7 +352,7 @@ class TraspasosService {
               where: { RefaccionID: item.RefaccionID, IsActive: 1 },
               data: {
                 StockActual: { decrement: item.CantidadNuevo + item.CantidadUsado },
-                FechaUltimoMovimiento: new Date(),
+                FechaUltimoMovimiento: localDate(),
               },
             });
           }
@@ -365,14 +366,14 @@ class TraspasosService {
               update: {
                 StockNuevo: { increment: item.CantidadNuevo },
                 StockUsado: { increment: item.CantidadUsado },
-                FechaUltimoMov: new Date(),
+                FechaUltimoMov: localDate(),
               },
               create: {
                 TecnicoID: traspaso.DestinoID,
                 RefaccionID: item.RefaccionID,
                 StockNuevo: item.CantidadNuevo,
                 StockUsado: item.CantidadUsado,
-                FechaUltimoMov: new Date(),
+                FechaUltimoMov: localDate(),
                 IsActive: 1,
               },
             });
@@ -386,7 +387,7 @@ class TraspasosService {
                 where: { InventarioID: inventarioBodega.InventarioID },
                 data: {
                   StockActual: { increment: item.CantidadNuevo + item.CantidadUsado },
-                  FechaUltimoMovimiento: new Date(),
+                  FechaUltimoMovimiento: localDate(),
                 },
               });
             }
@@ -398,7 +399,7 @@ class TraspasosService {
           await tx.kardex_inventario.create({
             data: {
               RefaccionID: item.RefaccionID,
-              FechaMovimiento: new Date(),
+              FechaMovimiento: localDate(),
               TipoMovimiento: this.getTipoMovimientoSalida(traspaso.OrigenTipo),
               Cantidad: -cantidadTotal, // Negativo para salida
               UsuarioID: UsuarioAutorizaID,
@@ -410,7 +411,7 @@ class TraspasosService {
           await tx.kardex_inventario.create({
             data: {
               RefaccionID: item.RefaccionID,
-              FechaMovimiento: new Date(),
+              FechaMovimiento: localDate(),
               TipoMovimiento: this.getTipoMovimientoEntrada(traspaso.DestinoTipo),
               Cantidad: cantidadTotal, // Positivo para entrada
               UsuarioID: UsuarioAutorizaID,
@@ -425,7 +426,7 @@ class TraspasosService {
           data: {
             Estatus: 'Autorizado',
             UsuarioAutorizaID,
-            FechaAutorizacion: new Date(),
+            FechaAutorizacion: localDate(),
             Observaciones: Observaciones ? `${traspaso.Observaciones || ''} | Auth: ${Observaciones}` : traspaso.Observaciones,
           },
         });
@@ -439,7 +440,7 @@ class TraspasosService {
         data: {
           Estatus: 'Rechazado',
           UsuarioAutorizaID,
-          FechaAutorizacion: new Date(),
+          FechaAutorizacion: localDate(),
           Observaciones: Observaciones ? `${traspaso.Observaciones || ''} | Rechazo: ${Observaciones}` : traspaso.Observaciones,
         },
       });

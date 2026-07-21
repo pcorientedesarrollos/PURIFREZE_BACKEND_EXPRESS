@@ -5,6 +5,11 @@ export const refaccionIdParamSchema = z.object({
   RefaccionID: z.string().regex(/^\d+$/, 'ID debe ser un número válido').transform(Number),
 });
 
+// Schema para params de TecnicoID
+export const tecnicoIdParamSchema = z.object({
+  TecnicoID: z.string().regex(/^\d+$/, 'TecnicoID debe ser un número válido').transform(Number),
+});
+
 // Schema para query params de kardex
 export const kardexQuerySchema = z.object({
   fechaInicio: z.string().optional(),

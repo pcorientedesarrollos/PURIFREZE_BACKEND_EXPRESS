@@ -1,7 +1,7 @@
 import { Router } from 'express';
 import { inventarioController } from './inventario.controller';
 import { validateParams, validateQuery } from '../../middlewares/validateRequest';
-import { refaccionIdParamSchema, kardexQuerySchema } from './inventario.schema';
+import { refaccionIdParamSchema, tecnicoIdParamSchema, kardexQuerySchema } from './inventario.schema';
 
 const router = Router();
 
@@ -171,6 +171,13 @@ router.get(
   validateParams(refaccionIdParamSchema),
   validateQuery(kardexQuerySchema),
   (req, res) => inventarioController.findKardexByRefaccion(req, res),
+);
+
+router.get(
+  '/kardex/tecnico/:TecnicoID',
+  validateParams(tecnicoIdParamSchema),
+  validateQuery(kardexQuerySchema),
+  (req, res) => inventarioController.findKardexByTecnico(req, res),
 );
 
 export default router;

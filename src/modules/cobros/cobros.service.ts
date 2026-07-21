@@ -1,4 +1,4 @@
-import { Prisma } from '@prisma/client';
+﻿import { Prisma } from '@prisma/client';
 import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import {
@@ -12,6 +12,7 @@ import {
   PagarConDescuentoDto,
   PagarMultiplesDto,
 } from './cobros.schema';
+import { localDate } from '../../utils/date-utils';
 
 class CobrosService {
   // =============================================
@@ -256,7 +257,7 @@ class CobrosService {
 
     if (Vencidos) {
       where.Estatus = 'PENDIENTE';
-      where.FechaVencimiento = { lt: new Date() };
+      where.FechaVencimiento = { lt: localDate() };
     }
 
     const [cobros, total] = await Promise.all([
@@ -363,7 +364,7 @@ class CobrosService {
       pendientes: cobros.filter((c) => c.Estatus === 'PENDIENTE').length,
       pagados: cobros.filter((c) => c.Estatus === 'PAGADO').length,
       parciales: cobros.filter((c) => c.Estatus === 'PARCIAL').length,
-      vencidos: cobros.filter((c) => c.Estatus === 'PENDIENTE' && new Date(c.FechaVencimiento) < new Date()).length,
+      vencidos: cobros.filter((c) => c.Estatus === 'PENDIENTE' && new Date(c.FechaVencimiento) < localDate()).length,
       regalados: cobros.filter((c) => c.Estatus === 'REGALADO').length,
       promociones: cobros.filter((c) => c.Estatus === 'PROMOCION').length,
       cancelados: cobros.filter((c) => c.Estatus === 'CANCELADO').length,
@@ -387,7 +388,7 @@ class CobrosService {
     const cobros = await prisma.cobros.findMany({
       where: {
         Estatus: 'PENDIENTE',
-        FechaVencimiento: { lt: new Date() },
+        FechaVencimiento: { lt: localDate() },
         IsActive: 1,
       },
       include: {
@@ -435,7 +436,7 @@ class CobrosService {
       },
       totalCobros: cobros.length,
       pendientes: cobros.filter((c) => c.Estatus === 'PENDIENTE').length,
-      vencidos: cobros.filter((c) => c.Estatus === 'PENDIENTE' && new Date(c.FechaVencimiento) < new Date()).length,
+      vencidos: cobros.filter((c) => c.Estatus === 'PENDIENTE' && new Date(c.FechaVencimiento) < localDate()).length,
       pagados: cobros.filter((c) => c.Estatus === 'PAGADO').length,
       montoTotalPendiente: cobros.filter((c) => c.Estatus === 'PENDIENTE').reduce((sum, c) => sum + c.MontoFinal, 0),
       montoTotalPagado: cobros.reduce((sum, c) => sum + (c.MontoPagado || 0), 0),
@@ -467,7 +468,7 @@ class CobrosService {
       throw new HttpError(`No se puede registrar pago en un cobro con estatus ${cobro.Estatus}`, 300);
     }
 
-    const fechaPago = data.FechaPago ? new Date(data.FechaPago) : new Date();
+    const fechaPago = data.FechaPago ? new Date(data.FechaPago) : localDate();
 
     const cobroActualizado = await prisma.$transaction(async (tx) => {
       // Actualizar cobro
@@ -524,7 +525,7 @@ class CobrosService {
     }
 
     const montoAcumulado = (cobro.MontoPagado || 0) + data.MontoPagado;
-    const fechaPago = data.FechaPago ? new Date(data.FechaPago) : new Date();
+    const fechaPago = data.FechaPago ? new Date(data.FechaPago) : localDate();
 
     // Determinar si es pago completo o parcial
     const nuevoEstatus = montoAcumulado >= cobro.MontoFinal ? 'PAGADO' : 'PARCIAL';
@@ -591,7 +592,7 @@ class CobrosService {
           MontoFinal: 0,
           MontoPagado: 0,
           Observaciones: data.Observaciones,
-          FechaPago: new Date(),
+          FechaPago: localDate(),
           UsuarioPagoID: data.UsuarioID,
         },
       });
@@ -722,7 +723,7 @@ class CobrosService {
     }
 
     const montoFinal = cobro.MontoOriginal - montoDescuento;
-    const fechaPago = data.FechaPago ? new Date(data.FechaPago) : new Date();
+    const fechaPago = data.FechaPago ? new Date(data.FechaPago) : localDate();
 
     // Si el descuento es 100%, es un regalo
     const esRegalo = montoFinal === 0;
@@ -1001,7 +1002,7 @@ class CobrosService {
 
     // Calcular el total a pagar
     const totalAPagar = cobros.reduce((sum, c) => sum + c.MontoFinal, 0);
-    const fechaPagoReal = FechaPago ? new Date(FechaPago) : new Date();
+    const fechaPagoReal = FechaPago ? new Date(FechaPago) : localDate();
 
     // Procesar pagos en transacción
     const cobrosActualizados = await prisma.$transaction(async (tx) => {
@@ -1056,7 +1057,7 @@ class CobrosService {
    * Marcar cobros vencidos (tarea programada)
    */
   async marcarVencidos() {
-    const hoy = new Date();
+    const hoy = localDate();
     hoy.setHours(0, 0, 0, 0);
 
     const cobrosActualizados = await prisma.cobros.updateMany({

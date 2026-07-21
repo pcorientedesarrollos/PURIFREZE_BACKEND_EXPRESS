@@ -1,6 +1,7 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import { CreateAjusteDto, AutorizarAjusteDto } from './ajustes-inventario.schema';
+import { localDate } from '../../utils/date-utils';
 
 class AjustesInventarioService {
   async create(data: CreateAjusteDto) {
@@ -60,7 +61,7 @@ class AjustesInventarioService {
         MotivoAjuste: data.MotivoAjuste,
         Observaciones: data.Observaciones,
         UsuarioSolicitaID,
-        FechaSolicitud: new Date(),
+        FechaSolicitud: localDate(),
         Estatus: 'Pendiente',
         IsActive: 1,
       },
@@ -211,14 +212,14 @@ class AjustesInventarioService {
           update: {
             StockNuevo: ajuste.StockRealNuevo,
             StockUsado: ajuste.StockRealUsado,
-            FechaUltimoMov: new Date(),
+            FechaUltimoMov: localDate(),
           },
           create: {
             TecnicoID: ajuste.TecnicoID,
             RefaccionID: ajuste.RefaccionID,
             StockNuevo: ajuste.StockRealNuevo,
             StockUsado: ajuste.StockRealUsado,
-            FechaUltimoMov: new Date(),
+            FechaUltimoMov: localDate(),
             IsActive: 1,
           },
         });
@@ -229,7 +230,7 @@ class AjustesInventarioService {
           await tx.kardex_inventario.create({
             data: {
               RefaccionID: ajuste.RefaccionID,
-              FechaMovimiento: new Date(),
+              FechaMovimiento: localDate(),
               TipoMovimiento: 'Traspaso_Tecnico', // Usamos este como ajuste
               Cantidad: Math.abs(cantidadTotal),
               UsuarioID: UsuarioAutorizaID,
@@ -244,7 +245,7 @@ class AjustesInventarioService {
           data: {
             Estatus: 'Autorizado',
             UsuarioAutorizaID,
-            FechaAutorizacion: new Date(),
+            FechaAutorizacion: localDate(),
             Observaciones: Observaciones
               ? `${ajuste.Observaciones || ''} | Auth: ${Observaciones}`
               : ajuste.Observaciones,
@@ -260,7 +261,7 @@ class AjustesInventarioService {
         data: {
           Estatus: 'Rechazado',
           UsuarioAutorizaID,
-          FechaAutorizacion: new Date(),
+          FechaAutorizacion: localDate(),
           Observaciones: Observaciones
             ? `${ajuste.Observaciones || ''} | Rechazo: ${Observaciones}`
             : ajuste.Observaciones,

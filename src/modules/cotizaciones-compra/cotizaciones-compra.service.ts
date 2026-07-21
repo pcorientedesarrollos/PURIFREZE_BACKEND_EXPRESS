@@ -1,4 +1,4 @@
-import prisma from '../../config/database';
+﻿import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import { Prisma } from '@prisma/client';
 import moment from 'moment';
@@ -10,6 +10,7 @@ import {
   AgregarEquipoVirtualDto,
 } from './cotizaciones-compra.schema';
 import { generateCotizacionPdf, getPdfUrl, cleanOldPdfs, CotizacionPdfData } from '../../utils/pdf-generator';
+import { localDate } from '../../utils/date-utils';
 
 class CotizacionesCompraService {
   /**
@@ -538,7 +539,7 @@ class CotizacionesCompraService {
         data: {
           ProveedorID: dto.ProveedorID,
           NumeroPedido: cotizacion.NumeroPedido || null,
-          FechaPedido: new Date(),
+          FechaPedido: localDate(),
           TotalBruto: 0,
           TotalIVA: 0,
           TotalNeto: 0,
@@ -552,7 +553,7 @@ class CotizacionesCompraService {
           EstadoPago: 'PENDIENTE',
           EstadoEntrega: 'PEDIDO',
           UsuarioID: cotizacion.UsuarioID,
-          FechaAlta: new Date(),
+          FechaAlta: localDate(),
           IsActive: true,
         },
       });
@@ -1018,14 +1019,14 @@ class CotizacionesCompraService {
         where: { EquipoVirtualID: equipoVirtual.EquipoVirtualID },
         data: {
           TotalCosto: precioNuevo,
-          FechaActualizacion: new Date(),
+          FechaActualizacion: localDate(),
         },
       });
     }
   }
 
   private async generarFolio(tx: Prisma.TransactionClient): Promise<string> {
-    const año = new Date().getFullYear();
+    const año = localDate().getFullYear();
     const ultimaCotizacion = await tx.cotizaciones_compra_encabezado.findFirst({
       where: {
         Folio: { startsWith: `COT-${año}-` },

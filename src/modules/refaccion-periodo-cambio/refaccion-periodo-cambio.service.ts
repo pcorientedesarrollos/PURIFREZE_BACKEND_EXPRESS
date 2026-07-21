@@ -1,4 +1,4 @@
-/**
+﻿/**
  * ============================================================================
  * SERVICE: Refacción Periodo de Cambio
  * ============================================================================
@@ -14,6 +14,7 @@ import {
     UpsertPeriodosDto,
     SearchPeriodosQuery
 } from './refaccion-periodo-cambio.schema';
+import { localDate } from '../../utils/date-utils';
 
 class RefaccionPeriodoCambioService {
     // ============================================================================
@@ -552,7 +553,7 @@ class RefaccionPeriodoCambioService {
         const proximoNumero = await this.getProximoNumeroMantenimiento(contratoId);
         const periodoContrato = contrato.FrecuenciaMantenimiento;
         const fechaInicio = new Date(contrato.FechaInicio);
-        const hoy = new Date();
+        const hoy = localDate();
 
         const equiposConVigencia: any[] = [];
 
@@ -628,7 +629,7 @@ class RefaccionPeriodoCambioService {
      * Calcular días restantes desde hoy hasta una fecha
      */
     private calcularDiasRestantes(fecha: Date): number {
-        const hoy = new Date();
+        const hoy = localDate();
         hoy.setHours(0, 0, 0, 0);
         const fechaTarget = new Date(fecha);
         fechaTarget.setHours(0, 0, 0, 0);
