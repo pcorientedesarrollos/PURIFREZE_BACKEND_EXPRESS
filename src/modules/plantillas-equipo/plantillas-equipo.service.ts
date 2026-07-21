@@ -53,7 +53,7 @@ class PlantillasEquipoService {
       }
 
       return plantilla;
-    });
+    }, { timeout: 30000 });
 
     // Obtener la plantilla completa con precios calculados
     const plantillaCompleta = await this.findOne(result.PlantillaEquipoID);
@@ -294,7 +294,7 @@ class PlantillasEquipoService {
       }
 
       return id;
-    });
+    }, { timeout: 30000 });
 
     // Retornar plantilla actualizada con precios
     const plantillaActualizada = await this.findOne(result);
@@ -347,7 +347,7 @@ class PlantillasEquipoService {
       }
 
       return nuevaPlantilla.PlantillaEquipoID;
-    });
+    }, { timeout: 30000 });
 
     const plantillaDuplicada = await this.findOne(result);
     return { message: 'Plantilla duplicada correctamente', data: plantillaDuplicada.data };
