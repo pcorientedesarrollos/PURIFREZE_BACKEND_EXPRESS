@@ -395,13 +395,20 @@ class TraspasosService {
 
           const cantidadTotal = item.CantidadNuevo + item.CantidadUsado;
 
+          const refaccionCosto = await tx.catalogo_refacciones.findUnique({
+            where: { RefaccionID: item.RefaccionID },
+            select: { CostoPromedio: true },
+          });
+          const costoPromedio = refaccionCosto?.CostoPromedio ?? null;
+
           // Registrar SALIDA en kardex (del origen)
           await tx.kardex_inventario.create({
             data: {
               RefaccionID: item.RefaccionID,
               FechaMovimiento: localDate(),
               TipoMovimiento: this.getTipoMovimientoSalida(traspaso.OrigenTipo),
-              Cantidad: -cantidadTotal, // Negativo para salida
+              Cantidad: -cantidadTotal,
+              CostoPromedioMovimiento: costoPromedio,
               UsuarioID: UsuarioAutorizaID,
               Observaciones: `Salida por traspaso #${TraspasoEncabezadoID} - ${traspaso.OrigenTipo === 'Bodega' ? 'Bodega' : `Técnico ${traspaso.OrigenID}`} → ${traspaso.DestinoTipo === 'Bodega' ? 'Bodega' : `Técnico ${traspaso.DestinoID}`}`,
             },
@@ -413,7 +420,8 @@ class TraspasosService {
               RefaccionID: item.RefaccionID,
               FechaMovimiento: localDate(),
               TipoMovimiento: this.getTipoMovimientoEntrada(traspaso.DestinoTipo),
-              Cantidad: cantidadTotal, // Positivo para entrada
+              Cantidad: cantidadTotal,
+              CostoPromedioMovimiento: costoPromedio,
               UsuarioID: UsuarioAutorizaID,
               Observaciones: `Entrada por traspaso #${TraspasoEncabezadoID} - ${traspaso.OrigenTipo === 'Bodega' ? 'Bodega' : `Técnico ${traspaso.OrigenID}`} → ${traspaso.DestinoTipo === 'Bodega' ? 'Bodega' : `Técnico ${traspaso.DestinoID}`}`,
             },

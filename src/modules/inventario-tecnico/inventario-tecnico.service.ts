@@ -89,6 +89,7 @@ class InventarioTecnicoService {
             FechaMovimiento: localDate(),
             TipoMovimiento: 'Traspaso_Bodega_Tecnico',
             Cantidad: -cantidadAAgregar,
+            CostoPromedioMovimiento: refaccion.CostoPromedio ?? null,
             UsuarioID: UsuarioID || 0,
             TecnicoID,
             Observaciones: `Salida de bodega → Técnico ${tecnico.Codigo} (${tecnico.usuario.NombreCompleto})`,
@@ -102,6 +103,7 @@ class InventarioTecnicoService {
             FechaMovimiento: localDate(),
             TipoMovimiento: 'Traspaso_Bodega_Tecnico',
             Cantidad: cantidadAAgregar,
+            CostoPromedioMovimiento: refaccion.CostoPromedio ?? null,
             UsuarioID: UsuarioID || 0,
             TecnicoID,
             Observaciones: `Entrada a Técnico ${tecnico.Codigo} (${tecnico.usuario.NombreCompleto}) desde Bodega`,
@@ -129,6 +131,7 @@ class InventarioTecnicoService {
             FechaMovimiento: localDate(),
             TipoMovimiento: 'Traspaso_Tecnico',
             Cantidad: -cantidadADevolver,
+            CostoPromedioMovimiento: refaccion.CostoPromedio ?? null,
             UsuarioID: UsuarioID || 0,
             TecnicoID,
             Observaciones: `Salida de Técnico ${tecnico.Codigo} (${tecnico.usuario.NombreCompleto}) → Bodega`,
@@ -142,6 +145,7 @@ class InventarioTecnicoService {
             FechaMovimiento: localDate(),
             TipoMovimiento: 'Traspaso_Tecnico',
             Cantidad: cantidadADevolver,
+            CostoPromedioMovimiento: refaccion.CostoPromedio ?? null,
             UsuarioID: UsuarioID || 0,
             TecnicoID,
             Observaciones: `Entrada a Bodega desde Técnico ${tecnico.Codigo} (${tecnico.usuario.NombreCompleto})`,
@@ -402,12 +406,18 @@ class InventarioTecnicoService {
     const diferencia = nuevoTotal - anteriorTotal;
 
     if (diferencia !== 0) {
+      const refaccionCosto = await prisma.catalogo_refacciones.findUnique({
+        where: { RefaccionID },
+        select: { CostoPromedio: true },
+      });
+
       await prisma.kardex_inventario.create({
         data: {
           RefaccionID,
           FechaMovimiento: localDate(),
           TipoMovimiento: 'Ajuste_Inventario',
           Cantidad: diferencia,
+          CostoPromedioMovimiento: refaccionCosto?.CostoPromedio ?? null,
           UsuarioID: UsuarioID || 0,
           TecnicoID,
           Observaciones: `Ajuste manual — Técnico ${tecnico?.Codigo || TecnicoID} (${tecnico?.usuario?.NombreCompleto || ''})`,

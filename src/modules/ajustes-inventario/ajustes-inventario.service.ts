@@ -227,13 +227,20 @@ class AjustesInventarioService {
         // Registrar en kardex
         const cantidadTotal = ajuste.DiferenciaNuevo + ajuste.DiferenciaUsado;
         if (cantidadTotal !== 0) {
+          const refaccionCosto = await tx.catalogo_refacciones.findUnique({
+            where: { RefaccionID: ajuste.RefaccionID },
+            select: { CostoPromedio: true },
+          });
+
           await tx.kardex_inventario.create({
             data: {
               RefaccionID: ajuste.RefaccionID,
               FechaMovimiento: localDate(),
-              TipoMovimiento: 'Traspaso_Tecnico', // Usamos este como ajuste
-              Cantidad: Math.abs(cantidadTotal),
+              TipoMovimiento: 'Ajuste_Inventario',
+              Cantidad: cantidadTotal,
+              CostoPromedioMovimiento: refaccionCosto?.CostoPromedio ?? null,
               UsuarioID: UsuarioAutorizaID,
+              TecnicoID: ajuste.TecnicoID,
               Observaciones: `Ajuste #${AjusteID}: ${ajuste.MotivoAjuste}. Dif Nuevo: ${ajuste.DiferenciaNuevo}, Dif Usado: ${ajuste.DiferenciaUsado}`,
             },
           });
