@@ -195,13 +195,6 @@ class PresupuestosService {
             throw new HttpError(`La plantilla ${detalle.PlantillaEquipoID} no existe o no está activa`, 404);
           }
 
-          // Validar que tipo de plantilla coincida
-          if (detalle.TipoItem === 'EQUIPO_PURIFREEZE' && plantilla.EsExterno === 1) {
-            throw new HttpError('La plantilla es de tipo externo, use EQUIPO_EXTERNO', 300);
-          }
-          if (detalle.TipoItem === 'EQUIPO_EXTERNO' && plantilla.EsExterno === 0) {
-            throw new HttpError('La plantilla es de tipo Purifreeze, use EQUIPO_PURIFREEZE', 300);
-          }
         }
 
         // Obtener precio automático si no se proporciona
