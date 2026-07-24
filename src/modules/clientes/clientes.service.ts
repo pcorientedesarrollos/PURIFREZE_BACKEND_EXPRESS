@@ -218,7 +218,7 @@ class ClientesService {
 
         const empleados_asignaciones = await prisma.empleados_asignaciones.findMany({
           where: { EmpleadoID: empleado.EmpleadoID, IsActive: true },
-          include: { sucursal: true },
+          include: { sucursal: true, puesto: true },
         });
 
         // Combinar ambas fuentes, deduplicando por SucursalID
@@ -240,6 +240,7 @@ class ClientesService {
           correos,
           empleados_puestos,
           empleados_sucursales: empleados_sucursales_merged,
+          empleados_asignaciones,
         };
       })
     );
