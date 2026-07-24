@@ -24,6 +24,7 @@ export const createDetalleSchema = z.object({
 export const createPresupuestoSchema = z.object({
   ClienteID: z.number({ required_error: 'El ClienteID es requerido' }),
   SucursalID: z.number().optional().nullable(),
+  FechaPresupuesto: z.string().optional().nullable(),
   FechaVigencia: z.string({ required_error: 'La fecha de vigencia es requerida' }),
   Observaciones: z.string().max(500).optional().nullable(),
   UsuarioID: z.number({ required_error: 'El UsuarioID es requerido' }),
@@ -38,6 +39,7 @@ export const createPresupuestoSchema = z.object({
 export const updatePresupuestoSchema = z.object({
   ClienteID: z.number().optional(),
   SucursalID: z.number().optional().nullable(),
+  FechaPresupuesto: z.string().optional().nullable(),
   FechaVigencia: z.string().optional(),
   Observaciones: z.string().max(500).optional().nullable(),
   DescuentoPorcentaje: z.number().min(0).max(100).optional().nullable(),

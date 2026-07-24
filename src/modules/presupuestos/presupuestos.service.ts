@@ -239,6 +239,7 @@ class PresupuestosService {
           NumeroPresupuesto: numeroPresupuesto,
           ClienteID: data.ClienteID,
           SucursalID: data.SucursalID || null,
+          FechaCreacion: data.FechaPresupuesto ? new Date(data.FechaPresupuesto) : new Date(),
           FechaVigencia: new Date(data.FechaVigencia),
           Observaciones: data.Observaciones || null,
           UsuarioID: data.UsuarioID,
@@ -451,11 +452,12 @@ class PresupuestosService {
       aplicaIVAUpdate
     );
 
-    const { aplicaIVA: _aplicaIVA, ...dataRest } = data;
+    const { aplicaIVA: _aplicaIVA, FechaPresupuesto, ...dataRest } = data;
     const updated = await prisma.presupuestos_encabezado.update({
       where: { PresupuestoID },
       data: {
         ...dataRest,
+        FechaCreacion: FechaPresupuesto ? new Date(FechaPresupuesto) : undefined,
         FechaVigencia: data.FechaVigencia ? new Date(data.FechaVigencia) : undefined,
         aplicaIVA: aplicaIVAUpdate ? 1 : 0,
         Subtotal: totales.Subtotal,
