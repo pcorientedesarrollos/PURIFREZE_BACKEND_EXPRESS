@@ -1,6 +1,7 @@
 import prisma from '../../config/database';
 import { HttpError } from '../../utils/response';
 import moment from 'moment';
+import { pedidosService } from '../pedidos/pedidos.service';
 
 class PublicService {
   async getCotizacionPreview(id: number, proveedorId?: number) {
@@ -126,6 +127,11 @@ class PublicService {
         },
       },
     };
+  }
+
+  async getPedidoPreview(id: number) {
+    const { data } = await pedidosService.findOne(id);
+    return { message: 'Vista previa de orden de compra', data };
   }
 }
 

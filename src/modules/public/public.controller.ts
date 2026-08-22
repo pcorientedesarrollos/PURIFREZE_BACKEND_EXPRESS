@@ -15,6 +15,12 @@ class PublicController {
     const result = await publicService.getCompraPreview(id);
     return success(res, result.message, result.data);
   }
+
+  async getPedido(req: Request, res: Response) {
+    const id = Number(req.params.id);
+    const result = await publicService.getPedidoPreview(id);
+    return success(res, result.message, result.data);
+  }
 }
 
 export const publicController = new PublicController();
